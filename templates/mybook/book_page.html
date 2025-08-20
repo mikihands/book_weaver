@@ -1,0 +1,48 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Translated Book Page {{ page_number }}</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            line-height: 1.6;
+            margin: 0;
+            padding: 2rem;
+            background-color: #f4f4f4;
+        }
+        .container {
+            max-width: 800px;
+            margin: auto;
+            background-color: white;
+            padding: 2rem;
+            box-shadow: 0 0 10px rgba(0, 0, 0, 0.1);
+            border-radius: 8px;
+        }
+        h1, h2, h3, h4, h5, h6 {
+            color: #333;
+        }
+        p {
+            color: #555;
+        }
+        /* Gemini API가 반환하는 HTML 서식을 위한 스타일 */
+        table, th, td {
+            border-collapse: collapse;
+            border: 1px solid #ddd;
+            padding: 8px;
+        }
+        table {
+            width: 100%;
+            margin-bottom: 1rem;
+        }
+        /* PDF 원본 서식을 최대한 유지하기 위해 필요한 추가 CSS */
+    </style>
+</head>
+<body>
+    <div class="container">
+        <!-- 번역된 HTML이 여기에 삽입됩니다 -->
+        {{ translated_html|safe }}
+    </div>
+</body>
+</html>
