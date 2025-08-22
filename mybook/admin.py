@@ -1,24 +1,35 @@
 from django.contrib import admin
-from .models import UploadedFile, TranslatedPage
+from .models import Book, BookPage, PageImage, TranslatedPage
 
-@admin.register(UploadedFile)
-class UploadedFileAdmin(admin.ModelAdmin):
-    list_display = ('id', 'user', 'original_file', 'uploaded_at')
-    list_display_links = ('id', 'original_file')
-    list_filter = ('uploaded_at', 'user')
-    search_fields = ('user__username', 'original_file')
-    readonly_fields = ('uploaded_at',)
-
+@admin.register(Book)
+class BookAdmin(admin.ModelAdmin):
+    list_display = ('id', 'title', 'owner', 'status', 'page_count', 'created_at')
+    list_filter = ('status', 'created_at')
+    search_fields = ('title', 'owner__username')
+    readonly_fields = ('file_hash', 'created_at')
+    
+@admin.register(BookPage)
+class BookPageAdmin(admin.ModelAdmin):
+    list_display = ('id', 'book', 'page_no', 'width', 'height')
+    list_filter = ('book__title',)
+    search_fields = ('book__title',)
+    
+@admin.register(PageImage)
+class PageImageAdmin(admin.ModelAdmin):
+    list_display = ('id', 'book', 'page_no', 'ref', 'path')
+    list_filter = ('book__title', 'page_no')
+    search_fields = ('ref', 'book__title')
+    
 @admin.register(TranslatedPage)
 class TranslatedPageAdmin(admin.ModelAdmin):
-    list_display = ('id', 'uploaded_file', 'page_number', 'html_url')
-    list_display_links = ('id', 'uploaded_file')
-    list_filter = ('uploaded_file',)
-    search_fields = ('uploaded_file__original_file__name',)
-    
+    list_display = ('id', 'book', 'page_no', 'lang', 'mode', 'status', 'created_at')
+    list_filter = ('book__title', 'lang', 'mode', 'status')
+    search_fields = ('book__title', 'lang')
+    readonly_fields = ('tokens_used', 'duration_ms', 'created_at')
+
     def get_form(self, request, obj=None, **kwargs):
         form = super().get_form(request, obj, **kwargs)
-        # 번역된 HTML은 내용이 길어서 직접 편집하지 않도록 텍스트 영역을 비활성화
-        if 'translated_html' in form.base_fields: #type:ignore
-            form.base_fields['translated_html'].widget.attrs['readonly'] = True #type:ignore
+        # 데이터가 많은 JSON 필드는 직접 편집하지 않도록 읽기 전용으로 설정
+        if 'data' in form.base_fields: #type: ignore
+            form.base_fields['data'].widget.attrs['readonly'] = True #type: ignore
         return form

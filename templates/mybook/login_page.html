@@ -1,0 +1,86 @@
+{% extends 'base.html' %}
+{% load static %}
+
+{% block content %}
+<div class="flex items-center justify-center min-h-screen-minus-nav-footer p-4">
+    <div class="bg-white p-8 rounded-xl shadow-2xl w-full max-w-xl mx-auto">
+        <h1 class="text-3xl font-bold text-center text-gray-800 mb-6">로그인</h1>
+        <form id="loginForm" class="space-y-6">
+            {% csrf_token %}
+            <div class="flex flex-col space-y-2">
+                <label for="username" class="text-gray-700 font-medium">사용자 이름</label>
+                <input type="text" id="username" name="username" required
+                       class="px-4 py-2 text-gray-700 bg-gray-50 border border-gray-300 rounded-md focus:ring-blue-500 focus:border-blue-500">
+            </div>
+            
+            <div class="flex flex-col space-y-2">
+                <label for="password" class="text-gray-700 font-medium">비밀번호</label>
+                <input type="password" id="password" name="password" required
+                       class="px-4 py-2 text-gray-700 bg-gray-50 border border-gray-300 rounded-md focus:ring-blue-500 focus:border-blue-500">
+            </div>
+
+            <button type="submit"
+                    class="w-full px-4 py-2 text-lg font-bold text-white bg-blue-600 rounded-md
+                           hover:bg-blue-700 transition duration-300 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2">
+                로그인
+            </button>
+        </form>
+        <div id="message" class="mt-8 text-center"></div>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+    const form = document.getElementById('loginForm');
+    const messageDiv = document.getElementById('message');
+
+    function getCookie(name) {
+        let cookieValue = null;
+        if (document.cookie && document.cookie !== '') {
+            const cookies = document.cookie.split(';');
+            for (let i = 0; i < cookies.length; i++) {
+                const cookie = cookies[i].trim();
+                if (cookie.startsWith(name + '=')) {
+                    cookieValue = decodeURIComponent(cookie.substring(name.length + 1));
+                    break;
+                }
+            }
+        }
+        return cookieValue;
+    }
+    const csrftoken = getCookie('csrftoken');
+
+    form.addEventListener('submit', async (e) => {
+        e.preventDefault();
+
+        const formData = new FormData(form);
+        const data = Object.fromEntries(formData.entries());
+
+        messageDiv.innerHTML = '<span class="text-blue-600">로그인 처리 중...</span>';
+
+        try {
+            const response = await fetch('/auth/login/', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'X-CSRFToken': csrftoken,
+                },
+                body: JSON.stringify(data),
+            });
+
+            const responseData = await response.json();
+
+            if (response.ok) {
+                window.location.href = responseData.redirect_url;
+            } else {
+                messageDiv.innerHTML = `<span class="text-red-600">오류: ${responseData.error || JSON.stringify(responseData.non_field_errors)}</span>`;
+                console.error('Error:', responseData);
+            }
+        } catch (error) {
+            messageDiv.innerHTML = '<span class="text-red-600">네트워크 오류가 발생했습니다.</span>';
+            console.error('Error:', error);
+        }
+    });
+</script>
+{% endblock %}
