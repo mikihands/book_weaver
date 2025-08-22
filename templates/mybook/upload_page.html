@@ -99,7 +99,7 @@
             const data = await response.json();
 
             if (response.ok) {
-                messageDiv.innerHTML = `<span class="text-green-600">번역이 완료되었습니다!</span><br><a href="${data.translated_page_url}" target="_blank" class="text-blue-600 hover:underline mt-2 inline-block font-semibold">번역본 보러가기</a>`;
+                messageDiv.innerHTML = `<span class="text-green-600">${data.message}</span><br><a href="${data.page1_url}" target="_blank" class="text-blue-600 hover:underline mt-2 inline-block font-semibold">번역본 보러가기</a>`;
             } else {
                 messageDiv.innerHTML = `<span class="text-red-600">오류: ${data.error || JSON.stringify(data)}</span>`;
             }

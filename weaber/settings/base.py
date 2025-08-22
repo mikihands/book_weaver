@@ -21,6 +21,9 @@ INSTALLED_APPS = [
     'mybook',
     'tailwind',
     'theme',
+    "django_celery_results",
+    "django_celery_beat",
+    "redisboard",  
 ]
 
 MIDDLEWARE = [
@@ -46,6 +49,8 @@ TEMPLATES = [
                 'django.contrib.auth.context_processors.auth',
                 'django.contrib.messages.context_processors.messages',
                 "mybook.context_processors.global_settings",
+                "mybook.context_processors.user_profile",
+                "mybook.context_processors.user_logged_in",
             ],
         },
     },
@@ -185,3 +190,13 @@ INTERNAL_IPS = [
 HMAC_APP_ID = "weaver"
 # HMAC_KEY_ID = "v1"  # 현재 사용중인 키 식별자
 MAC_SECRET=env('HMAC_SECRET_WEAVER')
+
+REST_FRAMEWORK = {
+    'DEFAULT_AUTHENTICATION_CLASSES': (
+        'mybook.auth.SessionAuthWithToken',
+    ),
+    'DEFAULT_PERMISSION_CLASSES': (
+        #'rest_framework.permissions.IsAuthenticated',
+        'rest_framework.permissions.AllowAny',
+    ),
+}

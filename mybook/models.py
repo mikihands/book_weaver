@@ -1,5 +1,5 @@
 from django.db import models
-from django.conf import settings
+import hashlib
 
 class UserProfile(models.Model):
     username = models.CharField(max_length=150, unique=True, help_text="인증 서버에서 제공받은 username")
@@ -25,49 +25,106 @@ class UserProfile(models.Model):
         help_text='마지막 활동 시간'
     )
 
+    @property
+    def is_authenticated(self):
+        return True 
+
     def __str__(self):
         return self.username
 
+class Book(models.Model):
+    PROCESSING_STATUS = [
+        ('pending', '대기 중'),
+        ('processing', '처리 중'),
+        ('completed', '완료'),
+        ('failed', '실패'),
+    ]
 
-class UploadedFile(models.Model):
-    user = models.ForeignKey(
-        'auth.User', 
-        on_delete=models.CASCADE,
-        help_text='파일을 업로드한 사용자'
+    title = models.CharField(max_length=255, blank=True, help_text="업로드된 책의 제목")
+    original_file = models.FileField(upload_to="original/", help_text="사용자가 업로드한 원본 파일")
+    file_hash = models.CharField(
+        max_length=64, 
+        db_index=True, 
+        unique=True,
+        help_text="파일 내용의 해시값 (중복 업로드 방지용)"
     )
-    original_file = models.FileField(
-        upload_to='uploads/',
-        help_text='사용자가 업로드한 원본 파일'
+    page_count = models.IntegerField(default=0, help_text="원본 문서의 총 페이지 수")
+    status = models.CharField(
+        max_length=16,
+        choices=PROCESSING_STATUS,
+        default='pending',
+        help_text='문서 전체 처리 상태'
     )
-    uploaded_at = models.DateTimeField(
-        auto_now_add=True,
-        help_text='파일 업로드 시간'
-    )
-    
+    owner = models.ForeignKey(UserProfile, on_delete=models.CASCADE, help_text="파일을 업로드한 사용자")
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    source_mime = models.CharField(max_length=64, default="application/pdf")
+    source_size = models.BigIntegerField(default=0)
+
+    # Gemini File API 메타(20~50MB 구간에서 사용)
+    gemini_file_name = models.CharField(max_length=255, null=True, blank=True, db_index=True)
+    gemini_file_uri = models.CharField(max_length=512, null=True, blank=True)
+    gemini_file_uploaded_at = models.DateTimeField(null=True, blank=True)
+    gemini_file_expires_at = models.DateTimeField(null=True, blank=True)
+
     def __str__(self):
-        return f'{self.original_file.name} by {self.user.username}'
+        return self.title or self.original_file.name
+
+    def save(self, *args, **kwargs):
+        if not self.file_hash and self.original_file:
+            file_content = self.original_file.read()
+            self.file_hash = hashlib.sha256(file_content).hexdigest()
+            self.original_file.seek(0)  # 중요! 안 하면 파일 포인터 끝에 머뭄
+        super().save(*args, **kwargs)
+
+class BookPage(models.Model):
+    book = models.ForeignKey(Book, on_delete=models.CASCADE, related_name="pages")
+    page_no = models.IntegerField(help_text="페이지 번호 (1부터 시작)")
+    width = models.FloatField(help_text="페이지 너비 (px)")
+    height = models.FloatField(help_text="페이지 높이 (px)")
+
+    def __str__(self):
+        return f"Page {self.page_no} of {self.book.title or self.book.original_file.name}"
+    
+    class Meta:
+        unique_together = ('book', 'page_no')
+
+class PageImage(models.Model):
+    book = models.ForeignKey(Book, on_delete=models.CASCADE, related_name="images")
+    page_no = models.IntegerField(help_text="이미지가 속한 페이지 번호")
+    ref = models.CharField(max_length=64, db_index=True, help_text="이미지 참조 ID (예: img_p1_1)")
+    path = models.CharField(max_length=512, help_text="서버에 저장된 이미지 파일 경로")
+    bbox = models.JSONField(help_text="페이지 내 이미지 위치 및 크기 [x, y, w, h]")
+
+    def __str__(self):
+        return f"Image '{self.ref}' on page {self.page_no} of {self.book.title or self.book.original_file.name}"
+    
+    class Meta:
+        unique_together = ('book', 'ref')
 
 class TranslatedPage(models.Model):
-    uploaded_file = models.ForeignKey(
-        UploadedFile, 
-        on_delete=models.CASCADE,
-        help_text='원본 파일'
-    )
-    page_number = models.IntegerField(
-        help_text='페이지 번호'
-    )
-    translated_html = models.TextField(
-        help_text='번역된 HTML 콘텐츠'
-    )
-    html_url = models.CharField(
-        max_length=255,
-        help_text='HTML 콘텐츠 URL'
-    )
-    # translated_lang = models.CharField(
-    #     max_length=10,
-    #     help_text='번역된 언어'
-    # )
+    TRANSLATION_MODES = [
+        ("faithful", "정밀 모드"),
+        ("readable", "가독 모드"),
+    ]
+    TRANSLATION_STATUS = [
+        ("pending", "대기 중"),
+        ("ready", "준비 완료"),
+        ("failed", "실패"),
+    ]
 
+    book = models.ForeignKey(Book, on_delete=models.CASCADE, related_name="translated_pages")
+    page_no = models.IntegerField(help_text="번역된 페이지 번호")
+    lang = models.CharField(max_length=10, help_text="번역된 언어")
+    mode = models.CharField(max_length=16, choices=TRANSLATION_MODES, default="faithful", help_text="번역 모드")
+    data = models.JSONField(help_text="weaver.page.v1 JSON 형식의 번역 데이터")
+    status = models.CharField(max_length=16, choices=TRANSLATION_STATUS, default="pending", help_text="번역 상태")
+    tokens_used = models.IntegerField(null=True, blank=True, help_text="번역에 사용된 토큰 수")
+    duration_ms = models.IntegerField(null=True, blank=True, help_text="번역에 걸린 시간 (ms)")
+    created_at = models.DateTimeField(auto_now_add=True)
 
     def __str__(self):
-        return f'Page {self.page_number} of {self.uploaded_file.original_file.name}'
+        return f"Translated Page {self.page_no} ({self.lang}, {self.mode}) of {self.book.title or self.book.original_file.name}"
+
+    class Meta:
+        unique_together = ('book', 'page_no', 'lang', 'mode')

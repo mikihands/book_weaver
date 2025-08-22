@@ -1,60 +1,95 @@
+# mybook/utils/gemini_helper.py
+import json
+import logging
+import os, time
+from typing import Optional, Dict, Any, List, Tuple
+
 from django.conf import settings
-import os
-import httpx
 from google import genai
 from google.genai import types
-import pathlib
+from jsonschema import Draft202012Validator
 
-# 환경 변수에서 API 키를 불러옵니다.
+logger = logging.getLogger(__name__)
+
 GEMINI_API_KEY = settings.GEMINI_API_KEY
+MODEL_NAME = "gemini-2.5-flash"
 
-MAX_INLINE_UPLOAD_SIZE = 20 * 1024 * 1024  # 20MB
+def _dump_debug(payload: dict|str, prefix: str, attempt: int):
+    debug_dir = os.path.join(settings.BASE_DIR, "media", "gemini_debug")
+    os.makedirs(debug_dir, exist_ok=True)
+    ts = time.strftime("%Y%m%d_%H%M%S")
+    path = os.path.join(debug_dir, f"{prefix}_a{attempt}_{ts}.json" if isinstance(payload, dict)
+                        else f"{prefix}_a{attempt}_{ts}.txt")
+    with open(path, "w", encoding="utf-8") as f:
+        if isinstance(payload, dict):
+            json.dump(payload, f, ensure_ascii=False, indent=2)
+        else:
+            f.write(payload)
+    return path
 
 class GeminiHelper:
-    def __init__(self):
-        self.client = genai.Client(api_key=GEMINI_API_KEY)
+    """
+    - 파일 크기에 따라 인라인/업로드로 PDF를 전달
+    - '정밀 모드 JSON' 생성을 위한 system/user 메시지 + 예시/피드백 파트 관리
+    - jsonschema 검증 + 간단한 자동 재시도
+    """
+    def __init__(self, schema: Dict[str, Any]):
+        self.client = genai.Client(api_key=settings.GEMINI_API_KEY)
+        self.validator = Draft202012Validator(schema)
 
-    def _upload_large_file(self, file_path):
-        """File API를 사용하여 대용량 파일을 업로드합니다."""
-        with open(file_path, 'rb') as f:
-            uploaded_file = self.client.files.upload(file=f)
-        return uploaded_file
+    def _extract_json(self, text: str) -> str:
+        s, e = text.find("{"), text.rfind("}")
+        return text[s:e+1] if s != -1 and e != -1 and e > s else text
 
-    def process_and_translate_document(self, file_path: str, target_language: str):
-        """
-        파일을 처리하고 번역 요청을 보냅니다.
-        파일 크기에 따라 인라인 또는 파일 API 방식을 선택합니다.
-        """
-        file_size = os.path.getsize(file_path)
-        
-        contents = []
-        if file_size < MAX_INLINE_UPLOAD_SIZE:
-            # 저용량 파일: 인라인으로 PDF 데이터 전달
-            with open(file_path, 'rb') as f:
-                pdf_data = f.read()
-            
+    def _validate(self, data: Dict[str, Any]) -> List[str]:
+        errs = sorted(self.validator.iter_errors(data), key=lambda e: e.path)
+        return [f"path={list(e.path)}: {e.message}" for e in errs]
+
+    def generate_page_json(
+        self,
+        file_part,                      # ✅ inline Part 또는 files.upload/get 반환 객체
+        sys_msg: str,
+        user_msg: Dict[str, Any],
+        example_json: Optional[str] = None,
+        max_retries: int = 2,
+    ) -> Tuple[Optional[Dict[str, Any]], Optional[List[str]]]:
+        contents = [file_part, "system message: " + sys_msg, "user message: " + json.dumps(user_msg)]
+        if example_json:
             contents.append(
-                genai.types.Part.from_bytes(
-                    data=pdf_data,
-                    mime_type='application/pdf'
+                "Valid example (do not copy values):\n" + example_json
+            )
+
+        last_errs = None
+        for attempt in range(max_retries + 1):
+            raw_text = ""
+            try:
+                resp = self.client.models.generate_content(
+                    model=MODEL_NAME,
+                    contents=contents
                 )
-            )
-        else:
-            # 대용량 파일: File API 사용
-            uploaded_file = self._upload_large_file(file_path)
-            contents.append(uploaded_file)
+                raw_text = resp.text or ""
+                # 원문도 보관
+                _dump_debug(raw_text, "resp_text", attempt)
+                raw = self._extract_json(raw_text)
+                data = json.loads(raw)
+
+                # 파싱된 JSON도 보관
+                _dump_debug(data, "parsed_json", attempt)
+                
+            except Exception as e:
+                # parsing/호출 실패 시에도 raw_text를 남김
+                _dump_debug(raw_text or str(e), "error_raw", attempt)
+
+                last_errs = [f"parse_error: {e}"]
+                contents.append("Parse error. Return ONLY JSON that matches the schema.")
+                continue
+
+            errs = self._validate(data)
+            if not errs:
+                return data, None
             
-        # 번역 프롬프트 추가
-        prompt = f"Translate this document to {target_language} and return it as a complete HTML document, preserving the original layout and formatting. Ensure all content, including tables, lists, and images, is properly converted into HTML."
-        contents.append(prompt)
-        
-        # API 요청
-        try:
-            response = self.client.models.generate_content(
-                model="gemini-2.5-flash",
-                contents=contents
-            )
-            return response.text
-        except Exception as e:
-            print(f"API 호출 중 오류 발생: {e}")
-            return None
+            _dump_debug({"errors": errs}, "schema_errors", attempt)
+            contents.append("Schema validation errors:\n" + "\n".join(errs[:10]))
+            last_errs = errs
+
+        return None, last_errs

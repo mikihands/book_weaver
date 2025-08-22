@@ -1,0 +1,328 @@
+{
+  "$id": "https://weaver.mikihands.com/schema/page.v1.json",
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "Weaver Page Blocks (v1)",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["schema_version", "target_lang", "mode", "page", "blocks"],
+  "properties": {
+    "schema_version": {
+      "type": "string",
+      "const": "weaver.page.v1"
+    },
+    "target_lang": {
+      "type": "string",
+      "description": "ISO 639-1 기반(예: en, ko, ja, es, de, fr). 지역코드 허용(예: en-US).",
+      "pattern": "^[a-z]{2}(-[A-Z]{2})?$"
+    },
+    "mode": {
+      "type": "string",
+      "description": "faithful=정밀 모드(좌표 유지), readable=가독 모드(재배치)",
+      "enum": ["faithful", "readable"]
+    },
+    "page": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["page_no", "size"],
+      "properties": {
+        "page_no": { "type": "integer", "minimum": 1 },
+        "size": { "$ref": "#/$defs/Size" },
+        "dpi": { "type": "number", "minimum": 36, "maximum": 1200 },
+        "rotation": { "type": "integer", "enum": [0, 90, 180, 270] }
+      }
+    },
+    "meta": {
+      "type": "object",
+      "description": "선택적 메타(원문언어, 생성시간, 모델명, 토큰/시간 등)",
+      "additionalProperties": true,
+      "properties": {
+        "source_lang": { "type": "string", "pattern": "^[a-z]{2}(-[A-Z]{2})?$" },
+        "model": { "type": "string" },
+        "latency_ms": { "type": "integer", "minimum": 0 },
+        "tokens_input": { "type": "integer", "minimum": 0 },
+        "tokens_output": { "type": "integer", "minimum": 0 }
+      }
+    },
+    "resources": {
+      "type": "object",
+      "description": "서버가 제공한 참조 자원(예: 이미지 ref 목록). 모델은 여기 항목을 생성/수정하지 않는다.",
+      "additionalProperties": false,
+      "properties": {
+        "images": {
+          "type": "array",
+          "items": { "$ref": "#/$defs/ImageRef" }
+        }
+      }
+    },
+    "blocks": {
+      "type": "array",
+      "minItems": 1,
+      "items": { "$ref": "#/$defs/Block" }
+    }
+  },
+
+  "$defs": {
+    "Id": {
+      "type": "string",
+      "pattern": "^[A-Za-z0-9_-]{1,64}$"
+    },
+    "Size": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["w", "h", "units"],
+      "properties": {
+        "w": { "type": "number", "exclusiveMinimum": 0 },
+        "h": { "type": "number", "exclusiveMinimum": 0 },
+        "units": { "type": "string", "const": "px" }
+      }
+    },
+    "BBox": {
+      "type": "array",
+      "description": "[x, y, w, h] in px (page 좌상단 기준)",
+      "prefixItems": [
+        { "type": "number", "minimum": 0 },
+        { "type": "number", "minimum": 0 },
+        { "type": "number", "exclusiveMinimum": 0 },
+        { "type": "number", "exclusiveMinimum": 0 }
+      ],
+      "items": false,
+      "minItems": 4,
+      "maxItems": 4
+    },
+    "Confidence": {
+      "type": "number",
+      "minimum": 0.0,
+      "maximum": 1.0
+    },
+
+    "ImageRef": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "ref": { "$ref": "#/$defs/Id" },
+        "bbox": { "$ref": "#/$defs/BBox" },
+        "role": { "type": "string", "enum": ["figure", "background"] }
+      },
+      "required": ["ref", "bbox"]
+    },
+
+    "TextContent": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["text"],
+      "properties": {
+        "text": { "type": "string" }
+      }
+    },
+    "HtmlContent": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["html"],
+      "properties": {
+        "html": { "type": "string" }
+      }
+    },
+    "ListContent": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["list_type", "items"],
+      "properties": {
+        "list_type": { "type": "string", "enum": ["ul", "ol"] },
+        "items": {
+          "type": "array",
+          "minItems": 1,
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "oneOf": [
+              { "$ref": "#/$defs/TextContent" },
+              { "$ref": "#/$defs/HtmlContent" }
+            ]
+          }
+        }
+      }
+    },
+    "FigureContent": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["image_ref"],
+      "properties": {
+        "image_ref": { "$ref": "#/$defs/Id" },
+        "caption": { "type": "string" },
+        "alt": { "type": "string" }
+      }
+    },
+    "EquationContent": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["latex"],
+      "properties": {
+        "latex": { "type": "string" },
+        "display": { "type": "string", "enum": ["inline", "block"], "default": "block" }
+      }
+    },
+    "CodeContent": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["text"],
+      "properties": {
+        "language": { "type": "string" },
+        "text": { "type": "string" }
+      }
+    },
+    "FootnoteContent": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["label", "text"],
+      "properties": {
+        "label": { "type": "string", "description": "각주 번호/기호(예: '3' 또는 '*')." },
+        "text": { "type": "string" },
+        "ref_ids": {
+          "type": "array",
+          "description": "본문 내 각주 마커(anchor)의 id 목록(선택).",
+          "items": { "$ref": "#/$defs/Id" }
+        }
+      }
+    },
+
+    "AttrsCommon": {
+      "type": "object",
+      "description": "정렬, 스타일 등 부가 속성",
+      "additionalProperties": true,
+      "properties": {
+        "align": { "type": "string", "enum": ["left", "center", "right", "justify"] }
+      }
+    },
+
+    "BlockCommon": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["id", "type", "order", "bbox"],
+      "properties": {
+        "id": { "$ref": "#/$defs/Id" },
+        "type": {
+          "type": "string",
+          "enum": [
+            "heading",
+            "paragraph",
+            "list",
+            "table",
+            "figure",
+            "equation",
+            "code",
+            "quote",
+            "footnote",
+            "separator"
+          ]
+        },
+        "order": { "type": "integer", "minimum": 1 },
+        "bbox": { "$ref": "#/$defs/BBox" },
+        "flow_id": { "$ref": "#/$defs/Id", "description": "페이지 넘어가는 연속 블록 연결용" },
+        "confidence": { "$ref": "#/$defs/Confidence" },
+        "attrs": { "$ref": "#/$defs/AttrsCommon" },
+        "content": {}
+      }
+    },
+
+    "Block": {
+      "allOf": [
+        { "$ref": "#/$defs/BlockCommon" },
+        {
+          "oneOf": [
+            {
+              "title": "Paragraph",
+              "properties": {
+                "type": { "const": "paragraph" },
+                "content": { "$ref": "#/$defs/TextContent" }
+              },
+              "required": ["type", "content"]
+            },
+            {
+              "title": "Heading",
+              "properties": {
+                "type": { "const": "heading" },
+                "content": { "$ref": "#/$defs/TextContent" },
+                "attrs": {
+                  "allOf": [
+                    { "$ref": "#/$defs/AttrsCommon" },
+                    {
+                      "type": "object",
+                      "additionalProperties": true,
+                      "properties": { "level": { "type": "integer", "minimum": 1, "maximum": 6 } },
+                      "required": ["level"]
+                    }
+                  ]
+                }
+              },
+              "required": ["type", "content", "attrs"]
+            },
+            {
+              "title": "List",
+              "properties": {
+                "type": { "const": "list" },
+                "content": { "$ref": "#/$defs/ListContent" }
+              },
+              "required": ["type", "content"]
+            },
+            {
+              "title": "Table",
+              "properties": {
+                "type": { "const": "table" },
+                "content": { "$ref": "#/$defs/HtmlContent" }
+              },
+              "required": ["type", "content"]
+            },
+            {
+              "title": "Figure",
+              "properties": {
+                "type": { "const": "figure" },
+                "content": { "$ref": "#/$defs/FigureContent" }
+              },
+              "required": ["type", "content"]
+            },
+            {
+              "title": "Equation",
+              "properties": {
+                "type": { "const": "equation" },
+                "content": { "$ref": "#/$defs/EquationContent" }
+              },
+              "required": ["type", "content"]
+            },
+            {
+              "title": "Code",
+              "properties": {
+                "type": { "const": "code" },
+                "content": { "$ref": "#/$defs/CodeContent" }
+              },
+              "required": ["type", "content"]
+            },
+            {
+              "title": "Quote",
+              "properties": {
+                "type": { "const": "quote" },
+                "content": { "$ref": "#/$defs/QuoteContent" }
+              },
+              "required": ["type", "content"]
+            },
+            {
+              "title": "Footnote",
+              "properties": {
+                "type": { "const": "footnote" },
+                "content": { "$ref": "#/$defs/FootnoteContent" }
+              },
+              "required": ["type", "content"]
+            },
+            {
+              "title": "Separator",
+              "properties": {
+                "type": { "const": "separator" }
+              },
+              "required": ["type"],
+              "not": { "required": ["content"] }
+            }
+          ]
+        }
+      ]
+    }
+  }
+}
