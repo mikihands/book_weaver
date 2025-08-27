@@ -1,0 +1,61 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://weaver.schema/page.v1.9.json",
+  "title": "Weaver Page (LLM layout, v1.9)",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["schema_version","page","html_stage","figures"],
+  "properties": {
+    "schema_version": { "type": "string", "const": "weaver.page.v1.9" },
+
+    "page": {
+      "type": "object",
+      "required": ["page_no","size"],
+      "additionalProperties": false,
+      "properties": {
+        "page_no": { "type": "integer", "minimum": 1 },
+        "size": {
+          "type": "object",
+          "required": ["w","h","units"],
+          "additionalProperties": false,
+          "properties": {
+            "w": { "type": "number", "minimum": 1 },
+            "h": { "type": "number", "minimum": 1 },
+            "units": { "type": "string", "enum": ["px"] }
+          }
+        }
+      }
+    },
+
+    "html_stage": { "type": "string", "minLength": 1 },
+
+    "figures": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["ref","bbox"],
+        "properties": {
+          "ref": { "type": "string", "minLength": 1 },
+          "bbox": {
+            "type": "array",
+            "minItems": 4,"maxItems": 4, "items": { "type": "number" }
+          },
+          "alt": { "type": "string" },
+          "caption": { "type": "string" },
+          "width": { "type": "number", "minimum": 1 },
+          "height": { "type": "number", "minimum": 1 }
+        }
+      }
+    },
+
+    "styles": {
+      "type": "object",
+      "additionalProperties": true,
+      "properties": {
+        "base_font_scale": { "type": "number" },
+        "class_hints": { "type": "array", "items": { "type": "string" } }
+      }
+    }
+  }
+}

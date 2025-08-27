@@ -35,6 +35,7 @@ class GeminiHelper:
     """
     def __init__(self, schema: Dict[str, Any]):
         self.client = genai.Client(api_key=settings.GEMINI_API_KEY)
+        self.schema = schema
         self.validator = Draft202012Validator(schema)
 
     def _extract_json(self, text: str) -> str:
@@ -53,7 +54,7 @@ class GeminiHelper:
         example_json: Optional[str] = None,
         max_retries: int = 2,
     ) -> Tuple[Optional[Dict[str, Any]], Optional[List[str]]]:
-        contents = [file_part, "system message: " + sys_msg, "user message: " + json.dumps(user_msg)]
+        contents = [file_part, json.dumps(user_msg, ensure_ascii=False)]
         if example_json:
             contents.append(
                 "Valid example (do not copy values):\n" + example_json
@@ -65,7 +66,12 @@ class GeminiHelper:
             try:
                 resp = self.client.models.generate_content(
                     model=MODEL_NAME,
-                    contents=contents
+                    contents=contents,
+                    config=types.GenerateContentConfig(
+                        system_instruction=sys_msg,
+                        response_mime_type="application/json"
+                        # response_json_schema=self.schema #아직은 시기상조
+                    )
                 )
                 raw_text = resp.text or ""
                 # 원문도 보관
@@ -86,6 +92,13 @@ class GeminiHelper:
 
             errs = self._validate(data)
             if not errs:
+                # figures 보정
+                W = data["page"]["page_w"]; H = data["page"]["page_h"]
+                for f in data.get("figures", []):
+                    f["bbox"] = clamp_bbox([f["bbox_x"], f["bbox_y"], f["bbox_w"], f["bbox_h"]], W, H)
+                # 스타일 스키마 사용시 활성화하면 도움이 됨 : 스타일 범위 제한 (예: 0.7~1.3)
+                #s = (data.get("styles", {}) or {}).get("base_font_scale")
+                #if isinstance(s, (int,float)): data["styles"]["base_font_scale"] = max(0.7, min(1.3, float(s)))
                 return data, None
             
             _dump_debug({"errors": errs}, "schema_errors", attempt)
@@ -93,3 +106,11 @@ class GeminiHelper:
             last_errs = errs
 
         return None, last_errs
+
+def clamp_bbox(b, W, H):
+    x,y,w,h = b
+    x = max(0, min(x, W))
+    y = max(0, min(y, H))
+    w = max(1, min(w, W - x))
+    h = max(1, min(h, H - y))
+    return [int(round(x)), int(round(y)), int(round(w)), int(round(h))]

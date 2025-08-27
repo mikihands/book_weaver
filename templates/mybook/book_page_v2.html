@@ -1,0 +1,129 @@
+{% extends "page_base.html" %}
+{% load weaver_extras %}
+{% block title %} {{ book.title }} - p{{ page_no }} {% endblock %}
+
+{% block additional_head %}
+<style>
+  :root { --bg:#f9fafb; --ink:#111827; --muted:#6b7280; --top-margin: {{ css_vars|dict_get:'--top-margin' }}; }
+  html,body{margin:0;padding:0;background:var(--bg);color:var(--ink);
+    font-family:system-ui,-apple-system,Segoe UI,Roboto,Apple SD Gothic Neo,Noto Sans KR,sans-serif;}
+
+  .wrap{max-width:100vw;margin:0 auto;padding:16px;}
+  .toolbar{display:flex;gap:12px;align-items:center;justify-content:space-between;margin-bottom:10px;flex-wrap:wrap}
+  .toolbar .group{display:flex;gap:8px;align-items:center}
+  .toolbar button, .toolbar select{
+    font:inherit;padding:6px 10px;border:1px solid #e5e7eb;border-radius:8px;background:#fff;cursor:pointer}
+  .toolbar button:hover{background:#f3f4f6}
+
+  .stage{position:relative;overflow:auto;background:white;border:1px solid #e5e7eb;border-radius:12px;
+         padding:12px;box-shadow:0 8px 24px rgba(0,0,0,.06); max-height: calc(100vh - 140px);}
+
+  .page{
+    position:relative;
+    width:{{ page_w }}px;
+    height:{{ page_h }}px;
+    {% if background_url %}
+      background-image:url('{{ background_url }}'); background-size:contain; background-repeat:no-repeat; background-position:center;
+    {% endif %}
+    transform-origin: top left;
+  }
+
+  /* v2 HTML stage 내부 기본 타이포 */
+  .page :is(p,li){line-height:1.5}
+  figure{margin:0.5rem 0;display:flex;flex-direction:column}
+  figure img{max-width:100%;height:auto;border:1px solid #e5e7eb;border-radius:6px;background:#fff}
+  figure figcaption{margin-top:.4rem;font-size:.9rem;color:var(--muted)}
+  table{border-collapse:collapse;width:100%}
+  th,td{border:1px solid #e5e7eb;padding:.5rem;vertical-align:top}
+
+  .content div, .content p, .content div p {
+      font-size: var(--font-base);
+      line-height: var(--leading);
+      margin-bottom: var(--para-gap);
+  }
+  .content {
+    padding: var(--pad);
+    width: var(--content-w);
+    height: var(--content-h);
+    margin: 0 auto;
+    padding-top: var(--top-margin);
+  }
+    
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="content" 
+    style="
+    --font-base: {{ css_vars|dict_get:'--font-base' }};
+    --leading: {{ css_vars|dict_get:'--leading' }};
+    --para-gap: {{ css_vars|dict_get:'--para-gap' }};
+    --content-w: {{ css_vars|dict_get:'--content-w' }};
+    --content-h: {{ css_vars|dict_get:'--content-h' }};
+    --pad: {{ css_vars|dict_get:'--pad' }};
+">
+  {{ html_stage_final|safe }}
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+(function(){
+  const pageW = {{ page_w|default:800 }};
+  const pageH = {{ page_h|default:1200 }};
+  const stage  = document.getElementById('stage');
+  const vp    = document.getElementById('pageViewport');
+  const page   = document.getElementById('page');
+  const zoomLabel = document.getElementById('zoomLabel');
+  const fitWBtn = document.getElementById('fitW');
+  const fitHBtn = document.getElementById('fitH');
+  const zoomIn  = document.getElementById('zoomIn');
+  const zoomOut = document.getElementById('zoomOut');
+  const bgModeSel = document.getElementById('bgMode');
+
+  const params = new URLSearchParams(location.search);
+  bgModeSel.addEventListener('change', ()=>{
+    const p = new URLSearchParams(location.search);
+    p.set('bg', bgModeSel.value);
+    location.search = p.toString();
+  });
+
+  let scale = 1;
+  const clamp = (v,min,max)=>Math.max(min,Math.min(max,v));
+
+  function applyScale(s){
+    scale = clamp(s, 0.2, 3);
+    page.style.transform = `scale(${scale})`;
+    zoomLabel.textContent = Math.round(scale*100) + '%';
+    // minHeight 대신 height를 갱신해 "고정 높이" 느낌 제거
+    const scaledH = (pageH*scale);
+    stage.style.height = (scaledH + 24) + 'px';
+    vp.style.width  = (pageW * scale) + 'px';
+    vp.style.height = (pageH * scale) + 'px';
+
+  }
+  
+
+  function fitWidth(){
+    const pad = 24*2;
+    const avail = stage.clientWidth - pad;
+    applyScale(avail / pageW);
+  }
+  function fitHeight(){
+    const pad = 24*2;
+    const avail = (window.innerHeight - stage.getBoundingClientRect().top - 40) - pad;
+    applyScale(avail / pageH);
+  }
+
+  fitWBtn.addEventListener('click', fitWidth);
+  fitHBtn.addEventListener('click', fitHeight);
+  zoomIn.addEventListener('click', ()=>applyScale(scale*1.1));
+  zoomOut.addEventListener('click',()=>applyScale(scale/1.1));
+  window.addEventListener('resize', ()=>fitWidth());
+  new ResizeObserver(()=>fitWidth()).observe(stage);
+
+  // 초기 가로 맞춤
+  fitWidth();
+})();
+</script>
+{% endblock %}

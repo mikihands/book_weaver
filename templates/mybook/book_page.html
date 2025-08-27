@@ -1,49 +1,85 @@
 {% load weaver_extras %}
-
 <!doctype html>
 <html lang="ko">
 <head>
-  <meta charset="utf-8" />
-  <title>{{ book.title|default:"Weaver" }} - p{{ page_no }}</title>
-  <meta name="viewport" content="width=device-width, initial-scale=1" />
-  <style>
-    :root { --bg:#f9fafb; --ink:#111827; --muted:#6b7280; }
-    html,body{margin:0;padding:0;background:var(--bg);color:var(--ink);font-family:system-ui,-apple-system,Segoe UI,Roboto,Apple SD Gothic Neo,Noto Sans KR,sans-serif;}
-    .wrap{max-width:calc({{ data.page.size.w }}px + 48px);margin:24px auto;padding:24px;background:white;border-radius:16px;box-shadow:0 10px 30px rgba(0,0,0,.08)}
-    .toolbar{display:flex;justify-content:space-between;align-items:center;margin-bottom:16px}
-    .toolbar a{color:var(--muted);text-decoration:none;padding:6px 10px;border-radius:8px}
-    .toolbar a:hover{background:#f3f4f6}
-    .page{
-      position:relative;
-      width:{{ data.page.size.w }}px;
-      height:{{ data.page.size.h }}px;
-      border:1px solid #e5e7eb;
-      background:white;
-      overflow:hidden;
-    }
-    .abs{position:absolute; box-sizing:border-box;}
-    .abs p{margin:.25rem 0; line-height:1.45}
-    .heading{font-weight:700}
-    .heading.h1{font-size:1.6rem}
-    .heading.h2{font-size:1.35rem}
-    .heading.h3{font-size:1.2rem}
-    figure{margin:0;display:flex;flex-direction:column;height:100%}
-    figure img{max-width:100%;max-height:100%;object-fit:contain;display:block;border:1px solid #e5e7eb;border-radius:6px;background:#fff}
-    figure figcaption{margin-top:6px;font-size:.85rem;color:var(--muted)}
-    table{border-collapse:collapse;width:100%;font-size:.9rem;background:white}
-    th,td{border:1px solid #e5e7eb;padding:6px 8px;vertical-align:top}
-    .footnotes{font-size:.85rem;color:#374151}
-    .pending{padding:24px;background:#fff7ed;border:1px solid #fdba74;color:#9a3412;border-radius:12px}
-  </style>
+<meta charset="utf-8" />
+<title>{{ book.title|default:"Weaver" }} - p{{ page_no }}</title>
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<style>
+  :root { --bg:#f9fafb; --ink:#111827; --muted:#6b7280; }
+  html,body{margin:0;padding:0;background:var(--bg);color:var(--ink);
+    font-family:system-ui,-apple-system,Segoe UI,Roboto,Apple SD Gothic Neo,Noto Sans KR,sans-serif;}
+
+  /* 무대(Stage): .page를 scale로 축소/확대, 툴바는 원본 크기 유지 */
+  .wrap{max-width:100vw;margin:0 auto;padding:16px;}
+  .toolbar{display:flex;gap:12px;align-items:center;justify-content:space-between;margin-bottom:10px;flex-wrap:wrap}
+  .toolbar .group{display:flex;gap:8px;align-items:center}
+  .toolbar button, .toolbar select{
+    font:inherit;padding:6px 10px;border:1px solid #e5e7eb;border-radius:8px;background:#fff;cursor:pointer}
+  .toolbar button:hover{background:#f3f4f6}
+
+  .stage{
+    position:relative; overflow:auto; background:white;
+    border:1px solid #e5e7eb; border-radius:12px; padding:12px;
+    box-shadow:0 8px 24px rgba(0,0,0,.06);
+    max-height: calc(100vh - 140px); /* 툴바/마진 감안한 최대치 */
+  }
+
+  /* 원본 페이지 박스: 좌표계는 px로 유지하고, transform으로 통째 스케일 */
+  .page{
+    position:relative;
+    width:{{ data.page.size.w }}px;
+    height:{{ data.page.size.h }}px;
+    {% if background_url %}
+    background-image:url('{{ background_url }}'); background-size:contain; background-repeat:no-repeat; background-position:center;
+    {% endif %}
+    transform-origin: top left;
+    /* 텍스트 오버런 억제: 필요 시 켜기/끄기 */
+  }
+  .abs{position:absolute; box-sizing:border-box; overflow-wrap:anywhere;}
+  .abs p{margin:.25rem 0; line-height:1.45}
+  .heading{font-weight:700}
+  .heading.h1{font-size:1.6rem}
+  .heading.h2{font-size:1.35rem}
+  .heading.h3{font-size:1.2rem}
+  .paragraph{font-size:1rem;line-height:1.5}
+  figure{margin:0;display:flex;flex-direction:column;height:100%}
+  figure img{max-width:100%;max-height:100%;object-fit:contain;display:block;border:1px solid #e5e7eb;border-radius:6px;background:#fff}
+  figure figcaption{margin-top:6px;font-size:.85rem;color:var(--muted)}
+  table{border-collapse:collapse;width:100%;font-size:.9rem;background:white}
+  th,td{border:1px solid #e5e7eb;padding:6px 8px;vertical-align:top}
+  .footnotes{font-size:.85rem;color:#374151}
+  .pending{padding:24px;background:#fff7ed;border:1px solid #fdba74;color:#9a3412;border-radius:12px}
+  .hint{color:var(--muted);font-size:.9rem}
+</style>
 </head>
 <body>
 <div class="wrap">
+
   <div class="toolbar">
-    <div>
-      {% if prev_url %}<a href="{{ prev_url }}">← 이전 페이지</a>{% endif %}
-      {% if next_url %}<a href="{{ next_url }}">다음 페이지 →</a>{% endif %}
+    <div class="group">
+      {% if prev_url %}<a href="{{ prev_url }}"><button>← 이전</button></a>{% endif %}
+      {% if next_url %}<a href="{{ next_url }}"><button>다음 →</button></a>{% endif %}
+      <span class="hint">p{{ page_no }} / {{ book.page_count }}</span>
     </div>
-    <div>p{{ page_no }} / {{ book.page_count }}</div>
+
+    <div class="group">
+      <button id="fitW">맞춤(가로)</button>
+      <button id="fitH">맞춤(세로)</button>
+      <button id="zoomOut">-</button>
+      <span id="zoomLabel" class="hint">100%</span>
+      <button id="zoomIn">+</button>
+    </div>
+
+    <div class="group">
+      <label>배경:
+        <select id="bgMode">
+          <option value="auto">auto</option>
+          <option value="on">on</option>
+          <option value="off">off</option>
+        </select>
+      </label>
+    </div>
   </div>
 
   {% if not data or status != "ready" %}
@@ -51,80 +87,113 @@
       이 페이지는 아직 처리 중이거나 실패했습니다. (status={{ status }})
     </div>
   {% else %}
-    <div class="page"
-     style="position:relative;width:{{ data.page.size.w }}px;height:{{ data.page.size.h }}px;
-            {% if background_url %}background-image:url('{{ background_url }}'); background-size:contain; background-repeat:no-repeat; background-position:center;{% endif %}">
-
-      {# block.order 기준으로 정렬 #}
-      {% for b in data.blocks|dictsort:"order" %}
-        {% if b.type == "heading" %}
-          <div class="abs heading h{{ b.attrs.level|default:2 }}" style="z-index: 2; {{ b.bbox|bbox_style }}">
-            <div>{{ b.content.text }}</div>
-          </div>
-
-        {% elif b.type == "paragraph" or b.type == "quote" %}
-          <div class="abs" style="z-index: 2; {{ b.bbox|bbox_style }}">
-            <p>{{ b.content.text }}</p>
-          </div>
-
-        {% elif b.type == "list" %}
-          <div class="abs" style="z-index: 2; {{ b.bbox|bbox_style }}">
-            {% if b.content.list_type == "ol" %}
-              <ol>
-                {% for it in b.content.items %}
-                  <li>{% if it.text %}{{ it.text }}{% else %}{{ it.html|safe }}{% endif %}</li>
-                {% endfor %}
-              </ol>
-            {% else %}
-              <ul>
-                {% for it in b.content.items %}
-                  <li>{% if it.text %}{{ it.text }}{% else %}{{ it.html|safe }}{% endif %}</li>
-                {% endfor %}
-              </ul>
-            {% endif %}
-          </div>
-
-        {% elif b.type == "table" %}
-          <div class="abs" style="z-index: 2; {{ b.bbox|bbox_style }}">
-            {{ b.content.html|safe }}
-          </div>
-
-        {% elif b.type == "figure" %}
-          <figure class="abs" style="z-index: 2; {{ b.bbox|bbox_style }}">
-            {% with ref=b.content.image_ref %}
-              {% if ref and image_url_map.ref %}
-                <img src="{{ image_url_map.ref }}" alt="{{ b.content.alt|default:'' }}">
+    <div class="stage" id="stage">
+      <div class="page" id="page">
+        {% for b in data.blocks|dictsort:"order" %}
+          {% if b.type == "heading" %}
+            <div class="abs heading h{{ b.attrs.level|default:2 }}" style="{{ b.bbox|bbox_style }}">
+              <div>{{ b.content.text }}</div>
+            </div>
+          {% elif b.type == "paragraph" or b.type == "quote" %}
+            <div class="abs paragraph" style="{{ b.bbox|bbox_style }}">
+              <p>{{ b.content.text }}</p>
+            </div>
+          {% elif b.type == "list" %}
+            <div class="abs" style="{{ b.bbox|bbox_style }}">
+              {% if b.content.list_type == "ol" %}
+                <ol>{% for it in b.content.items %}<li>{{ it.text|default_if_none:""|safe }}</li>{% endfor %}</ol>
               {% else %}
-                {# Django에서는 dict key 접근을 dot로 못할 수 있으니 아래처럼 #}
-                {% if image_url_map.builtin_get %}
-                  {% comment %} <img src="{{ image_url_map.builtin_get(ref) }}" alt="{{ b.content.alt|default:'' }}"> {% endcomment %}
-                {% endif %}
+                <ul>{% for it in b.content.items %}<li>{{ it.text|default_if_none:""|safe }}</li>{% endfor %}</ul>
               {% endif %}
+            </div>
+          {% elif b.type == "table" %}
+            <div class="abs" style="{{ b.bbox|bbox_style }}">{{ b.content.html|safe }}</div>
+          {% elif b.type == "figure" %}
+            {% with ref=b.content.image_ref %}
+            <figure class="abs" style="{{ b.bbox|bbox_style }}">
+              <img src="{{ image_url_map|dict_get:ref }}" alt="{{ b.content.alt|default:'' }}">
+              {% if b.content.caption %}<figcaption>{{ b.content.caption }}</figcaption>{% endif %}
+            </figure>
             {% endwith %}
-            {% if b.content.caption %}<figcaption>{{ b.content.caption }}</figcaption>{% endif %}
-          </figure>
-
-        {% elif b.type == "equation" %}
-          <div class="abs" style="z-index: 2; {{ b.bbox|bbox_style }}">
-            <code>\\({{ b.content.latex }}\\)</code>
-          </div>
-
-        {% elif b.type == "code" %}
-          <pre class="abs" style="z-index: 2; {{ b.bbox|bbox_style }}"><code>{{ b.content.text }}</code></pre>
-
-        {% elif b.type == "footnote" %}
-          <div class="abs footnotes" style="z-index: 2; {{ b.bbox|bbox_style }}">
-            <sup>{{ b.content.label }}</sup> {{ b.content.text }}
-          </div>
-
-        {% elif b.type == "separator" %}
-          <div class="abs" style="z-index: 2; {{ b.bbox|bbox_style }};border-top:1px solid #e5e7eb"></div>
-        {% endif %}
-      {% endfor %}
+          {% elif b.type == "equation" %}
+            <div class="abs" style="{{ b.bbox|bbox_style }}"><code>\\({{ b.content.latex }}\\)</code></div>
+          {% elif b.type == "code" %}
+            <pre class="abs" style="{{ b.bbox|bbox_style }}"><code>{{ b.content.text }}</code></pre>
+          {% elif b.type == "footnote" %}
+            <div class="abs footnotes" style="{{ b.bbox|bbox_style }}"><sup>{{ b.content.label }}</sup> {{ b.content.text }}</div>
+          {% elif b.type == "separator" %}
+            <div class="abs" style="{{ b.bbox|bbox_style }};border-top:1px solid #e5e7eb"></div>
+          {% endif %}
+        {% endfor %}
+      </div>
     </div>
   {% endif %}
 </div>
 
-{# (선택) MathJax 등 로더 #}
+<script>
+(function(){
+  const pageW = {{ data.page.size.w|default:800 }};
+  const pageH = {{ data.page.size.h|default:1200 }};
+  const stage  = document.getElementById('stage');
+  const page   = document.getElementById('page');
+  const zoomLabel = document.getElementById('zoomLabel');
+  const fitWBtn = document.getElementById('fitW');
+  const fitHBtn = document.getElementById('fitH');
+  const zoomIn  = document.getElementById('zoomIn');
+  const zoomOut = document.getElementById('zoomOut');
+  const bgModeSel = document.getElementById('bgMode');
+
+  // URL의 ?bg 모드 반영
+  const params = new URLSearchParams(location.search);
+  bgModeSel.value = params.get('bg') || 'auto';
+
+  let scale = 1;
+  const clamp = (v,min,max)=>Math.max(min,Math.min(max,v));
+
+  function applyScale(s){
+    scale = clamp(s, 0.2, 3); // 20%~300%
+    page.style.transform = `scale(${scale})`;
+    zoomLabel.textContent = Math.round(scale*100) + '%';
+    // 스케일 후 스크롤바 여유
+    stage.style.height = (pageH*scale + 24) + 'px';
+    //stage.style.minWidth  = (pageW*scale + 24) + 'px';
+    stage.style.width  = '100%'; // 가로 맞춤";
+  }
+
+  function fitWidth(){
+    const pad = 24*2; // stage padding 대략 고려
+    const avail = stage.clientWidth - pad;
+    applyScale(avail / pageW);
+  }
+  window.addEventListener('resize', ()=>fitWidth());
+  //function fitHeight(){
+  //  const pad = 24*2;
+  //  const avail = (window.innerHeight - stage.getBoundingClientRect().top - 40) - pad;
+  //  applyScale(avail / pageH);
+  //}
+  new ResizeObserver(()=>fitWidth()).observe(stage);
+  // 초기: 가로 맞춤(PC UX 안정)
+  function initialFit(){
+    fitWidth();
+  }
+
+  // 핸들러
+  fitWBtn.addEventListener('click', fitWidth);
+  fitHBtn.addEventListener('click', fitHeight);
+  zoomIn.addEventListener('click', ()=>applyScale(scale*1.1));
+  zoomOut.addEventListener('click',()=>applyScale(scale/1.1));
+  window.addEventListener('resize', ()=>fitWidth());
+
+  // 배경 모드 변경 → URL 파라미터 갱신 후 리로드
+  bgModeSel.addEventListener('change', ()=>{
+    const p = new URLSearchParams(location.search);
+    p.set('bg', bgModeSel.value);
+    location.search = p.toString();
+  });
+
+  // 실행
+  initialFit();
+})();
+</script>
 </body>
 </html>

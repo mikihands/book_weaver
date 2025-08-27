@@ -34,13 +34,27 @@
     "meta": {
       "type": "object",
       "description": "선택적 메타(원문언어, 생성시간, 모델명, 토큰/시간 등)",
-      "additionalProperties": true,
+      "additionalProperties": false,
       "properties": {
         "source_lang": { "type": "string", "pattern": "^[a-z]{2}(-[A-Z]{2})?$" },
-        "model": { "type": "string" },
-        "latency_ms": { "type": "integer", "minimum": 0 },
-        "tokens_input": { "type": "integer", "minimum": 0 },
-        "tokens_output": { "type": "integer", "minimum": 0 }
+        "norm": {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "base_width": { "type": "number" },
+            "scale": { "type": "number" },
+            "original_size": {
+              "type": "object",
+              "properties": {
+                "w": { "type": "number" },
+                "h": { "type": "number" },
+                "units": { "type": "string" }
+              },
+              "required": ["w","h"]
+            }
+          },
+          "required": ["base_width","scale","original_size"]
+        }
       }
     },
     "resources": {
@@ -194,6 +208,16 @@
       }
     },
 
+    "QuoteContent": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "text": { "type": "string" },
+        "cite": { "type": "string" }
+      },
+      "required": ["text"]
+    },
+    
     "BlockCommon": {
       "type": "object",
       "additionalProperties": false,
