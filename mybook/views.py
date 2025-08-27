@@ -1,4 +1,5 @@
 import logging, os, json, hashlib
+from bs4 import BeautifulSoup
 from rest_framework.permissions import IsAuthenticated, AllowAny
 from rest_framework.parsers import MultiPartParser, FormParser
 from rest_framework.views import APIView
@@ -16,13 +17,13 @@ from django.urls import reverse
 
 from .serializers import FileUploadSerializer, RegisterSerializer, LoginSerializer
 from .models import Book, BookPage, PageImage, TranslatedPage, UserProfile
+from .utils.font_scaler import FontScaler
 from .utils.gemini_helper import GeminiHelper
 from .utils.extract_image import extract_images_and_bboxes, is_fullpage_background
-from .utils.faithful_prompt import build_prompt_faithful
-from .utils.render_json_to_html import render_json_to_html  
+from .utils.layout_norm import normalize_pages_layout
+from .utils.html_inject import inject_sources
 from .tasks import translate_book_pages
 from common.mixins.hmac_sign_mixin import HmacSignMixin
-# from .tasks import translate_book_pages 
 
 logger = logging.getLogger(__name__)
 AUTH_SERVER_URL=settings.AUTH_SERVER_URL
@@ -93,15 +94,16 @@ class BookUploadView(APIView):
             out_dir = os.path.join(settings.MEDIA_ROOT, "extracted_images", str(book.id)) # type: ignore
             os.makedirs(out_dir, exist_ok=True)
 
-            pages = extract_images_and_bboxes(pdf_path, out_dir, dpi=144)
+            extracted_pages = extract_images_and_bboxes(pdf_path, out_dir, dpi=144)
             # pages: [{ "page_no": int, "size": {"w":..., "h":...}, "images": [{"ref","path","bbox"}] }, ...]
+            norm_pages = normalize_pages_layout(extracted_pages, base_width=1200)
 
             # 4) DB 저장 (트랜잭션: 짧게)
             with transaction.atomic():
                 # 페이지/이미지 벌크 생성
                 page_objs = []
                 img_objs = []
-                for p in pages:
+                for p in norm_pages:
                     page_objs.append(
                         BookPage(
                             book=book,
@@ -112,7 +114,7 @@ class BookUploadView(APIView):
                     )
                 BookPage.objects.bulk_create(page_objs, ignore_conflicts=True)
 
-                for p in pages:
+                for p in norm_pages:
                     pno = p["page_no"]
                     for im in p.get("images", []):
                         img_objs.append(
@@ -128,7 +130,7 @@ class BookUploadView(APIView):
                     PageImage.objects.bulk_create(img_objs, ignore_conflicts=True)
 
                 # page_count 업데이트
-                book.page_count = len(pages)
+                book.page_count = len(norm_pages)
                 book.status = "processing"
                 book.save(update_fields=["page_count", "status"])
 
@@ -161,37 +163,37 @@ class BookUploadView(APIView):
                 status=status.HTTP_500_INTERNAL_SERVER_ERROR,
             )
     
-# class BookPageView(APIView):
-#     """GEMIMNI 버젼"""
-#     def get(self, request, book_id, page_number, *args, **kwargs):
-#         translated_page = get_object_or_404(
-#             TranslatedPage, 
-#             book__id=book_id, 
-#             page_no=page_number
-#         )
-        
-#         # 페이지에 포함된 이미지 정보 가져오기
-#         page_images_info = list(PageImage.objects.filter(book__id=book_id, page_no=page_number).values('ref', 'path', 'bbox'))
-        
-#         # JSON 데이터를 HTML로 렌더링
-#         rendered_html = render_json_to_html(translated_page.data, page_images_info)
-        
-#         context = {
-#             'translated_html': rendered_html,
-#             'page_number': translated_page.page_no,
-#             'book_title': translated_page.book.title,
-#             'page_width': translated_page.data['page']['size']['w'],
-#             'page_height': translated_page.data['page']['size']['h'],
-#         }
-#         return render(request, 'mybook/book_page.html', context)
+import bleach
+from bleach.css_sanitizer import CSSSanitizer
 
-# (선택) 표 HTML sanitize를 하고 싶다면:
-try:
-    import bleach
-    ALLOW_TAGS = ["table","thead","tbody","tfoot","tr","th","td","caption","colgroup","col","b","i","em","strong","u","sub","sup","span","p","ul","ol","li","br","hr"]
-    ALLOW_ATTRS = {"*": ["colspan","rowspan","align","valign"]}
-except Exception:
-    bleach = None
+ALLOW_TAGS = bleach.sanitizer.ALLOWED_TAGS.union({
+    "div","span","p","ul","ol","li","figure","figcaption","img",
+    "table","thead","tbody","tr","th","td",
+    "blockquote","code","pre","sup","sub",
+    "h1","h2","h3","h4","h5","h6","a"
+})
+
+ALLOW_ATTRS = {
+    **bleach.sanitizer.ALLOWED_ATTRIBUTES,
+    "*": ["class","id","data-ref","data-image-ref","data-footnote-ref"],
+    "img": ["src","alt","width","height","class","data-ref","data-image-ref"],
+    "a": ["href","title","target","rel","class"],
+    # 필요하면 table 관련 colspan/rowspan 추가 가능:
+    "td": ["colspan","rowspan","class"], "th": ["colspan","rowspan","class"],
+}
+
+CSS_SAFE_PROPS = [
+    # spacing & alignment
+    "margin","margin-top","margin-right","margin-bottom","margin-left",
+    "padding","padding-top","padding-right","padding-bottom","padding-left",
+    "text-indent","text-align",
+    # typography
+    "line-height","letter-spacing","font-style","font-weight","text-decoration","font-size"
+    # sizing (이미지/figure)
+    "width","height","max-width"
+]
+css_sanitizer = CSSSanitizer(allowed_css_properties=CSS_SAFE_PROPS)
+
 
 class BookPageView(APIView):
     permission_classes = [IsAuthenticated]  # 정책에 맞게 조정
@@ -202,11 +204,15 @@ class BookPageView(APIView):
         URL 예: /books/<book_id>/pages/<page_no>/?mode=faithful&bg=auto|on|off
         """
         mode = request.GET.get("mode", "faithful")
-        bg_mode = request.GET.get("bg", "auto")  # auto|on|off
+        bg_mode = request.GET.get("bg", "off")  # auto|on|off
 
         book = get_object_or_404(Book, id=book_id)
         page = get_object_or_404(BookPage, book=book, page_no=page_no)
         tp = TranslatedPage.objects.filter(book=book, page_no=page_no, mode=mode).first()
+
+        # v2 JSON 기대: schema_version=weaver.page.v2, fields: page, html_stage, figures, styles?
+        data = tp.data if tp else None
+        status_flag = tp.status if tp else "pending"
 
         # 1) 이미지 ref -> URL 매핑
         imgs_qs = PageImage.objects.filter(book=book, page_no=page_no).values("ref", "path", "bbox")
@@ -223,17 +229,7 @@ class BookPageView(APIView):
                 url = settings.MEDIA_URL.rstrip("/") + "/" + rel.replace("\\", "/")
             image_url_map[im["ref"]] = url
 
-        # 2) JSON 데이터 + (선택) 표 sanitize
-        data = tp.data if tp else None
-        status_flag = tp.status if tp else "pending"
-        if data and bleach:
-            for b in data.get("blocks", []):
-                if b.get("type") == "table" and "content" in b and "html" in b["content"]:
-                    b["content"]["html"] = bleach.clean(
-                        b["content"]["html"], tags=ALLOW_TAGS, attributes=ALLOW_ATTRS, strip=True
-                    )
-
-        # 3) 배경 이미지 결정 로직
+        # 2) 배경 이미지 결정 로직
         #    - auto: "페이지 전체를 덮는 이미지가 1장만 있고, 그 외 figure 후보가 없을 때"만 채택
         #    - on : 가장 큰 fullpage 후보가 있으면 사용
         #    - off: 항상 사용 안 함
@@ -260,21 +256,55 @@ class BookPageView(APIView):
                 bg_ref = fullpage_candidates[0]["ref"]
                 background_url = image_url_map.get(bg_ref, "")
 
+        # 3) v2.schema 처리
+        html_stage_final = ""
+        base_font_scale = 1.0
+        page_w = page.width
+        page_h = page.height
+
+        if data and data.get("schema_version") == "weaver.page.v2":
+            # 안전 보정: figures bbox 클램프 , gemini_helper에서 이미 clamp 처리되어 저장됨
+            W = data["page"]["page_w"]
+            H = data["page"]["page_h"]
+
+            # src 주입
+            html_stage = data.get("html_stage", "")
+            #html_stage = bleach.clean(html_stage, tags=ALLOW_TAGS, attributes=ALLOW_ATTRS, strip=True) #type:ignore
+            html_stage_final = inject_sources(data["html_stage"], data.get("image_src_map", {}))
+
+
+            text_len, para_count = self._measure_html(html_stage_final)
+
+            scaler = FontScaler(
+                page_w_px=W, 
+                page_h_px=H,
+                default_base_font_px=18,
+                lang=tp.lang if tp and tp.lang else "ko",
+                density=request.GET.get("density","readable"), # readable|booky
+            )
+
+            policy = scaler.build_policy(text_len, para_count)
+            css_vars = scaler.to_css_vars(policy)
+            logger.debug(f"FontScalePolicy: {policy}, CSS: {css_vars}")
+
+            # 페이지 사이즈는 v2가 주는 값 사용(정규화된 값)
+            page_w = W
+            page_h = H
+
         # 4) prev/next
         prev_url = next_url = None
         try:
             if page_no > 1:
-                prev_url = reverse("mybook:book_page", kwargs={"book_id": book.id, "page_number": page_no - 1}) #type: ignore
+                prev_url = reverse("mybook:book_page", kwargs={"book_id": book.id, "page_no": page_no - 1}) #type: ignore
             if book.page_count and page_no < book.page_count:
-                next_url = reverse("mybook:book_page", kwargs={"book_id": book.id, "page_number": page_no + 1}) #type: ignore
+                next_url = reverse("mybook:book_page", kwargs={"book_id": book.id, "page_no": page_no + 1}) #type: ignore
         except Exception:
-            # 네임스페이스를 쓰지 않는 프로젝트라면 이름을 "book_page"로 변경
             from django.urls import NoReverseMatch
             try:
                 if page_no > 1:
-                    prev_url = reverse("book_page", kwargs={"book_id": book.id, "page_number": page_no - 1}) #type: ignore
+                    prev_url = reverse("book_page", kwargs={"book_id": book.id, "page_no": page_no - 1}) #type: ignore
                 if book.page_count and page_no < book.page_count:
-                    next_url = reverse("book_page", kwargs={"book_id": book.id, "page_number": page_no + 1}) #type: ignore
+                    next_url = reverse("book_page", kwargs={"book_id": book.id, "page_no": page_no + 1}) #type: ignore
             except NoReverseMatch:
                 prev_url = next_url = None
 
@@ -282,14 +312,27 @@ class BookPageView(APIView):
         ctx = {
             "book": book,
             "page_no": page_no,
-            "data": data,
             "status": status_flag,
-            "background_url": background_url,  # ✅ 배경 URL (없으면 빈 문자열)
-            "image_url_map": image_url_map,    # figure 렌더용
+            "page_w": int(page_w),
+            "page_h": int(page_h),
+            "background_url": background_url,
+            "html_stage_final": html_stage_final,  # ⬅️ 템플릿에 그대로 삽입
+            "base_font_scale": base_font_scale,
             "prev_url": prev_url,
             "next_url": next_url,
+            "bg_mode": bg_mode,
         }
-        return render(request, "mybook/book_page.html", ctx)
+
+        ctx.update({"css_vars": css_vars})
+
+        return render(request, "mybook/book_page_v2.html", ctx)
+    
+    def _measure_html(self, html: str) -> tuple[int, int]:
+        soup = BeautifulSoup(html, 'html.parser')
+        para_like = soup.find_all(["p","li","blockquote","h1","h2","h3","h4","h5","h6"])
+        text_len = len(soup.get_text(" ", strip=True))
+        return text_len, max(1, len(para_like))
+    
 
     
 class UploadPage(APIView):

@@ -1,0 +1,26 @@
+{
+  "type": "object",
+  "additionalProperties": true,
+  "required": ["v", "p", "hs"],
+  "properties": {
+    "v": { "type": "string" },
+    "p": {
+      "type": "object",
+      "additionalProperties": true,
+      "required": ["n", "w", "h"],
+      "properties": {
+        "n": { "type": "integer" },
+        "w": { "type": "number" },
+        "h": { "type": "number" },
+        "u": { "type": "string" }
+      }
+    },
+    "hs": { "type": "string" },
+    "fs": {
+      "type": "array",
+      "items": {
+        "type": "array"
+      }
+    }
+  }
+}

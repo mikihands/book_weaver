@@ -14,3 +14,8 @@ def bbox_style(bbox):
         return f"left:{float(x)}px;top:{float(y)}px;width:{float(w)}px;height:{float(h)}px;"
     except Exception:
         return ""
+
+@register.filter
+def dict_get(d, k):
+    try: return d.get(k, "")
+    except: return ""

@@ -1,0 +1,73 @@
+{% load static tailwind_tags %}
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>{% block title %}Weaver{% endblock %}</title>
+    {% block additional_head %}  {% endblock %}
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap');
+        body {
+            font-family: 'Inter', sans-serif;
+            background-color: #f0f2f5;
+        }
+    </style>
+    {% if not DEBUG_MODE %}
+        {% tailwind_preload_css %}
+    {% endif %}
+    {% tailwind_css %}
+</head>
+
+
+
+<body>
+    <div class="wrap" id="weaver-root" style="font-size: calc(1rem * {{ base_font_scale|default:1 }})">
+
+    <div class="toolbar">
+        <div class="group">
+        {% if prev_url %}<a href="{{ prev_url }}"><button>← 이전</button></a>{% endif %}
+        {% if next_url %}<a href="{{ next_url }}"><button>다음 →</button></a>{% endif %}
+        <span class="hint" style="color:#6b7280">p{{ page_no }}{% if book.page_count %} / {{ book.page_count }}{% endif %}</span>
+        </div>
+
+        <div class="group">
+        <button id="fitW">맞춤(가로)</button>
+        <button id="fitH">맞춤(세로)</button>
+        <button id="zoomOut">-</button>
+        <span id="zoomLabel" style="color:#6b7280">100%</span>
+        <button id="zoomIn">+</button>
+        </div>
+
+        <div class="group">
+        <label>배경:
+            <select id="bgMode">
+            <option value="auto" {% if bg_mode == "auto" %}selected{% endif %}>auto</option>
+            <option value="on"   {% if bg_mode == "on" %}selected{% endif %}>on</option>
+            <option value="off"  {% if bg_mode == "off" %}selected{% endif %}>off</option>
+            </select>
+        </label>
+        </div>
+    </div>
+
+    {% if status != "ready" or not html_stage_final %}
+        <div style="padding:24px;background:#fff7ed;border:1px solid #fdba74;color:#9a3412;border-radius:12px">
+        이 페이지는 아직 처리 중이거나 준비되지 않았습니다. (status={{ status }})
+        </div>
+    {% else %}
+        <div class="stage" id="stage">
+            <div id="pageViewport" class="page-viewport">
+                <div class="page" id="page">
+
+                    {% block content %}
+                    
+                    {% endblock %}
+
+                </div>
+            </div>
+        </div>
+    {% endif %}
+    </div>
+    {% block extra_js %}{% endblock %}
+</body>
+</html>
