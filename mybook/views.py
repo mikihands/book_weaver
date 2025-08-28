@@ -15,14 +15,14 @@ from django.core.files.storage import default_storage
 from django.shortcuts import get_object_or_404, render, redirect
 from django.urls import reverse
 
-from .serializers import FileUploadSerializer, RegisterSerializer, LoginSerializer
+from .serializers import FileUploadSerializer, RegisterSerializer, LoginSerializer, RetranslateRequestSerializer, StartTranslationSerializer, BookSettingsSerializer
 from .models import Book, BookPage, PageImage, TranslatedPage, UserProfile
 from .utils.font_scaler import FontScaler
 from .utils.gemini_helper import GeminiHelper
 from .utils.extract_image import extract_images_and_bboxes, is_fullpage_background
 from .utils.layout_norm import normalize_pages_layout
 from .utils.html_inject import inject_sources
-from .tasks import translate_book_pages
+from .tasks import translate_book_pages, retranslate_single_page
 from common.mixins.hmac_sign_mixin import HmacSignMixin
 
 logger = logging.getLogger(__name__)
@@ -56,6 +56,8 @@ class BookUploadView(APIView):
 
         uploaded_file = serializer.validated_data["file"] # type: ignore
         target_language = serializer.validated_data["target_language"] # type: ignore
+        title = serializer.validated_data.get("title", None) # type: ignore
+        genre = serializer.validated_data.get("genre", None) # type: ignore
         user_profile = request.user
 
         # 0) 형식 체크 (우선 PDF만)
@@ -75,10 +77,11 @@ class BookUploadView(APIView):
             book, created = Book.objects.get_or_create(
                 file_hash=file_hash,
                 defaults={
-                    "title": uploaded_file.name,
+                    "title": title or uploaded_file.name,
+                    "genre": genre,
                     "original_file": uploaded_file,
                     "owner": user_profile,
-                    "status": "processing",
+                    "status": "pending", # Start with pending
                 },
             )
             if not created:
@@ -88,6 +91,9 @@ class BookUploadView(APIView):
                     status=status.HTTP_200_OK,
                 )
 
+            # Set status to processing for the extraction phase
+            book.status = 'processing'
+            book.save(update_fields=['status'])
             # 3) PDF 메타/이미지 추출 (동기)
             #    FileField가 저장됐으니 경로 접근 가능
             pdf_path = book.original_file.path
@@ -131,19 +137,16 @@ class BookUploadView(APIView):
 
                 # page_count 업데이트
                 book.page_count = len(norm_pages)
-                book.status = "processing"
+                book.status = "uploaded" # Extraction is done, now ready for translation prep
                 book.save(update_fields=["page_count", "status"])
 
-            # 5) 번역 파이프라인 시작 (Celery를 통한 비동기 작업)
-            translate_book_pages.delay(book.id, target_language) #type: ignore
-
-            page1_url = request.build_absolute_uri(
-                reverse("mybook:book_page", kwargs={"book_id": book.id, "page_no": 1})  # type: ignore
+            prepare_url = request.build_absolute_uri(
+                reverse("mybook:book_prepare", kwargs={"book_id": book.id}) # type: ignore
             )
 
             return Response(
-                {"message": "Upload accepted. Processing started.", "book_id": book.id, "page1_url": page1_url}, # type: ignore
-                status=status.HTTP_202_ACCEPTED,
+                {"message": "File processed successfully. Please prepare for translation.", "book_id": book.id, "prepare_url": prepare_url}, # type: ignore
+                status=status.HTTP_200_OK,
             )
 
         except Exception as e:
@@ -262,6 +265,7 @@ class BookPageView(APIView):
         page_w = page.width
         page_h = page.height
 
+        css_vars = {}  # 기본값
         if data and data.get("schema_version") == "weaver.page.v2":
             # 안전 보정: figures bbox 클램프 , gemini_helper에서 이미 clamp 처리되어 저장됨
             W = data["page"]["page_w"]
@@ -332,6 +336,114 @@ class BookPageView(APIView):
         para_like = soup.find_all(["p","li","blockquote","h1","h2","h3","h4","h5","h6"])
         text_len = len(soup.get_text(" ", strip=True))
         return text_len, max(1, len(para_like))
+
+
+class BookPrepareView(APIView):
+    permission_classes = [IsAuthenticated]
+
+    def get(self, request, book_id, *args, **kwargs):
+        book = get_object_or_404(Book, id=book_id, owner=request.user)
+        if book.status not in ['uploaded', 'failed']:
+            # 이미 번역이 시작되었거나 완료된 경우, 첫 페이지로 리디렉션
+            return redirect(reverse('mybook:book_page', kwargs={'book_id': book.id, 'page_no': 1}))
+        return render(request, 'mybook/book_prepare.html', {'book': book})
+
+
+class UpdateBookSettingsView(APIView):
+    permission_classes = [IsAuthenticated]
+
+    def post(self, request, book_id, *args, **kwargs):
+        book = get_object_or_404(Book, id=book_id, owner=request.user)
+        serializer = BookSettingsSerializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+        
+        validated_data = serializer.validated_data
+        book.title = validated_data.get('title', book.title) # type: ignore
+        book.genre = validated_data.get('genre', book.genre) # type: ignore
+        book.glossary = validated_data.get('glossary', book.glossary) # type: ignore
+        book.save(update_fields=['title', 'genre', 'glossary'])
+        
+        return Response({"message": "설정이 성공적으로 저장되었습니다."}, status=status.HTTP_200_OK)
+
+
+class StartTranslationView(APIView):
+    permission_classes = [IsAuthenticated]
+
+    def post(self, request, book_id, *args, **kwargs):
+        book = get_object_or_404(Book, id=book_id, owner=request.user)
+        serializer = StartTranslationSerializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+        
+        validated_data = serializer.validated_data
+        book.title = validated_data.get('title', book.title) # type: ignore
+        book.genre = validated_data.get('genre', book.genre) # type: ignore
+        book.glossary = validated_data.get('glossary', book.glossary) # type: ignore
+        book.status = 'processing'
+        book.save()
+
+        translate_book_pages.delay(book.id, validated_data['target_language']) # type: ignore
+        
+        page1_url = reverse('mybook:book_page', kwargs={'book_id': book.id, 'page_no': 1}) # type: ignore
+        return Response({"message": "Translation has started.", "page1_url": page1_url}, status=status.HTTP_202_ACCEPTED)
+
+class RetranslatePageView(APIView):
+    permission_classes = [IsAuthenticated]
+
+    def post(self, request, book_id: int, page_no: int, *args, **kwargs):
+        book = get_object_or_404(Book, id=book_id, owner=request.user)
+        
+        serializer = RetranslateRequestSerializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+        feedback = serializer.validated_data.get('feedback', '') # type: ignore
+
+        # Get target language from the first available translated page
+        first_tp = TranslatedPage.objects.filter(book=book).first()
+        if not first_tp:
+            return Response({"error": "No translated pages found for this book."}, status=status.HTTP_400_BAD_REQUEST)
+        target_lang = first_tp.lang
+
+        # Set the specific page status to 'pending' to indicate re-translation
+        TranslatedPage.objects.filter(book=book, page_no=page_no, lang=target_lang, mode='faithful').update(status='pending')
+        
+        # Asynchronously call the re-translation task
+        retranslate_single_page.delay(book_id, page_no, target_lang, feedback) # type: ignore
+
+        return Response({"message": f"Retranslation for page {page_no} has been queued."}, status=status.HTTP_202_ACCEPTED)
+
+
+class RetryTranslationView(APIView):
+    permission_classes = [IsAuthenticated]
+
+    def post(self, request, book_id: int, *args, **kwargs):
+        book = get_object_or_404(Book, id=book_id, owner=request.user)
+
+        if book.status not in ['failed', 'completed']:
+            return Response({"error": f"Cannot retry translation for a book with status '{book.status}'."}, status=status.HTTP_400_BAD_REQUEST)
+
+        # Get target language
+        first_tp = TranslatedPage.objects.filter(book=book).first()
+        if not first_tp:
+            # If no pages were translated at all, restart from scratch
+            target_lang = request.data.get('target_language', 'ko') # Or get it from somewhere else
+            pages_to_process = None # Process all pages
+        else:
+            target_lang = first_tp.lang
+            # Find missing or failed pages
+            all_page_nos = set(BookPage.objects.filter(book=book).values_list('page_no', flat=True))
+            ready_page_nos = set(TranslatedPage.objects.filter(book=book, lang=target_lang, mode='faithful', status='ready').values_list('page_no', flat=True))
+            pages_to_process = sorted(list(all_page_nos - ready_page_nos))
+
+            if not pages_to_process:
+                book.status = 'completed'
+                book.save(update_fields=['status'])
+                return Response({"message": "All pages are already translated successfully."}, status=status.HTTP_200_OK)
+
+        book.status = 'processing'
+        book.save(update_fields=['status'])
+        
+        translate_book_pages.delay(book.id, target_lang, page_numbers_to_process=pages_to_process) # type: ignore
+
+        return Response({"message": f"Retry for {len(pages_to_process) if pages_to_process else 'all'} pages has been queued."}, status=status.HTTP_202_ACCEPTED)
     
 
     

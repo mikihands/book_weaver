@@ -22,6 +22,20 @@
 
 
 <body>
+    {# -- 1. 작업 실패 시 재시도 UI -- #}
+    {% if book.status == 'failed' %}
+    <div id="retry-banner" class="fixed top-20 right-5 bg-red-100 border border-red-400 text-red-700 px-4 py-3 rounded-lg shadow-lg z-50" role="alert">
+      <strong class="font-bold">번역 실패!</strong>
+      <span class="block sm:inline">일부 페이지 번역에 실패했습니다.</span>
+      <button id="retry-book-button" class="mt-2 bg-red-500 hover:bg-red-700 text-white font-bold py-1 px-3 rounded">
+        실패한 작업 재시도
+      </button>
+      <button onclick="document.getElementById('retry-banner').style.display='none'" class="absolute top-0 bottom-0 right-0 px-4 py-3">
+        <svg class="fill-current h-6 w-6 text-red-500" role="button" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20"><title>Close</title><path d="M14.348 14.849a1.2 1.2 0 0 1-1.697 0L10 11.819l-2.651 3.029a1.2 1.2 0 1 1-1.697-1.697l2.758-3.15-2.759-3.152a1.2 1.2 0 1 1 1.697-1.697L10 8.183l2.651-3.031a1.2 1.2 0 1 1 1.697 1.697l-2.758 3.152 2.758 3.15a1.2 1.2 0 0 1 0 1.698z"/></svg>
+      </button>
+    </div>
+    {% endif %}
+
     <div class="wrap" id="weaver-root" style="font-size: calc(1rem * {{ base_font_scale|default:1 }})">
 
     <div class="toolbar">
@@ -52,7 +66,14 @@
 
     {% if status != "ready" or not html_stage_final %}
         <div style="padding:24px;background:#fff7ed;border:1px solid #fdba74;color:#9a3412;border-radius:12px">
-        이 페이지는 아직 처리 중이거나 준비되지 않았습니다. (status={{ status }})
+        {% if status == 'failed' %}
+            이 페이지 번역에 실패했습니다. (status={{ status }})
+            <button id="retranslate-modal-button-inline" class="mt-2 bg-yellow-500 hover:bg-yellow-700 text-white font-bold py-1 px-3 rounded">
+                이 페이지 재번역
+            </button>
+        {% else %}
+            이 페이지는 아직 처리 중이거나 준비되지 않았습니다. (status={{ status }})
+        {% endif %}
         </div>
     {% else %}
         <div class="stage" id="stage">
@@ -68,6 +89,115 @@
         </div>
     {% endif %}
     </div>
+
+    {# -- 2. 페이지 재번역 요청 UI (버튼 및 모달) -- #}
+    <div class="fixed bottom-5 right-5 z-50">
+        <button id="retranslate-modal-button-float" title="이 페이지 재번역 요청" class="bg-yellow-500 hover:bg-yellow-600 text-white font-bold py-3 px-3 rounded-full shadow-lg flex items-center justify-center">
+            <svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h5M20 20v-5h-5M4 20h5v-5M20 4h-5v5" /></svg>
+        </button>
+    </div>
+
+    <div id="retranslate-modal" class="fixed inset-0 bg-gray-600 bg-opacity-50 overflow-y-auto h-full w-full z-50 hidden">
+      <div class="relative top-20 mx-auto p-5 border w-full max-w-md shadow-lg rounded-md bg-white">
+        <div class="mt-3 text-center">
+          <h3 class="text-lg leading-6 font-medium text-gray-900">페이지 {{ page_no }} 재번역 요청</h3>
+          <div class="mt-2 px-7 py-3">
+            <p class="text-sm text-gray-500 mb-4">번역이 어색하거나 잘못된 부분을 구체적으로 알려주세요. (예: "앤디를 안디로 번역했어요", "친한 사이인데 존댓말을 써요")</p>
+            <textarea id="retranslate-feedback" class="w-full h-24 p-2 border rounded" placeholder="피드백을 입력하세요... (선택 사항)"></textarea>
+          </div>
+          <div class="items-center px-4 py-3">
+            <button id="submit-retranslate" class="px-4 py-2 bg-blue-500 text-white text-base font-medium rounded-md w-full shadow-sm hover:bg-blue-600 focus:outline-none focus:ring-2 focus:ring-blue-300">
+              요청하기
+            </button>
+            <button id="close-retranslate-modal" class="mt-2 px-4 py-2 bg-gray-200 text-gray-800 text-base font-medium rounded-md w-full shadow-sm hover:bg-gray-300">
+              취소
+            </button>
+          </div>
+        </div>
+      </div>
+    </div>
+
     {% block extra_js %}{% endblock %}
+    <script>
+    document.addEventListener('DOMContentLoaded', function() {
+        // CSRF 토큰 가져오기
+        function getCookie(name) {
+            let cookieValue = null;
+            if (document.cookie && document.cookie !== '') {
+                const cookies = document.cookie.split(';');
+                for (let i = 0; i < cookies.length; i++) {
+                    const cookie = cookies[i].trim();
+                    if (cookie.startsWith(name + '=')) {
+                        cookieValue = decodeURIComponent(cookie.substring(name.length + 1));
+                        break;
+                    }
+                }
+            }
+            return cookieValue;
+        }
+        const csrftoken = getCookie('csrftoken');
+
+        // 책 전체 재시도 버튼 로직
+        const retryBookButton = document.getElementById('retry-book-button');
+        if (retryBookButton) {
+            retryBookButton.addEventListener('click', async () => {
+                retryBookButton.textContent = '요청 중...';
+                retryBookButton.disabled = true;
+                try {
+                    const response = await fetch(`/books/{{ book.id }}/retry/`, {
+                        method: 'POST',
+                        headers: { 'X-CSRFToken': csrftoken, 'Content-Type': 'application/json' },
+                    });
+                    const data = await response.json();
+                    alert(data.message || data.error);
+                    if (response.ok) window.location.reload();
+                } catch (e) {
+                    alert('네트워크 오류가 발생했습니다.');
+                } finally {
+                    retryBookButton.textContent = '실패한 작업 전체 재시도';
+                    retryBookButton.disabled = false;
+                }
+            });
+        }
+
+        // 재번역 모달 로직
+        const modal = document.getElementById('retranslate-modal');
+        const openModalButtons = document.querySelectorAll('#retranslate-modal-button-float, #retranslate-modal-button-inline');
+        const closeModalBtn = document.getElementById('close-retranslate-modal');
+        const submitBtn = document.getElementById('submit-retranslate');
+
+        openModalButtons.forEach(btn => btn.onclick = () => modal.style.display = 'block');
+        closeModalBtn.onclick = () => modal.style.display = 'none';
+        window.onclick = (event) => {
+            if (event.target == modal) modal.style.display = 'none';
+        };
+
+        submitBtn.addEventListener('click', async () => {
+            const feedback = document.getElementById('retranslate-feedback').value;
+            
+            submitBtn.textContent = '요청 중...';
+            submitBtn.disabled = true;
+
+            try {
+                const response = await fetch(`/books/{{ book.id }}/pages/{{ page_no }}/retranslate/`, {
+                    method: 'POST',
+                    headers: { 'X-CSRFToken': csrftoken, 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ feedback: feedback || "Retranslate this page." }) // 피드백이 없으면 기본 메시지
+                });
+                const data = await response.json();
+                alert(data.message || data.error);
+                if (response.ok) {
+                    modal.style.display = 'none';
+                    setTimeout(() => window.location.reload(), 1500);
+                }
+            } catch (e) {
+                alert('네트워크 오류가 발생했습니다.');
+            } finally {
+                submitBtn.textContent = '요청하기';
+                submitBtn.disabled = false;
+            }
+        });
+    });
+    </script>
 </body>
 </html>

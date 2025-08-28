@@ -96,9 +96,6 @@ class GeminiHelper:
                 W = data["page"]["page_w"]; H = data["page"]["page_h"]
                 for f in data.get("figures", []):
                     f["bbox"] = clamp_bbox([f["bbox_x"], f["bbox_y"], f["bbox_w"], f["bbox_h"]], W, H)
-                # 스타일 스키마 사용시 활성화하면 도움이 됨 : 스타일 범위 제한 (예: 0.7~1.3)
-                #s = (data.get("styles", {}) or {}).get("base_font_scale")
-                #if isinstance(s, (int,float)): data["styles"]["base_font_scale"] = max(0.7, min(1.3, float(s)))
                 return data, None
             
             _dump_debug({"errors": errs}, "schema_errors", attempt)

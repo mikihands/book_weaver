@@ -1,4 +1,5 @@
 {% extends "page_base.html" %}
+{% load static tailwind_tags %}
 {% load weaver_extras %}
 {% block title %} {{ book.title }} - p{{ page_no }} {% endblock %}
 
@@ -37,11 +38,12 @@
   th,td{border:1px solid #e5e7eb;padding:.5rem;vertical-align:top}
 
   .content div, .content p, .content div p {
-      font-size: var(--font-base);
-      line-height: var(--leading);
+      line-height: var(--leading);  
       margin-bottom: var(--para-gap);
   }
   .content {
+    
+    font-size: var(--font-base);
     padding: var(--pad);
     width: var(--content-w);
     height: var(--content-h);
