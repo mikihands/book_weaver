@@ -1,21 +1,32 @@
 #mybook/utils/faithful_prompt.py
 
-def build_prompt_faithful(page_ctx: dict, target_lang: str, total_pages: int) -> tuple[str, dict, str]:
+def build_prompt_faithful(page_ctx: dict, target_lang: str, total_pages: int, book_title: str | None = None, book_genre: str | None = None, prev_page_html: str | None = None, user_feedback: str | None = None, current_translation_html: str | None = None, glossary: str | None = None) -> tuple[str, dict, str]:
     """
     page_ctx = {
       "page_no": 12,
       "size": {"w": 2480, "h": 3508, "units":"px"},
       "images": [{"ref":"img_p12_1","bbox":[x,y,w,h]}, ...],  # 이미 정규화된 좌표(0,0)~(W,H)
     }
+    book_title: The title of the book.
+    book_genre: The genre of the book.
+    prev_page_html: The translated HTML content of the previous page for context.
+    user_feedback: Specific feedback from the user for re-translation.
+    current_translation_html: The current (flawed) translated HTML for this page.
+    glossary: User-provided glossary for consistent translation.
     """
     W = int(page_ctx["size"]["w"])
     H = int(page_ctx["size"]["h"])
+
+    if book_genre:
+      genre_principles = get_genre_specific_principles(book_genre)
 
     # --- SYSTEM: 역할/좌표계/반환형식 계약을 강하게 명시 ---
     SYSTEM_PROMPT = f"""
 You are **Weaver AI**, a document layout + translation compositor.
 Your job: read the attached page, translate it to the requested language, and output a **single JSON object**
 containing an HTML stage snippet plus a figures manifest.
+
+{genre_principles}
 
 ### Coordinate Space (IMPORTANT)
 - Origin: top-left (0,0)
@@ -65,14 +76,15 @@ Wrapper contract (already applied by server):
 4) Use semantic HTML (<p>, <h1-6>, <ul/ol>, <blockquote>, <figure/figcaption>, <table>, etc.) You can add if needed.
 5) For body text, do NOT set fixed px/rem sizes. Inherit wrapper base.
 6) Margins/padding: use multiples of var(--font-base), e.g. style="margin: calc(var(--font-base)*1.2) 0 .4em;"
-7) 문단은 실제 원본의 들여쓰기/줄간격/여백을 반영해라.
-8) For each figure:
+7) 문단은 실제 원본의 들여쓰기/줄간격/여백을 반영해라. 
+8) paragraph의 첫줄을 들여써야 할 경우 text-indent 사용.(Do NOT use margin)
+9) For each figure:
   - In HTML, insert an <img> placeholder with **data-ref="<ref>"** and width,height attributes. (do not set src).
   - The server will set the actual src using your "figures" manifest.
   - figure는 이미지 크기를 원본 비율에 맞춰 지정하고, 캡션이 있는 경우 원본에 충실히 재현, .
-9) Never output <html>, <head>, or <body>. Stage-only snippet.
-10) 리스트/각주/출처는 본문보다 작은 글자와 더 촘촘한 줄간격으로 한다.
-11) 절대 위치 지정은 금지. 대신 여백/들여쓰기/정렬로 원본 레이아웃을 “느낌”으로 재현.
+10) Never output <html>, <head>, or <body>. Stage-only snippet.
+11) 리스트/각주/출처는 본문보다 작은 글자와 더 촘촘한 줄간격으로 한다.
+12) 절대 위치 지정은 금지. 대신 여백/들여쓰기/정렬로 원본 레이아웃을 “느낌”으로 재현.
 
 ### Figures Policy
 - A list of known figures (by "ref" and bbox) may be provided by the user message.
@@ -94,6 +106,14 @@ Wrapper contract (already applied by server):
     # --- USER: 작업 지시 + 좌표계/리소스 컨텍스트 ---
     user = {
         "task": "Translate and structure this page",
+        "book_context": {
+            "title": book_title or "Unknown",
+            "genre": book_genre or "Unknown"
+        },
+        "previous_page_context": {
+            "note": "This is the translated HTML from the previous page (page N-1). Use it as a reference to maintain consistency in tone, style, and terminology. **Crucially, if page N-1 ended mid-sentence, your translation for the current page (page N) must seamlessly continue that sentence.**",
+            "html_content": prev_page_html or "This is the first page, so no previous context is available."
+        },
         "total_pages": total_pages,
         "target_lang": target_lang,
         "schema_version": "weaver.page.v2",
@@ -102,6 +122,10 @@ Wrapper contract (already applied by server):
         # 서버가 이미 알고 있는 이미지 자원(정규화된 bbox)을 힌트로 제공
         "figures_available": page_ctx.get("images", []),
         "instructions": [
+            "**Sentence Continuation (Page Start):** The previous page may have ended mid-sentence. Examine `previous_page_context.html_content` and the start of the current page image. If the current page begins with a sentence fragment, your translation must seamlessly continue the sentence from the previous page.",
+            "**Sentence Ending (Page End):** Similarly, examine the last sentence on the current page image. If it seems incomplete and continues to the next page (page N+1), you MUST look ahead at the next page in the document. End the translation for the current page (N) at a natural breaking point. DO NOT artificially complete the sentence; leave it open to be continued on the next page.",
+            "CRITICAL: Refer to 'previous_page_context' to ensure consistent translation tone and style (e.g., formal/informal speech) with the preceding page.",
+            f"The book's title is '{book_title}' and its genre is '{book_genre}'. Use this context to inform the tone and vocabulary of the translation.",
             f"Translate all text into {target_lang}. Do not translate numbers, symbols, or code syntax.",
             f"You are processing page {page_ctx['page_no']} out of {total_pages}. Output must contain ONLY content visible on page {page_ctx['page_no']}.",
             "Maintain a visually similar layout to the original, but ensure readability with proper headings, spacing, and lists.",
@@ -111,6 +135,22 @@ Wrapper contract (already applied by server):
             "Your output must be a single JSON object. DO NOT add any extra text or explanations."
         ]
     }
+
+    if user_feedback:
+        user['retranslation_feedback'] = {
+            "note": "This is a re-translation request. The previous attempt had issues. Pay close attention to the user's feedback below to correct the output.",
+            "user_feedback": user_feedback,
+            "previous_flawed_translation": current_translation_html or "No previous translation available for this page."
+        }
+        user['instructions'].insert(0, "**Re-translation Request:** You are correcting a previous translation. Strictly follow the user's feedback provided in `retranslation_feedback` and refer to the `previous_flawed_translation` to understand what to fix.")
+
+    if glossary:
+        user['glossary'] = {
+            "note": "This is a user-provided glossary. You MUST strictly follow these rules for terminology and style.",
+            "rules": glossary
+        }
+        user['instructions'].insert(0, "**Glossary Adherence:** A user-provided glossary is available. You MUST strictly follow the rules defined in the `glossary` section for all translations.")
+
 
     # --- 예시: 좌표/키 형태를 모델에 각인시키는 샘플 (값은 임의) ---
     example_answer = f"""
@@ -160,90 +200,53 @@ Wrapper contract (already applied by server):
 
     return SYSTEM_PROMPT, user, example_answer
 
+def get_genre_specific_principles(genre: str) -> str:
+    LITERARY_PRINCIPLES = """
+### Literary Translation Principles
+Your primary goal is to produce a translation that reads as if it were **originally written in the target language**. Avoid stiff, literal translations (어색한 번역체).
 
+1.  **Natural Flow over Literal Accuracy:** Do not translate word-for-word. Rephrase sentences to make them sound natural and fluid to a native speaker of the target language, capturing the author's prose style.
+2.  **Character Voice Consistency:** Pay close attention to dialogue. Translate it to reflect the speaker's personality, age, and social context. A child's speech must sound like a child's. A formal character's speech must sound formal.
+3.  **Handling Proper Nouns & Nicknames:**
+    - Standard proper nouns (names, places) should be transliterated consistently.
+    - **Crucially, unique nicknames or pet names (e.g., 'hippo pippo') should be transliterated (e.g., '히포 피포'), NOT translated into their literal components (e.g., '하마 피포').** Treat them as special proper nouns that define character relationships.
+4.  **Cultural Nuances and Idioms:** Do not translate idioms literally. Find an equivalent expression in the target language that carries the same intent and feeling. If no direct equivalent exists, convey the meaning in a natural way.
+5.  **Emotional Tone:** Preserve the emotional tone of the original text—be it suspense, romance, humor, or sorrow.
+    """.strip()
 
-def build_prompt_faithful_v1(page_ctx: dict, target_lang: str):
-    """
-    page_ctx = {
-      "page_no": 12,
-      "size": {"w": 2480, "h": 3508, "units":"px"},
-      "images": [{"ref":"img_p12_1","bbox":[...]}],
-      "ocr_text": "..."  # 선택
-    }
-    """
-    W = page_ctx["size"]["w"]
-    H = page_ctx["size"]["h"]
+    EXPOSITORY_PRINCIPLES = """
+### Expository Translation Principles
+Your primary goal is to convey information and arguments **clearly, accurately, and logically**. The translation must be trustworthy and easy for the reader to understand.
 
-    SYSTEM_PROMPT = f"""
-        You are Weaver AI, a document translation and structuring engine.
-        Your task is to translate content into the target language and return ONLY JSON.
-        The JSON must strictly follow the Weaver Page Schema (weaver.page.v1).
-        You MUST use the following coordinate space for ALL bounding boxes:
-        - Origin: top-left (0,0)
-        - Page size (pixels): width={int(W)}, height={int(H)}
-        - Return every bbox as x, y, w, h in THIS space (pixels). Do NOT use any other unit.
-    """
+1.  **Clarity and Precision:** Prioritize clear and unambiguous language. Avoid creative flair or poetic language that could obscure the original meaning. The author's intent must be preserved with precision.
+2.  **Logical Flow:** Maintain the logical structure of the original text. Ensure that arguments, evidence, and conclusions are connected in the same way.
+3.  **Consistent Terminology:** Key concepts and specialized terms must be translated consistently throughout the entire document. If a standard translated term exists in the field, use it.
+4.  **Objective Tone:** Maintain the objective and formal tone typical of non-fiction. Translate the author's voice faithfully, whether it is instructional, analytical, or persuasive.
+5.  **Citations and References:** Footnotes, endnotes, and citations must be handled carefully and formatted correctly, preserving their link to the original text.
+    """.strip()
 
-    sys = SYSTEM_PROMPT
+    TECHNICAL_PRINCIPLES = """
+### Technical Translation Principles
+Your absolute highest priority is **terminological and factual accuracy**. The translation must be precise and adhere to industry-standard conventions. Natural "flow" is secondary to technical correctness.
 
-    user = {
-        "task": "Translate and structure this page",
-        "schema_version": "weaver.page.v1",
-        "target_lang": target_lang,
-        "mode": "faithful",
-        "page": {"page_no": page_ctx["page_no"], "size": page_ctx["size"]},
-        "resources": {"images": page_ctx.get("images", [])},
-        "instructions": [
-            "1. You MUST output valid JSON conforming to the schema.",
-            "2. Each block requires: id, type, order, bbox, content, and confidence (0.0~1.0).",
-            "3. Block types allowed: heading, paragraph, list, table, figure, equation, code, quote, footnote, separator.",
-            f"4. Translate all text into {target_lang}. Do not translate numbers, symbols, or code syntax.",
-            "5. Do NOT generate new images. Use provided image_ref values for figures.",
-            "6. Tables must use <table> markup in content.html (no CSS, no style attributes).",
-            "7. For footnotes, include label and text, and link back using ref_ids if provided.",
-            "8. Confidence: 0.9+ if very sure, 0.6~0.8 if somewhat sure, <0.5 if unsure.",
-            "9. Do NOT include any additional text or explanations outside the JSON.",
-            "Return ONLY the JSON object, nothing else."
-        ]
-    }
+1.  **Unyielding Terminological Accuracy:** All technical terms, scientific nomenclature, and industry-specific jargon MUST be translated to their officially accepted or most widely used equivalent in the target language. **When in doubt, prefer a direct, consistent translation over a more "natural" sounding but less precise alternative.**
+2.  **Strict Consistency:** A specific technical term must be translated into the exact same word or phrase every single time it appears. There is no room for stylistic variation.
+3.  **Do Not Translate Code/Formulas:** Code snippets, mathematical equations, chemical formulas, and file paths should remain in their original form. Only translate the descriptive text surrounding them.
+4.  **Impersonal and Objective Tone:** The language must be direct, unambiguous, and devoid of any creative or emotional coloring. The goal is to eliminate any possibility of misinterpretation.
+5.  **Preserve Hierarchical Structure:** Headings, subheadings, lists, and tables must maintain their original hierarchical structure to preserve the document's logical flow.
+    """.strip()
 
-    example_answer = SAMPLE_ANSWER_V1
-
-    return sys, user, example_answer
-
-
-SAMPLE_ANSWER_V1 = """
-    {
-        "schema_version": "weaver.page.v1",
-        "target_lang": "ko",
-        "mode": "faithful",
-        "page": {
-            "page_no": 12,
-            "size": {"w": 2480, "h": 3508, "units": "px"}
-        },
-        "resources": {
-            "images": [
-            {"ref":"img_p12_1","bbox":[140,1120,1200,800]}
-            ]
-        },
-        "blocks": [
-            {
-            "id": "b1",
-            "type": "heading",
-            "order": 1,
-            "bbox": [120,220,2200,120],
-            "content": {"text":"3.2 시스템 개요"},
-            "confidence": 0.95,
-            "attrs": {"level":2}
-            },
-            {
-            "id": "fig2",
-            "type": "figure",
-            "order": 2,
-            "bbox": [140,1120,1200,800],
-            "content": {"image_ref":"img_p12_1","caption":"그림 3.2: 시스템 개요"},
-            "confidence": 0.9
-            }
-        ]
-    }
-"""
+    if genre in ["fiction", "fantasy", "science-fiction", "romance", "thriller", "children"]:
+        return LITERARY_PRINCIPLES
+    elif genre in ["non-fiction", "history", "self-help"]:
+        return EXPOSITORY_PRINCIPLES
+    elif genre in ["technical"]:
+        return TECHNICAL_PRINCIPLES
+    else:
+        # 기본값 또는 일반적인 번역 원칙
+        return """
+### General Translation Principles
+- Translate all textual content accurately into the target language.
+- Maintain a consistent tone and style.
+- Keep the layout structure visually close to the original.
+        """.strip()

@@ -34,13 +34,16 @@ class UserProfile(models.Model):
 
 class Book(models.Model):
     PROCESSING_STATUS = [
-        ('pending', '대기 중'),
-        ('processing', '처리 중'),
+        ('pending', '업로드 처리 대기 중'),
+        ('uploaded', '번역 대기 중'),
+        ('processing', '번역 중'),
         ('completed', '완료'),
         ('failed', '실패'),
     ]
 
     title = models.CharField(max_length=255, blank=True, help_text="업로드된 책의 제목")
+    genre = models.CharField(max_length=100, blank=True, null=True, help_text="책의 장르")
+    glossary = models.TextField(blank=True, null=True, help_text="번역에 사용할 사용자 정의 용어집")
     original_file = models.FileField(upload_to="original/", help_text="사용자가 업로드한 원본 파일")
     file_hash = models.CharField(
         max_length=64, 
