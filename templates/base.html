@@ -6,6 +6,12 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>{% block title %}Weaver{% endblock %}</title>
     {% block additional_head %} {% endblock %}
+    {# favicon #}
+    <link rel="icon" type="image/svg+xml" href="{% static 'img/mikihands-favicon.svg' %}">
+    <link rel="icon" sizes="16x16" href="{% static 'img/mikihands-favicon-16.png' %}" type="image/png">
+    <link rel="icon" sizes="32x32" href="{% static 'img/mikihands-favicon-32.png' %}" type="image/png">
+    <link rel="icon" sizes="48x48" href="{% static 'img/mikihands-favicon-48.png' %}" type="image/png">
+    <link rel="apple-touch-icon" sizes="180x180" href="{% static 'img/mikihands-favicon-180.png' %}">
     <style>
         @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap');
         body {
@@ -22,14 +28,26 @@
     <!-- Navigation Bar -->
     <nav class="bg-white shadow-md p-4">
         <div class="container mx-auto flex justify-between items-center">
-            <a href="/" class="text-2xl font-bold text-gray-800">Weaver</a>
-            <div class="space-x-4">
+            <a href="{% url 'mybook:upload_page' %}" class="flex-shrink-0 flex items-center font-bold text-xl">
+                📚 BookWeaver
+            </a>
+            <div>
                 {% if user_logged_in %}
-                    <span class="text-gray-600">환영합니다, {{ user_profile.username }}!</span>
-                    <a href="{% url 'mybook:logout' %}" class="text-gray-600 hover:text-gray-900 transition duration-300">로그아웃</a>
+                    <div class="relative">
+                        <button id="user-menu-button" class="flex items-center text-gray-600 hover:text-gray-900 focus:outline-none transition duration-300 text-sm font-medium">
+                            <span>{{ user_profile.username }} 님</span>
+                            <svg class="w-4 h-4 ml-1" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"></path></svg>
+                        </button>
+                        <div id="user-menu" class="hidden absolute right-0 mt-2 w-48 bg-white rounded-md shadow-lg py-1 z-50 ring-1 ring-black ring-opacity-5">
+                            <a href="{% url 'mybook:bookshelf' %}" class="block px-4 py-2 text-sm text-gray-700 hover:bg-gray-100">내 서재</a>
+                            <a href="{% url 'mybook:logout' %}" class="block px-4 py-2 text-sm text-gray-700 hover:bg-gray-100">로그아웃</a>
+                        </div>
+                    </div>
                 {% else %}
-                    <a href="{% url 'mybook:register_page' %}" class="text-gray-600 hover:text-gray-900 transition duration-300">회원가입</a>
-                    <a href="{% url 'mybook:login_page' %}" class="text-gray-600 hover:text-gray-900 transition duration-300">로그인</a>
+                    <div class="space-x-4">
+                        <a href="{% url 'mybook:register_page' %}" class="text-gray-600 hover:text-gray-900 transition duration-300">회원가입</a>
+                        <a href="{% url 'mybook:login_page' %}" class="text-gray-600 hover:text-gray-900 transition duration-300">로그인</a>
+                    </div>
                 {% endif %}
             </div>
         </div>
@@ -53,10 +71,10 @@
                 <div>
                     <!-- Social Media Icons (placeholder) -->
                     <div class="flex space-x-4 text-white">
-                        <a href="#"><svg class="w-6 h-6" fill="currentColor" viewBox="0 0 24 24"><path d="M12 2.163c3.204 0 3.584.013 4.851.071 1.171.054 1.777.249 2.164.393.411.155.679.336.981.638s.483.57.638.981c.144.387.339.993.393 2.164.058 1.267.071 1.647.071 4.851s-.013 3.584-.071 4.851c-.054 1.171-.249 1.777-.393 2.164-.155.411-.336.679-.638.981s-.57.483-.981.638c-.387.144-.993.339-2.164.393-1.267.058-1.647.071-4.851.071s-3.584-.013-4.851-.071c-1.171-.054-1.777-.249-2.164-.393-.411-.155-.679-.336-.981-.638s-.483-.57-.638-.981c-.144-.387-.339-.993-.393-2.164-.058-1.267-.071-1.647-.071-4.851s.013-3.584.071-4.851c.054-1.171.249-1.777.393-2.164.155-.411.336-.679.638-.981s.57-.483.981-.638c.387-.144.993-.339 2.164-.393 1.267-.058 1.647-.071 4.851-.071zm0-2.163c-3.265 0-3.666.014-4.947.071-1.428.066-2.316.326-3.137.669-.877.362-1.581.879-2.296 1.595-.716.716-1.233 1.419-1.595 2.296-.343.821-.603 1.709-.669 3.137-.057 1.281-.071 1.682-.071 4.947s.014 3.666.071 4.947c.066 1.428.326 2.316.669 3.137.362.877.879 1.581 1.595 2.296.716.716 1.419 1.233 2.296 1.595.821.343 1.709.603 3.137.669 1.281.057 1.682.071 4.947.071s3.666-.014 4.947-.071c1.428-.066 2.316-.326 3.137-.669.877-.362 1.581-.879 2.296-1.595.716-.716 1.233-1.419 1.595-2.296.343-.821.603-1.709.669-3.137.057-1.281.071-1.682.071-4.947s-.014-3.666-.071-4.947c-.066-1.428-.326-2.316-.669-3.137-.362-.877-.879-1.581-1.595-2.296-.716-.716-1.419-1.233-2.296-1.595-.821-.343-1.709-.603-3.137-.669-1.281-.057-1.682-.071-4.947-.071zm0 2.163a7.838 7.838 0 1 0 0 15.676 7.838 7.838 0 0 0 0-15.676zm0 2.163a5.676 5.676 0 1 1 0 11.352 5.676 5.676 0 0 1 0-11.352zm0 2.163a3.513 3.513 0 1 0 0 7.026 3.513 3.513 0 0 0 0-7.026zm0 2.163a1.35 1.35 0 1 1 0 2.7 1.35 1.35 0 0 1 0-2.7z"/></svg></a>
-                        <a href="#"><svg class="w-6 h-6" fill="currentColor" viewBox="0 0 24 24"><path d="M12 2.163c-5.498 0-9.96 4.462-9.96 9.96s4.462 9.96 9.96 9.96 9.96-4.462 9.96-9.96S17.498 2.163 12 2.163zm4.5 9.96h-3v3h3v-3zM12 9.163h-3v3h3v-3zM9 12.163h-3v3h3v-3z"/></svg></a>
-                        <a href="#"><svg class="w-6 h-6" fill="currentColor" viewBox="0 0 24 24"><path d="M12 2.163c-5.498 0-9.96 4.462-9.96 9.96s4.462 9.96 9.96 9.96 9.96-4.462 9.96-9.96S17.498 2.163 12 2.163zm-4.5 12.96v-3h3v3h-3zM12 9.163h-3v3h3v-3zM9 12.163h-3v3h3v-3z"/></svg></a>
-                        <a href="#"><svg class="w-6 h-6" fill="currentColor" viewBox="0 0 24 24"><path d="M12 2.163c-5.498 0-9.96 4.462-9.96 9.96s4.462 9.96 9.96 9.96 9.96-4.462 9.96-9.96S17.498 2.163 12 2.163zm4.5 9.96h-3v3h3v-3zM12 9.163h-3v3h3v-3zM9 12.163h-3v3h3v-3z"/></svg></a>
+                        <a href="https://www.instagram.com/mikihands2024/"><img class="w-6 h-6" src="{% static 'img/jt-instagram.svg' %}" alt="Instagram"></a>
+                        <a href="https://youtube.com/@mikihands?si=eoHNHtDi2ndNobIG/"><img class="w-6 h-6" src="{% static 'img/jt-youtube.svg' %}" alt="YouTube"></a>
+                        <a href="https://x.com/mikihands156565/"><img class="w-6 h-6" src="{% static 'img/jt-twitter.svg' %}" alt="Twitter"></a>
+                        <a href="https://www.facebook.com/profile.php?id=61566815865801/"><img class="w-6 h-6" src="{% static 'img/jt-facebook.svg' %}" alt="Facebook"></a>
                     </div>
                 </div>
                 <div class="md:col-span-2">
@@ -70,5 +88,24 @@
     </footer>
 
     {% block extra_js %}{% endblock %}
+    <script>
+        document.addEventListener('DOMContentLoaded', function() {
+            const userMenuButton = document.getElementById('user-menu-button');
+            const userMenu = document.getElementById('user-menu');
+
+            if (userMenuButton && userMenu) {
+                userMenuButton.addEventListener('click', function() {
+                    userMenu.classList.toggle('hidden');
+                });
+
+                // Close the dropdown if the user clicks outside of it
+                window.addEventListener('click', function(event) {
+                    if (!userMenuButton.contains(event.target) && !userMenu.contains(event.target)) {
+                        userMenu.classList.add('hidden');
+                    }
+                });
+            }
+        });
+    </script>
 </body>
 </html>

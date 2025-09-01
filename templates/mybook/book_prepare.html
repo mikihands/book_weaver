@@ -111,8 +111,8 @@
         messageDiv.innerHTML = '';
 
         try {
-            const response = await fetch(`/books/{{ book.id }}/update_settings/`, {
-                method: 'POST',
+            const response = await fetch(`{% url "mybook:update_book_settings" book.id %}`, {
+                method: 'PATCH',
                 body: JSON.stringify(dataToSave),
                 headers: {
                     'X-CSRFToken': csrftoken,
@@ -125,7 +125,11 @@
             if (response.ok) {
                 messageDiv.innerHTML = `<span class="text-green-600">${responseData.message}</span>`;
             } else {
-                messageDiv.innerHTML = `<span class="text-red-600">오류: ${responseData.error || JSON.stringify(responseData)}</span>`;
+                if (response.status === 403 && responseData.detail === "Authentication credentials were not provided.") {
+                    messageDiv.innerHTML = `<span class="text-red-600">로그인이 필요합니다. <a href="{% url 'mybook:login_page' %}" class="underline">로그인 페이지로 이동</a></span>`;
+                } else {
+                    messageDiv.innerHTML = `<span class="text-red-600">오류: ${responseData.error || JSON.stringify(responseData)}</span>`;
+                }
             }
         } catch (error) {
             messageDiv.innerHTML = '<span class="text-red-600">네트워크 오류가 발생했습니다.</span>';
@@ -149,7 +153,7 @@
         submitButton.innerHTML = '<div class="flex justify-center items-center"><div class="animate-spin rounded-full h-5 w-5 border-b-2 border-white"></div><span class="ml-3">번역 요청 중...</span></div>';
 
         try {
-            const response = await fetch(`/books/{{ book.id }}/translate/`, {
+            const response = await fetch(`{% url "mybook:start_translation" book.id %}`, {
                 method: 'POST',
                 body: JSON.stringify(data),
                 headers: {
@@ -164,7 +168,11 @@
                 messageDiv.innerHTML = `<span class="text-green-600">${responseData.message} 잠시 후 번역 페이지로 이동합니다.</span>`;
                 window.location.href = responseData.page1_url;
             } else {
-                messageDiv.innerHTML = `<span class="text-red-600">오류: ${responseData.error || JSON.stringify(responseData)}</span>`;
+                if (response.status === 403 && responseData.detail === "Authentication credentials were not provided.") {
+                    messageDiv.innerHTML = `<span class="text-red-600">로그인이 필요합니다. <a href="{% url 'mybook:login_page' %}" class="underline">로그인 페이지로 이동</a></span>`;
+                } else {
+                    messageDiv.innerHTML = `<span class="text-red-600">오류: ${responseData.error || JSON.stringify(responseData)}</span>`;
+                }
                 submitButton.disabled = false;
                 submitButton.innerHTML = '번역 시작';
             }

@@ -1,4 +1,5 @@
 from rest_framework import serializers
+from .models import Book
 
 
 class FileUploadSerializer(serializers.Serializer):
@@ -12,10 +13,10 @@ class RetranslateRequestSerializer(serializers.Serializer):
     feedback = serializers.CharField(max_length=1000, help_text="User feedback for re-translation", required=False, allow_blank=True)
 
 
-class BookSettingsSerializer(serializers.Serializer):
-    title = serializers.CharField(max_length=255, required=False, allow_blank=True)
-    genre = serializers.CharField(max_length=100, required=False, allow_blank=True)
-    glossary = serializers.CharField(required=False, allow_blank=True)
+class BookSettingsSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = Book
+        fields = ("title", "genre", "glossary")
 
 
 class StartTranslationSerializer(serializers.Serializer):
