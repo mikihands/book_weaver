@@ -6,6 +6,12 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>{% block title %}Weaver{% endblock %}</title>
     {% block additional_head %}  {% endblock %}
+    {# favicon #}
+    <link rel="icon" type="image/svg+xml" href="{% static 'img/mikihands-favicon.svg' %}">
+    <link rel="icon" sizes="16x16" href="{% static 'img/mikihands-favicon-16.png' %}" type="image/png">
+    <link rel="icon" sizes="32x32" href="{% static 'img/mikihands-favicon-32.png' %}" type="image/png">
+    <link rel="icon" sizes="48x48" href="{% static 'img/mikihands-favicon-48.png' %}" type="image/png">
+    <link rel="apple-touch-icon" sizes="180x180" href="{% static 'img/mikihands-favicon-180.png' %}">
     <style>
         @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap');
         body {
@@ -22,6 +28,39 @@
 
 
 <body>
+    <nav class="bg-white shadow-sm">
+        <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+            <div class="flex justify-between h-16">
+                <div class="flex">
+                    <a href="{% url 'mybook:upload_page' %}" class="flex-shrink-0 flex items-center font-bold text-xl">
+                        📚 BookWeaver
+                    </a>
+                </div>
+                <div class="flex items-center">
+                    {% if request.user.is_authenticated and request.user.username %}
+                        <div class="relative ml-3">
+                            <div>
+                                <button type="button" id="user-menu-button-page" class="flex items-center text-gray-500 hover:text-gray-700 focus:outline-none rounded-md text-sm font-medium" aria-expanded="false" aria-haspopup="true">
+                                    <span class="sr-only">Open user menu</span>
+                                    <span>{{ request.user.username }} 님</span>
+                                    <svg class="w-4 h-4 ml-1" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"></path></svg>
+                                </button>
+                            </div>
+                            <div id="user-menu-page" class="hidden origin-top-right absolute right-0 mt-2 w-48 rounded-md shadow-lg py-1 bg-white ring-1 ring-black ring-opacity-5 focus:outline-none z-50" role="menu" aria-orientation="vertical" aria-labelledby="user-menu-button-page">
+                                <a href="{% url 'mybook:bookshelf' %}" class="block px-4 py-2 text-sm text-gray-700 hover:bg-gray-100" role="menuitem">내 서재</a>
+                                <a href="{% url 'mybook:logout' %}" class="block px-4 py-2 text-sm text-gray-700 hover:bg-gray-100" role="menuitem">로그아웃</a>
+                            </div>
+                        </div>
+                    {% else %}
+                        <a href="{% url 'mybook:login_page' %}" class="text-gray-500 hover:text-gray-700 px-3 py-2 rounded-md text-sm font-medium">로그인</a>
+                        <a href="{% url 'mybook:register_page' %}" class="ml-4 inline-flex items-center px-4 py-2 border border-transparent text-sm font-medium rounded-md shadow-sm text-white bg-blue-600 hover:bg-blue-700">
+                            회원가입
+                        </a>
+                    {% endif %}
+                </div>
+            </div>
+        </div>
+    </nav>
     {# -- 1. 작업 실패 시 재시도 UI -- #}
     {% if book.status == 'failed' %}
     <div id="retry-banner" class="fixed top-20 right-5 bg-red-100 border border-red-400 text-red-700 px-4 py-3 rounded-lg shadow-lg z-50" role="alert">
@@ -42,7 +81,14 @@
         <div class="group">
         {% if prev_url %}<a href="{{ prev_url }}"><button>← 이전</button></a>{% endif %}
         {% if next_url %}<a href="{{ next_url }}"><button>다음 →</button></a>{% endif %}
-        <span class="hint" style="color:#6b7280">p{{ page_no }}{% if book.page_count %} / {{ book.page_count }}{% endif %}</span>
+        {% if book.page_count and book.page_count > 1 %}
+        <form id="page-jump-form" class="flex items-center ml-2">
+            <input type="number" id="page-jump-input" value="{{ page_no }}" min="1" max="{{ book.page_count }}" 
+                   class="w-16 text-center border border-gray-300 rounded-md shadow-sm text-sm focus:ring-blue-500 focus:border-blue-500 py-1"
+                   aria-label="페이지 번호 입력">
+            <span class="mx-2 text-gray-500 text-sm">/ {{ book.page_count }}</span>
+        </form>
+        {% endif %}
         </div>
 
         <div class="group">
@@ -61,11 +107,16 @@
             <option value="off"  {% if bg_mode == "off" %}selected{% endif %}>off</option>
             </select>
         </label>
+        <button id="search-toggle-button" title="책 안에서 검색" class="p-2 rounded-md hover:bg-gray-100 ml-2">
+            <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5 text-gray-600" viewBox="0 0 20 20" fill="currentColor">
+              <path fill-rule="evenodd" d="M8 4a4 4 0 100 8 4 4 0 000-8zM2 8a6 6 0 1110.89 3.476l4.817 4.817a1 1 0 01-1.414 1.414l-4.816-4.816A6 6 0 012 8z" clip-rule="evenodd" />
+            </svg>
+        </button>
         </div>
     </div>
 
     {% if status != "ready" or not html_stage_final %}
-        <div style="padding:24px;background:#fff7ed;border:1px solid #fdba74;color:#9a3412;border-radius:12px">
+        <div id="status-banner" style="padding:24px;background:#fff7ed;border:1px solid #fdba74;color:#9a3412;border-radius:12px">
         {% if status == 'failed' %}
             이 페이지 번역에 실패했습니다. (status={{ status }})
             <button id="retranslate-modal-button-inline" class="mt-2 bg-yellow-500 hover:bg-yellow-700 text-white font-bold py-1 px-3 rounded">
@@ -89,6 +140,29 @@
         </div>
     {% endif %}
     </div>
+
+    {# -- Search Side Panel -- #}
+    <div id="search-panel" class="fixed top-0 -left-96 h-full w-96 bg-white shadow-2xl z-40 transition-all duration-300 ease-in-out flex flex-col">
+        <!-- Header -->
+        <div class="flex justify-between items-center p-4 border-b">
+            <h2 class="text-xl font-semibold">책 검색</h2>
+            <button id="search-panel-close" class="text-gray-500 hover:text-gray-800 text-2xl">&times;</button>
+        </div>
+        <!-- Search Input -->
+        <div class="p-4 border-b">
+            <form id="search-form">
+                <input type="search" id="search-input" name="q" placeholder="검색어 입력 후 Enter..." class="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500" required minlength="2">
+            </form>
+        </div>
+        <!-- Results -->
+        <div id="search-results-container" class="flex-grow overflow-y-auto">
+            <div id="search-results-list" class="divide-y"></div>
+            <div id="search-message" class="p-6 text-center text-gray-500">
+                검색어를 입력하고 Enter를 누르세요.
+            </div>
+        </div>
+    </div>
+    <div id="search-panel-overlay" class="hidden fixed inset-0 bg-black/50 z-30"></div>
 
     {# -- 2. 페이지 재번역 요청 UI (버튼 및 모달) -- #}
     <div class="fixed bottom-5 right-5 z-50">
@@ -137,6 +211,199 @@
         }
         const csrftoken = getCookie('csrftoken');
 
+        // --- 사용자 메뉴 드롭다운 로직 ---
+        const userMenuButtonPage = document.getElementById('user-menu-button-page');
+        const userMenuPage = document.getElementById('user-menu-page');
+
+        if (userMenuButtonPage && userMenuPage) {
+            userMenuButtonPage.addEventListener('click', function() {
+                userMenuPage.classList.toggle('hidden');
+            });
+
+            // Close the dropdown if the user clicks outside of it
+            window.addEventListener('click', function(event) {
+                if (!userMenuButtonPage.contains(event.target) && !userMenuPage.contains(event.target)) {
+                    userMenuPage.classList.add('hidden');
+                }
+            });
+        }
+
+        // --- 페이지 점프 기능 로직 ---
+        const pageJumpForm = document.getElementById('page-jump-form');
+        const pageJumpInput = document.getElementById('page-jump-input');
+
+        if (pageJumpForm && pageJumpInput) {
+            // 입력 필드를 클릭하면 내용 전체 선택
+            pageJumpInput.addEventListener('focus', function() {
+                this.select();
+            });
+
+            pageJumpForm.addEventListener('submit', function(event) {
+                event.preventDefault();
+                const targetPage = parseInt(pageJumpInput.value, 10);
+                const maxPage = parseInt(pageJumpInput.getAttribute('max'), 10);
+
+                if (!isNaN(targetPage) && targetPage >= 1 && targetPage <= maxPage) {
+                    const currentUrl = new URL(window.location.href);
+                    const pathParts = currentUrl.pathname.split('/');
+                    pathParts[pathParts.length - 2] = targetPage; 
+                    currentUrl.pathname = pathParts.join('/');
+                    window.location.href = currentUrl.toString();
+                } else {
+                    alert(`1에서 ${maxPage} 사이의 페이지 번호를 입력해주세요.`);
+                    pageJumpInput.value = {{ page_no }};
+                    pageJumpInput.select();
+                }
+            });
+        }
+
+        // --- 페이지 번역 상태 폴링 로직 ---
+        const bookId = {{ book.id }};
+        const pageNo = {{ page_no }};
+        const currentStatus = '{{ status }}';
+        
+        // --- 페이지 번역 상태 폴링 로직 ---
+        if (currentStatus !== 'ready' && currentStatus !== 'failed') {
+            const statusBanner = document.getElementById('status-banner');
+            if (statusBanner) {
+                const pollingIndicator = document.createElement('div');
+                pollingIndicator.id = 'polling-indicator';
+                pollingIndicator.className = 'mt-2 text-sm text-gray-600';
+                pollingIndicator.textContent = '번역 상태를 확인 중입니다... (완료 시 자동 새로고침)';
+                statusBanner.appendChild(pollingIndicator);
+            }
+
+            const poll = (url, interval, maxAttempts) => {
+                let attempts = 0;
+                const executePoll = async (resolve, reject) => {
+                    if (attempts++ >= maxAttempts) {
+                        return reject(new Error('Polling timed out.'));
+                    }
+                    try {
+                        const response = await fetch(url);
+                        if (!response.ok) {
+                            if (response.status === 403) {
+                                alert("인증에 실패했습니다. 다시 로그인해주세요.");
+                            }
+                            return reject(new Error(`Status check failed with status: ${response.status}`));
+                        }
+                        const data = await response.json();
+
+                        if (data.status === 'ready' || data.status === 'failed') {
+                            return resolve(data.status);
+                        } else {
+                            setTimeout(() => executePoll(resolve, reject), interval);
+                        }
+                    } catch (error) {
+                        return reject(error);
+                    }
+                };
+                return new Promise(executePoll);
+            };
+
+            const statusUrl = `/books/${bookId}/pages/${pageNo}/status/?mode={{ request.GET.mode|default:'faithful' }}`;
+            
+            poll(statusUrl, 3000, 40) // 3초마다, 최대 2분간 확인
+                .then(finalStatus => {
+                    console.log(`Polling finished with status: ${finalStatus}`);
+                    const indicator = document.getElementById('polling-indicator');
+                    if (indicator) {
+                        indicator.textContent = '번역이 완료되었습니다. 페이지를 새로고침합니다...';
+                        indicator.className = 'mt-2 text-sm text-green-700 font-bold';
+                    }
+                    setTimeout(() => window.location.reload(), 500);
+                })
+                .catch(error => {
+                    console.error('Polling failed:', error.message);
+                });
+        }
+
+        // --- 검색 기능 및 하이라이트 로직 ---
+        if (bookId) {
+            const searchToggleButton = document.getElementById('search-toggle-button');
+            const searchPanel = document.getElementById('search-panel');
+            const searchPanelClose = document.getElementById('search-panel-close');
+            const searchPanelOverlay = document.getElementById('search-panel-overlay');
+            const searchForm = document.getElementById('search-form');
+            const searchInput = document.getElementById('search-input');
+            const searchResultsList = document.getElementById('search-results-list');
+            const searchMessage = document.getElementById('search-message');
+            const contentContainer = document.querySelector('.content');
+
+            function openSearchPanel() {
+                searchPanel.classList.remove('-left-96');
+                searchPanel.classList.add('left-0');
+                searchPanelOverlay.classList.remove('hidden');
+                searchInput.focus();
+            }
+
+            function closeSearchPanel() {
+                searchPanel.classList.add('-left-96');
+                searchPanel.classList.remove('left-0');
+                searchPanelOverlay.classList.add('hidden');
+            }
+
+            searchToggleButton.addEventListener('click', openSearchPanel);
+            searchPanelClose.addEventListener('click', closeSearchPanel);
+            searchPanelOverlay.addEventListener('click', closeSearchPanel);
+
+            searchForm.addEventListener('submit', async (e) => {
+                e.preventDefault();
+                const query = searchInput.value.trim();
+                if (query.length < 2) {
+                    searchMessage.textContent = '검색어는 2글자 이상 입력해주세요.';
+                    return;
+                }
+
+                searchResultsList.innerHTML = '';
+                searchMessage.innerHTML = '<div class="animate-spin rounded-full h-6 w-6 border-b-2 border-blue-600 mx-auto mt-8"></div>';
+                searchMessage.classList.remove('hidden');
+
+                try {
+                    const response = await fetch(`/books/${bookId}/search/?q=${encodeURIComponent(query)}`);
+                    if (!response.ok) {
+                        const err = await response.json();
+                        throw new Error(err.error || '검색 중 오류가 발생했습니다.');
+                    }
+                    const results = await response.json();
+
+                    if (results.length === 0) {
+                        searchMessage.textContent = `'${query}'에 대한 검색 결과가 없습니다.`;
+                    } else {
+                        searchMessage.classList.add('hidden');
+                        results.forEach(result => {
+                            const resultEl = document.createElement('a');
+                            const currentUrlParams = new URLSearchParams(window.location.search);
+                            currentUrlParams.set('highlight', query);
+                            resultEl.href = `/books/${bookId}/pages/${result.page_no}/?${currentUrlParams.toString()}`;
+                            resultEl.className = 'block p-4 hover:bg-gray-50 cursor-pointer';
+                            resultEl.innerHTML = `<div class="font-bold text-blue-600">Page ${result.page_no}</div><div class="text-sm text-gray-600 mt-1">${result.snippet}</div>`;
+                            searchResultsList.appendChild(resultEl);
+                        });
+                    }
+                } catch (error) {
+                    searchMessage.textContent = error.message;
+                }
+            });
+
+            // --- Highlight on Page Load ---
+            function applyHighlight() {
+                const params = new URLSearchParams(window.location.search);
+                const highlightQuery = params.get('highlight');
+                if (!highlightQuery || !contentContainer) return;
+
+                const re = new RegExp(`(${highlightQuery.replace(/[-\/\\^$*+?.()|[\]{}]/g, '\\$&')})`, 'gi');
+                const walker = document.createTreeWalker(contentContainer, NodeFilter.SHOW_TEXT);
+                const nodes = [];
+                while(walker.nextNode()) if(re.test(walker.currentNode.nodeValue)) nodes.push(walker.currentNode);
+                nodes.forEach(node => {
+                    const newHtml = node.nodeValue.replace(re, '<mark class="bg-yellow-300 px-1 rounded-sm">$1</mark>');
+                    node.parentNode.replaceChild(document.createRange().createContextualFragment(newHtml), node);
+                });
+            }
+            applyHighlight();
+        }
+
         // 책 전체 재시도 버튼 로직
         const retryBookButton = document.getElementById('retry-book-button');
         if (retryBookButton) {
@@ -149,6 +416,11 @@
                         headers: { 'X-CSRFToken': csrftoken, 'Content-Type': 'application/json' },
                     });
                     const data = await response.json();
+                    if (!response.ok && response.status === 403 && data.detail === "Authentication credentials were not provided.") {
+                        alert("로그인이 필요합니다.");
+                        window.location.href = "{% url 'mybook:login_page' %}";
+                        return;
+                    }
                     alert(data.message || data.error);
                     if (response.ok) window.location.reload();
                 } catch (e) {
@@ -185,6 +457,11 @@
                     body: JSON.stringify({ feedback: feedback || "Retranslate this page." }) // 피드백이 없으면 기본 메시지
                 });
                 const data = await response.json();
+                if (!response.ok && response.status === 403 && data.detail === "Authentication credentials were not provided.") {
+                    alert("로그인이 필요합니다.");
+                    window.location.href = "{% url 'mybook:login_page' %}";
+                    return;
+                }
                 alert(data.message || data.error);
                 if (response.ok) {
                     modal.style.display = 'none';

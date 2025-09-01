@@ -120,7 +120,7 @@
         submitButton.classList.add('bg-blue-400', 'cursor-not-allowed');
         submitButton.classList.remove('bg-blue-600', 'hover:bg-blue-700');
         
-        messageDiv.innerHTML = '<div class="flex justify-center items-center"><div class="animate-spin rounded-full h-5 w-5 border-b-2 border-blue-600"></div><span class="ml-3 text-blue-600">번역 중... 잠시만 기다려주세요.</span></div>';
+        messageDiv.innerHTML = '<div class="flex justify-center items-center"><div class="animate-spin rounded-full h-5 w-5 border-b-2 border-blue-600"></div><span class="ml-3 text-blue-600"> 업로드 중... 잠시만 기다려주세요.</span></div>';
 
         try {
             const response = await fetch('/upload/', {
@@ -135,9 +135,15 @@
 
             if (response.ok) {
                 messageDiv.innerHTML = `<span class="text-green-600">${data.message}</span>`;
-                window.location.href = data.prepare_url;
+                if (data.prepare_url) {
+                    window.location.href = data.prepare_url;
+                }
             } else {
-                messageDiv.innerHTML = `<span class="text-red-600">오류: ${data.error || JSON.stringify(data)}</span>`;
+                if (response.status === 403 && data.detail === "Authentication credentials were not provided.") {
+                    messageDiv.innerHTML = `<span class="text-red-600">로그인이 필요합니다. <a href="{% url 'mybook:login_page' %}" class="underline">로그인 페이지로 이동</a></span>`;
+                } else {
+                    messageDiv.innerHTML = `<span class="text-red-600">오류: ${data.error || JSON.stringify(data)}</span>`;
+                }
             }
         } catch (error) {
             messageDiv.innerHTML = '<span class="text-red-600">네트워크 오류가 발생했습니다.</span>';

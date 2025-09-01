@@ -48,7 +48,6 @@ class Book(models.Model):
     file_hash = models.CharField(
         max_length=64, 
         db_index=True, 
-        unique=True,
         help_text="파일 내용의 해시값 (중복 업로드 방지용)"
     )
     page_count = models.IntegerField(default=0, help_text="원본 문서의 총 페이지 수")
@@ -72,6 +71,13 @@ class Book(models.Model):
 
     def __str__(self):
         return self.title or self.original_file.name
+
+    class Meta:
+        verbose_name = "Book"
+        verbose_name_plural = "Books"
+        constraints = [
+            models.UniqueConstraint(fields=['file_hash', 'owner'], name='unique_file_hash_owner')
+        ]
 
     def save(self, *args, **kwargs):
         if not self.file_hash and self.original_file:

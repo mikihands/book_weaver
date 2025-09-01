@@ -1,15 +1,15 @@
-import logging, os, json, hashlib
+import logging, os, json, hashlib, re
 from bs4 import BeautifulSoup
+from rest_framework import generics, status
 from rest_framework.permissions import IsAuthenticated, AllowAny
 from rest_framework.parsers import MultiPartParser, FormParser
 from rest_framework.views import APIView
 from rest_framework.response import Response
-from rest_framework import status
 from datetime import datetime
 from typing import Dict
 
 from django.conf import settings
-from django.db import transaction
+from django.db import transaction, models
 from django.contrib.auth.models import User
 from django.core.files.storage import default_storage
 from django.shortcuts import get_object_or_404, render, redirect
@@ -23,6 +23,7 @@ from .utils.extract_image import extract_images_and_bboxes, is_fullpage_backgrou
 from .utils.layout_norm import normalize_pages_layout
 from .utils.html_inject import inject_sources
 from .tasks import translate_book_pages, retranslate_single_page
+from .permissions import IsBookOwner
 from common.mixins.hmac_sign_mixin import HmacSignMixin
 
 logger = logging.getLogger(__name__)
@@ -75,12 +76,12 @@ class BookUploadView(APIView):
             # 2) Book get_or_create (파일 저장 포함)
             #    파일 저장은 DB 트랜잭션 바깥에서 수행해도 OK
             book, created = Book.objects.get_or_create(
+                owner=user_profile,
                 file_hash=file_hash,
                 defaults={
                     "title": title or uploaded_file.name,
                     "genre": genre,
                     "original_file": uploaded_file,
-                    "owner": user_profile,
                     "status": "pending", # Start with pending
                 },
             )
@@ -202,18 +203,14 @@ class BookPageView(APIView):
     permission_classes = [IsAuthenticated]  # 정책에 맞게 조정
 
     def get(self, request, book_id: int, page_no: int, *args, **kwargs):
-        """
-        단일 페이지 렌더(정밀 모드)
-        URL 예: /books/<book_id>/pages/<page_no>/?mode=faithful&bg=auto|on|off
-        """
         mode = request.GET.get("mode", "faithful")
         bg_mode = request.GET.get("bg", "off")  # auto|on|off
 
-        book = get_object_or_404(Book, id=book_id)
+        book = get_object_or_404(Book, id=book_id, owner=request.user)
         page = get_object_or_404(BookPage, book=book, page_no=page_no)
         tp = TranslatedPage.objects.filter(book=book, page_no=page_no, mode=mode).first()
 
-        # v2 JSON 기대: schema_version=weaver.page.v2, fields: page, html_stage, figures, styles?
+        # v2 JSON 기대: schema_version=weaver.page.v2, fields: page, html_stage, figures
         data = tp.data if tp else None
         status_flag = tp.status if tp else "pending"
 
@@ -345,54 +342,71 @@ class BookPrepareView(APIView):
         book = get_object_or_404(Book, id=book_id, owner=request.user)
         if book.status not in ['uploaded', 'failed']:
             # 이미 번역이 시작되었거나 완료된 경우, 첫 페이지로 리디렉션
-            return redirect(reverse('mybook:book_page', kwargs={'book_id': book.id, 'page_no': 1}))
+            return redirect(reverse('mybook:book_page', kwargs={'book_id': book.id, 'page_no': 1})) # type: ignore
         return render(request, 'mybook/book_prepare.html', {'book': book})
 
+class UpdateBookSettingsView(generics.UpdateAPIView):
+    # 이 뷰가 다룰 모델의 쿼리셋을 지정.
+    queryset = Book.objects.all()
+    
+    # 이 뷰가 사용할 시리얼라이저 클래스를 지정.
+    serializer_class = BookSettingsSerializer
+    
+    # URL에서 객체를 식별할 필드와 키워드 인자를 지정.
+    lookup_field = 'id'
+    lookup_url_kwarg = 'book_id'
+    
+    # 권한 클래스들을 지정.
+    permission_classes = [IsAuthenticated, IsBookOwner]
 
-class UpdateBookSettingsView(APIView):
-    permission_classes = [IsAuthenticated]
-
-    def post(self, request, book_id, *args, **kwargs):
-        book = get_object_or_404(Book, id=book_id, owner=request.user)
-        serializer = BookSettingsSerializer(data=request.data)
-        serializer.is_valid(raise_exception=True)
+    def update(self, request, *args, **kwargs):
         
-        validated_data = serializer.validated_data
-        book.title = validated_data.get('title', book.title) # type: ignore
-        book.genre = validated_data.get('genre', book.genre) # type: ignore
-        book.glossary = validated_data.get('glossary', book.glossary) # type: ignore
-        book.save(update_fields=['title', 'genre', 'glossary'])
+        super().update(request, *args, **kwargs)
         
         return Response({"message": "설정이 성공적으로 저장되었습니다."}, status=status.HTTP_200_OK)
 
-
-class StartTranslationView(APIView):
-    permission_classes = [IsAuthenticated]
+class StartTranslationView(generics.GenericAPIView):
+    """
+    POST books/<int:book_id>/translate/
+    - 본문: { "target_language": "...", "title"?: "...", "genre"?: "...", "glossary"?: "..." }
+    - 소유자만 실행 가능 (IsAuthenticated + IsBookOwner)
+    """
+    serializer_class = StartTranslationSerializer
+    queryset = Book.objects.select_related("owner") # get_object()에서 사용하기 위함
+    permission_classes = [IsAuthenticated, IsBookOwner]
+    lookup_field = 'id'
+    lookup_url_kwarg = 'book_id'
 
     def post(self, request, book_id, *args, **kwargs):
-        book = get_object_or_404(Book, id=book_id, owner=request.user)
-        serializer = StartTranslationSerializer(data=request.data)
+        # 1) 책 객체 가져오기
+        book = self.get_object() # 내부에서 self.check_object_permissions()가 호출됨
+        # 2) 시리얼라이저 유효성 검사
+        serializer = self.get_serializer(data=request.data)
         serializer.is_valid(raise_exception=True)
-        
         validated_data = serializer.validated_data
+        # 3) 책 정보 업데이트
         book.title = validated_data.get('title', book.title) # type: ignore
         book.genre = validated_data.get('genre', book.genre) # type: ignore
         book.glossary = validated_data.get('glossary', book.glossary) # type: ignore
         book.status = 'processing'
-        book.save()
-
+        book.save(update_fields=['title', 'genre', 'glossary', 'status'])
+        # 4) 번역 작업 시작
         translate_book_pages.delay(book.id, validated_data['target_language']) # type: ignore
-        
+        # 5) 응답
         page1_url = reverse('mybook:book_page', kwargs={'book_id': book.id, 'page_no': 1}) # type: ignore
         return Response({"message": "Translation has started.", "page1_url": page1_url}, status=status.HTTP_202_ACCEPTED)
 
-class RetranslatePageView(APIView):
-    permission_classes = [IsAuthenticated]
+class RetranslatePageView(generics.GenericAPIView):
+    serializer_class = RetranslateRequestSerializer
+    queryset = Book.objects.select_related("owner")
+    permission_classes = [IsAuthenticated, IsBookOwner]
+    lookup_field = 'id'
+    lookup_url_kwarg = 'book_id'
 
     def post(self, request, book_id: int, page_no: int, *args, **kwargs):
-        book = get_object_or_404(Book, id=book_id, owner=request.user)
-        
-        serializer = RetranslateRequestSerializer(data=request.data)
+        book = self.get_object()
+
+        serializer = self.get_serializer(data=request.data)
         serializer.is_valid(raise_exception=True)
         feedback = serializer.validated_data.get('feedback', '') # type: ignore
 
@@ -406,16 +420,19 @@ class RetranslatePageView(APIView):
         TranslatedPage.objects.filter(book=book, page_no=page_no, lang=target_lang, mode='faithful').update(status='pending')
         
         # Asynchronously call the re-translation task
-        retranslate_single_page.delay(book_id, page_no, target_lang, feedback) # type: ignore
+        retranslate_single_page.delay(book.id, page_no, target_lang, feedback) # type: ignore
 
         return Response({"message": f"Retranslation for page {page_no} has been queued."}, status=status.HTTP_202_ACCEPTED)
 
 
-class RetryTranslationView(APIView):
-    permission_classes = [IsAuthenticated]
+class RetryTranslationView(generics.GenericAPIView):
+    permission_classes = [IsAuthenticated, IsBookOwner]
+    queryset = Book.objects.select_related("owner")
+    lookup_field = 'id'
+    lookup_url_kwarg = 'book_id'
 
     def post(self, request, book_id: int, *args, **kwargs):
-        book = get_object_or_404(Book, id=book_id, owner=request.user)
+        book = self.get_object()
 
         if book.status not in ['failed', 'completed']:
             return Response({"error": f"Cannot retry translation for a book with status '{book.status}'."}, status=status.HTTP_400_BAD_REQUEST)
@@ -446,6 +463,29 @@ class RetryTranslationView(APIView):
         return Response({"message": f"Retry for {len(pages_to_process) if pages_to_process else 'all'} pages has been queued."}, status=status.HTTP_202_ACCEPTED)
     
 
+class TranslatedPageStatusView(APIView):
+    """
+    특정 책 페이지의 번역 상태를 확인하는 API.
+    GET /books/<int:book_id>/pages/<int:page_no>/status/
+    """
+    permission_classes = [IsAuthenticated, IsBookOwner]
+
+    def get(self, request, book_id: int, page_no: int, *args, **kwargs):
+        book = get_object_or_404(Book, id=book_id)
+        self.check_object_permissions(request, book) # IsBookOwner 권한 검사
+
+        mode = request.GET.get("mode", "faithful")
+        
+        tp_status = TranslatedPage.objects.filter(
+            book=book, 
+            page_no=page_no, 
+            mode=mode
+        ).values_list('status', flat=True).first()
+
+        # TranslatedPage 객체가 아직 생성되지 않았다면 'pending'으로 간주
+        current_status = tp_status if tp_status else "pending"
+
+        return Response({"status": current_status})
     
 class UploadPage(APIView):
     permission_classes =[AllowAny]
@@ -545,6 +585,23 @@ class LoginPage(APIView):
     def get(self, request, *args, **kwargs):
         return render(request, 'mybook/login_page.html')
 
+class BookshelfView(APIView):
+    permission_classes = [IsAuthenticated]
+
+    def get(self, request, *args, **kwargs):
+        # 1페이지의 번역 언어(lang)를 서브쿼리로 가져와서 각 Book 객체에 추가합니다.
+        # 이렇게 하면 템플릿에서 N+1 쿼리 문제를 방지할 수 있습니다.
+        first_page_lang = TranslatedPage.objects.filter(
+            book=models.OuterRef('pk'),
+            page_no=1
+        ).values('lang')[:1]
+
+        books = Book.objects.filter(owner=request.user).annotate(
+            target_lang=models.Subquery(first_page_lang)
+        ).order_by('-created_at')
+        return render(request, 'mybook/bookshelf.html', {'books': books})
+
+
 def user_logout(request):
     """
     동일한 브라우저에서 다른 아이디로 로그인했을 때 세션을 공유하는 일이 없도록 완전히 flush
@@ -552,3 +609,60 @@ def user_logout(request):
     request.session.flush()
     # 로그아웃 후 메인 페이지로 이동
     return redirect("mybook:upload_page")
+
+
+class BookSearchAPIView(APIView):
+    """
+    책 전체에서 번역된 텍스트를 검색하는 API.
+    GET /books/<int:book_id>/search/?q=<query>
+    """
+    permission_classes = [IsAuthenticated, IsBookOwner]
+
+    def get(self, request, book_id: int, *args, **kwargs):
+        book = get_object_or_404(Book, id=book_id)
+        self.check_object_permissions(request, book)
+
+        query = request.GET.get('q', '').strip()
+        if not query or len(query) < 2:
+            return Response({"error": "검색어는 2글자 이상 입력해주세요."}, status=status.HTTP_400_BAD_REQUEST)
+
+        # PostgreSQL의 JSONB 필드에 대한 icontains 쿼리 활용
+        matching_pages = TranslatedPage.objects.filter(
+            book=book,
+            status='ready',
+            data__html_stage__icontains=query
+        ).order_by('page_no')
+
+        results = []
+        processed_pages = set()
+
+        for page in matching_pages:
+            if page.page_no in processed_pages:
+                continue
+
+            html_content = page.data.get('html_stage', '')
+            soup = BeautifulSoup(html_content, 'html.parser')
+            text = soup.get_text(" ", strip=True)
+
+            # Create snippet from the first match
+            match = re.search(re.escape(query), text, re.IGNORECASE)
+            if match:
+                start_index = max(0, match.start() - 40)
+                end_index = min(len(text), match.end() + 40)
+                
+                snippet_text = text[start_index:end_index]
+                
+                highlighted_snippet = re.sub(
+                    f'({re.escape(query)})', 
+                    r'<mark class="bg-yellow-200 rounded-sm px-1">\1</mark>', 
+                    snippet_text, 
+                    flags=re.IGNORECASE
+                )
+
+                if start_index > 0: highlighted_snippet = "..." + highlighted_snippet
+                if end_index < len(text): highlighted_snippet = highlighted_snippet + "..."
+
+                results.append({'page_no': page.page_no, 'snippet': highlighted_snippet})
+                processed_pages.add(page.page_no)
+
+        return Response(results)
