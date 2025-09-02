@@ -1,10 +1,11 @@
+{% load i18n %}
 {% load static tailwind_tags %}
 <!DOCTYPE html>
-<html lang="ko">
+<html lang={{ LANGUAGE_CODE|default:"ko" }}>
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>{% block title %}Weaver{% endblock %}</title>
+    <title>{% block title %}{% endblock %}</title>
     {% block additional_head %} {% endblock %}
     {# favicon #}
     <link rel="icon" type="image/svg+xml" href="{% static 'img/mikihands-favicon.svg' %}">
@@ -12,82 +13,94 @@
     <link rel="icon" sizes="32x32" href="{% static 'img/mikihands-favicon-32.png' %}" type="image/png">
     <link rel="icon" sizes="48x48" href="{% static 'img/mikihands-favicon-48.png' %}" type="image/png">
     <link rel="apple-touch-icon" sizes="180x180" href="{% static 'img/mikihands-favicon-180.png' %}">
+    <!-- Fonts -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Noto+Sans+KR:wght@400;500;700&display=swap" rel="stylesheet">
     <style>
-        @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap');
-        body {
-            font-family: 'Inter', sans-serif;
-            background-color: #f0f2f5;
+        :root{
+        --bw-bg-from:#0ea5e9; /* sky-500 */
+        --bw-bg-to:#8b5cf6;   /* violet-500 */
+        --bw-ink:#0b1021;
         }
+        html,body{height:100%}
+        body{font-family: Inter, 'Noto Sans KR', system-ui, -apple-system, Segoe UI, Roboto, 'Helvetica Neue', Arial, 'Apple SD Gothic Neo', 'Noto Sans CJK KR', 'Malgun Gothic', sans-serif;}
+        /* soft shadow helper */
+        .bw-shadow{box-shadow:0 10px 30px rgba(16,24,40,.08), 0 4px 8px rgba(16,24,40,.06);}
+        /* subtle card border */
+        .bw-border{border:1px solid rgba(15,23,42,.08)}
+        /* glass */
+        .bw-glass{backdrop-filter: blur(10px); background: rgba(255,255,255,.72);}
     </style>
     {% if not DEBUG_MODE %}
         {% tailwind_preload_css %}
     {% endif %}
     {% tailwind_css %}
 </head>
-<body class="flex flex-col min-h-screen">
-    <!-- Navigation Bar -->
-    <nav class="bg-white shadow-md p-4">
-        <div class="container mx-auto flex justify-between items-center">
-            <a href="{% url 'mybook:upload_page' %}" class="flex-shrink-0 flex items-center font-bold text-xl">
-                📚 BookWeaver
-            </a>
-            <div>
-                {% if user_logged_in %}
-                    <div class="relative">
-                        <button id="user-menu-button" class="flex items-center text-gray-600 hover:text-gray-900 focus:outline-none transition duration-300 text-sm font-medium">
-                            <span>{{ user_profile.username }} 님</span>
-                            <svg class="w-4 h-4 ml-1" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"></path></svg>
-                        </button>
-                        <div id="user-menu" class="hidden absolute right-0 mt-2 w-48 bg-white rounded-md shadow-lg py-1 z-50 ring-1 ring-black ring-opacity-5">
-                            <a href="{% url 'mybook:bookshelf' %}" class="block px-4 py-2 text-sm text-gray-700 hover:bg-gray-100">내 서재</a>
-                            <a href="{% url 'mybook:logout' %}" class="block px-4 py-2 text-sm text-gray-700 hover:bg-gray-100">로그아웃</a>
-                        </div>
-                    </div>
-                {% else %}
-                    <div class="space-x-4">
-                        <a href="{% url 'mybook:register_page' %}" class="text-gray-600 hover:text-gray-900 transition duration-300">회원가입</a>
-                        <a href="{% url 'mybook:login_page' %}" class="text-gray-600 hover:text-gray-900 transition duration-300">로그인</a>
-                    </div>
-                {% endif %}
+<body class="min-h-full bg-slate-50">
+  <!-- Gradient background -->
+  <div class="absolute inset-0 -z-10 bg-gradient-to-br from-[var(--bw-bg-from)]/15 via-transparent to-[var(--bw-bg-to)]/20"></div>
+
+  <header class="w-full">
+    <div class="mx-auto max-w-7xl px-6 py-5 flex items-center justify-between">
+      <a class="group inline-flex items-center gap-2" href="{% url 'mybook:upload_page' %}" aria-label="BookWeaver">
+        <span class="relative grid h-8 w-8 place-items-center">
+          <svg viewBox="0 0 64 64" class="h-8 w-8">
+            <defs><linearGradient id="g" x1="0" x2="1" y1="0" y2="1">
+              <stop offset="0%" stop-color="#0ea5e9"/><stop offset="100%" stop-color="#8b5cf6"/>
+            </linearGradient></defs>
+            <rect rx="14" ry="14" x="4" y="4" width="56" height="56" fill="url(#g)"></rect>
+            <path d="M16 26c10 0 10 12 20 12s10-12 20-12" stroke="#fff" stroke-width="3" fill="none" stroke-linecap="round"/>
+            <path d="M8 38c10 0 10 12 20 12s10-12 20-12" stroke="#fff" stroke-width="3" fill="none" stroke-linecap="round" opacity=".7"/>
+          </svg>
+        </span>
+        <span class="text-slate-800 text-lg font-semibold tracking-tight group-hover:opacity-90">BookWeaver</span>
+      </a>
+      <nav class="hidden md:flex items-center gap-6 text-sm text-slate-600">
+        <a href="#" class="hover:text-slate-800">기능</a>
+        <a href="#" class="hover:text-slate-800">가격</a>
+        <a href="#" class="hover:text-slate-800">FAQ</a>
+      </nav>
+      {% if user_logged_in %}
+        <div class="relative">
+            <button id="user-menu-button" class="flex items-center text-gray-600 hover:text-gray-900 focus:outline-none transition duration-300 text-sm font-medium">
+                <span>{{ user_profile.username }}</span>
+                <svg class="w-4 h-4 ml-1" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"></path></svg>
+            </button>
+            <div id="user-menu" class="hidden absolute right-0 mt-2 w-48 bg-white rounded-md shadow-lg py-1 z-50 ring-1 ring-black ring-opacity-5">
+                <a href="{% url 'mybook:bookshelf' %}" class="block px-4 py-2 text-sm text-gray-700 hover:bg-gray-100">{% trans "내 서재" %}</a>
+                <a href="{% url 'mybook:logout' %}" class="block px-4 py-2 text-sm text-gray-700 hover:bg-gray-100">{% trans "로그아웃" %}</a>
             </div>
         </div>
-    </nav>
+    {% else %}
+      <div class="flex items-center gap-3">
+        <a href="{% url 'mybook:login_page' %}" class="hidden sm:inline-block text-sm font-medium text-slate-700 hover:text-slate-900">로그인</a>
+        <a href="{% url 'mybook:register_page' %}" class="rounded-xl bg-slate-900 px-4 py-2 text-sm font-semibold text-white hover:bg-slate-800">무료로 시작</a>
+      </div>
+    {% endif %}
+    </div>
+  </header>
+  <main class="relative">
+    {% block content %}
+    {% endblock %}
+  </main>
 
-    <!-- Main Content Block -->
-    <main class="flex-grow">
-        {% block content %}
-        {% endblock %}
-    </main>
-
-    <!-- Footer -->
-    <footer class="bg-gray-900 text-gray-300 p-8 mt-auto">
-        <div class="container mx-auto">
-            <div class="grid grid-cols-1 md:grid-cols-3 lg:grid-cols-4 gap-8">
-                <div>
-                    <h2 class="text-xl font-bold mb-2 text-white">Mikihands</h2>
-                    <p class="text-sm">Terms & Policies</p>
-                    <p class="text-sm">Privacy Policy</p>
-                </div>
-                <div>
-                    <!-- Social Media Icons (placeholder) -->
-                    <div class="flex space-x-4 text-white">
-                        <a href="https://www.instagram.com/mikihands2024/"><img class="w-6 h-6" src="{% static 'img/jt-instagram.svg' %}" alt="Instagram"></a>
-                        <a href="https://youtube.com/@mikihands?si=eoHNHtDi2ndNobIG/"><img class="w-6 h-6" src="{% static 'img/jt-youtube.svg' %}" alt="YouTube"></a>
-                        <a href="https://x.com/mikihands156565/"><img class="w-6 h-6" src="{% static 'img/jt-twitter.svg' %}" alt="Twitter"></a>
-                        <a href="https://www.facebook.com/profile.php?id=61566815865801/"><img class="w-6 h-6" src="{% static 'img/jt-facebook.svg' %}" alt="Facebook"></a>
-                    </div>
-                </div>
-                <div class="md:col-span-2">
-                    <p class="text-xs">Business No. 371-11-00780 | 대표자 김현기 / 통신판매신고번호 제2017- 서울서대문-0622</p>
-                    <p class="text-xs">서울시 서대문구 수색로 100, 309-903</p>
-                    <p class="text-xs">info@mikihands.com</p>
-                    <p class="text-xs mt-4">Copyright 2023 Mikihands</p>
-                </div>
-            </div>
-        </div>
-    </footer>
+  <!-- Footer -->
+  <footer class="mt-10 border-t border-slate-200/70 bg-white/70 backdrop-blur mt-auto">
+    <div class="mx-auto max-w-7xl px-6 py-8 flex flex-col sm:flex-row items-center justify-between gap-4">
+      <p class="text-sm text-slate-500">© <span id="y"></span> Mikihands · BookWeaver</p>
+      <nav class="flex items-center gap-4 text-sm text-slate-600">
+        <a href="#" class="hover:text-slate-800">이용 약관</a>
+        <a href="#" class="hover:text-slate-800">개인정보 처리방침</a>
+        <a href="#" class="hover:text-slate-800">문의</a>
+      </nav>
+    </div>
+  </footer>
 
     {% block extra_js %}{% endblock %}
+    <script>
+    document.getElementById('y').textContent = new Date().getFullYear();
+  </script>
     <script>
         document.addEventListener('DOMContentLoaded', function() {
             const userMenuButton = document.getElementById('user-menu-button');
