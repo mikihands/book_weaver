@@ -1,85 +1,144 @@
 {% extends 'base.html' %}
+{% load i18n %}
 {% load static tailwind_tags %}
-
+{% block title %}
+BookWeaver — {% trans "원서를, 당신의 언어로" %}
+{% endblock %}
 {% block content %}
-<div class="flex items-center justify-center min-h-screen-minus-nav-footer p-4">
-    <div class="bg-white p-8 rounded-xl shadow-2xl w-full max-w-xl mx-auto">
-        <h1 class="text-3xl font-bold text-center text-gray-800 mb-6">외국 서적 번역기</h1>
-        <p class="text-sm text-center text-gray-500 mb-8">
-            PDF 또는 이미지 파일을 업로드하고 번역을 시작하세요.<br>
-            파일의 레이아웃과 서식을 그대로 유지하여 번역해 드립니다.
+    <section class="mx-auto max-w-7xl px-6 pt-10 pb-16">
+      <!-- hero -->
+      <div class="mx-auto max-w-3xl text-center">
+        <h1 class="text-3xl sm:text-4xl md:text-5xl font-extrabold tracking-tight text-slate-900 leading-tight">
+          {% blocktrans %}
+          원서를 당신의 언어로, <span class="bg-gradient-to-r from-[var(--bw-bg-from)] to-[var(--bw-bg-to)] bg-clip-text text-transparent">페이지 그대로</span>
+          {% endblocktrans %}
+        </h1>
+        <p class="mt-4 text-base sm:text-lg text-slate-600">
+        {% trans "PDF/스캔본을 올리면, 원본의 레이아웃을 유지한 번역본을 생성합니다. 표·각주·이미지까지 깔끔하게." %}
         </p>
-        <form id="uploadForm" class="space-y-6">
+      </div>
+
+      <!-- upload card -->
+      <div class="mx-auto mt-10 max-w-2xl rounded-2xl bw-border bw-shadow bw-glass">
+        <div class="p-6 sm:p-8">
+          <form class="space-y-5" id="uploadForm">
             {% csrf_token %}
-            <div class="flex flex-col space-y-2">
-                <label for="fileInput" class="text-gray-700 font-medium">파일 선택</label>
-                <input type="file" id="fileInput" name="file" accept=".pdf, .png, .jpeg, .jpg" required
-                       class="block w-full text-sm text-gray-500
-                              file:mr-4 file:py-2 file:px-4
-                              file:rounded-full file:border-0
-                              file:text-sm file:font-semibold
-                              file:bg-blue-50 file:text-blue-700
-                              hover:file:bg-blue-100 cursor-pointer">
+            <!-- file -->
+            <div>
+              <label class="block text-sm font-medium text-slate-700 mb-2">{% trans "파일 선택" %}</label>
+              <label for="fileInput" class="flex items-center justify-between gap-3 rounded-xl border border-dashed border-slate-300 bg-white px-4 py-3 hover:border-slate-400 cursor-pointer transition-colors">
+                <div class="flex items-center gap-3">
+                  <div class="grid h-9 w-9 place-items-center rounded-lg bg-slate-100 text-slate-600">
+                    <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                      <path d="M12 5v14m-7-7h14"/>
+                    </svg>
+                  </div>
+                  <div class="text-sm">
+                    <span class="font-medium text-slate-800">{% trans "파일 업로드" %}</span>
+                    <span class="ml-2 text-slate-500">PDF, JPG, PNG</span>
+                  </div>
+                </div>
+                <span class="rounded-lg bg-slate-900 px-3 py-1.5 text-white text-xs font-semibold">{% trans "찾아보기" %}</span>
+              </label>
+              <p class="mt-2 text-xs text-slate-500">{% trans "최대 50MB 까지 처리됩니다." %}</p>
+              <input id="fileInput" type="file" name="file" accept=".pdf,.jpg,.jpeg,.png" required class="sr-only">
             </div>
 
-            <div class="flex flex-col space-y-2">
-                <label for="titleInput" class="text-gray-700 font-medium">책 제목 (선택)</label>
-                <input type="text" id="titleInput" name="title"
-                       class="px-4 py-2 text-gray-700 bg-gray-50 border border-gray-300 rounded-md shadow-sm focus:ring-blue-500 focus:border-blue-500"
-                       placeholder="입력하지 않으면 파일명이 제목으로 사용됩니다.">
+            <!-- book title -->
+            <div>
+              <label for="titleInput" class="block text-sm font-medium text-slate-700 mb-2">{% trans "책 제목 (선택)" %}</label>
+              <input id="titleInput" name="title" type="text" placeholder="{% trans '입력하지 않으면 파일명이 사용됩니다.' %}"
+                     class="w-full rounded-xl border-slate-300 focus:border-slate-500 focus:ring-slate-500 bg-white">
             </div>
-            
-            <div class="flex flex-col space-y-2">
+
+            <!-- genre + language -->
+            <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
+              <div>
                 <div class="flex items-center space-x-2">
-                    <label for="genreSelect" class="text-gray-700 font-medium">장르 (선택)</label>
+                    <label for="genreSelect" class="block text-sm font-medium text-slate-700 mb-2">{% trans "장르 (선택)" %}</label>
                     <div class="relative group cursor-pointer">
                         <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5 text-gray-400" viewBox="0 0 20 20" fill="currentColor">
-                          <path fill-rule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7-4a1 1 0 11-2 0 1 1 0 012 0zM9 9a1 1 0 000 2v3a1 1 0 001 1h1a1 1 0 100-2v-3a1 1 0 00-1-1H9z" clip-rule="evenodd" />
+                            <path fill-rule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7-4a1 1 0 11-2 0 1 1 0 012 0zM9 9a1 1 0 000 2v3a1 1 0 001 1h1a1 1 0 100-2v-3a1 1 0 00-1-1H9z" clip-rule="evenodd" />
                         </svg>
                         <div class="absolute bottom-full left-1/2 -translate-x-1/2 mb-2 w-64 bg-gray-800 text-white text-xs rounded py-2 px-3 opacity-0 group-hover:opacity-100 transition-opacity duration-300 pointer-events-none z-10">
-                            정확한 genre를 입력하면 AI가 번역본을 제작하는데 도움이 됩니다.
+                            {% trans "정확한 genre를 입력하면 AI가 번역본을 제작하는데 도움이 됩니다." %}
                             <svg class="absolute text-gray-800 h-2 w-full left-0 top-full" x="0px" y="0px" viewBox="0 0 255 255" xml:space="preserve"><polygon class="fill-current" points="0,0 127.5,127.5 255,0"/></svg>
                         </div>
                     </div>
                 </div>
-                <select id="genreSelect" name="genre"
-                        class="block w-full px-4 py-2 text-gray-700 bg-gray-50 border border-gray-300 rounded-md shadow-sm focus:ring-blue-500 focus:border-blue-500">
-                    <option value="">장르를 선택하세요 (선택 사항)</option>
-                    <option value="fiction">소설</option>
-                    <option value="non-fiction">비소설</option>
-                    <option value="technical">기술/과학</option>
-                    <option value="history">역사</option>
-                    <option value="self-help">자기계발</option>
-                    <option value="fantasy">판타지</option>
-                    <option value="science-fiction">SF (공상 과학)</option>
-                    <option value="romance">로맨스</option>
-                    <option value="thriller">스릴러/미스터리</option>
-                    <option value="children">아동</option>
-                    <option value="other">기타</option>
+                <select id="genreSelect" name="genre" class="w-full rounded-xl border-slate-300 bg-white focus:border-slate-500 focus:ring-slate-500">
+                    <option value="">{% trans "장르를 선택하세요" %}</option>
+                    <option value="fiction">{% trans "소설" %}</option>
+                    <option value="non-fiction">{% trans "비소설" %}</option>
+                    <option value="technical">{% trans "기술/과학" %}</option>
+                    <option value="history">{% trans "역사" %}</option>
+                    <option value="self-help">{% trans "자기계발" %}</option>
+                    <option value="fantasy">{% trans "판타지" %}</option>
+                    <option value="science-fiction">{% trans "SF (공상 과학)" %}</option>
+                    <option value="romance">{% trans "로맨스" %}</option>
+                    <option value="thriller">{% trans "스릴러/미스터리" %}</option>
+                    <option value="children">{% trans "아동" %}</option>
+                    <option value="other">{% trans "기타" %}</option>
                 </select>
-            </div>
+              </div>
 
-            <div class="flex flex-col space-y-2">
-                <label for="languageSelect" class="text-gray-700 font-medium">번역할 언어</label>
-                <select id="languageSelect" name="target_language" required
-                        class="block w-full px-4 py-2 text-gray-700 bg-gray-50 border border-gray-300 rounded-md shadow-sm focus:ring-blue-500 focus:border-blue-500">
+              <div>
+                <label for="languageSelect" class="block text-sm font-medium text-slate-700 mb-2">{% trans "번역할 언어" %}</label>
+                <select id="languageSelect" name="target_language" class="w-full rounded-xl border-slate-300 bg-white focus:border-slate-500 focus:ring-slate-500">
                     <option value="ko">한국어</option>
                     <option value="en">English</option>
                     <option value="es">Español</option>
                     <option value="ja">日本語</option>
                     <option value="fr">Français</option>
+                    <option value="de">Deutsch</option>
                 </select>
+              </div>
             </div>
 
-            <button type="submit" id="submitButton"
-                    class="w-full px-4 py-2 text-lg font-bold text-white bg-blue-600 rounded-md
-                           hover:bg-blue-700 transition duration-300 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2">
-                파일 업로드
-            </button>
-        </form>
-        <div id="message" class="mt-8 text-center"></div>
-    </div>
-</div>
+            <!-- CTA -->
+            <div class="pt-2">
+              <button type="submit" id="submitButton" 
+                class="w-full rounded-xl bg-gradient-to-r from-[var(--bw-bg-from)] to-[var(--bw-bg-to)] px-5 py-3 text-white font-semibold hover:opacity-95 bw-shadow">
+                {% trans "파일 업로드 시작" %}
+              </button>
+              <p class="mt-3 text-xs text-slate-500 text-center">{% trans "개인정보는 암호화되어 전송됩니다. 업로드한 파일은 일정 기간 후 자동 삭제됩니다." %}</p>
+            </div>
+          </form>
+          <div id="message" class="mt-8 text-center"></div>
+        </div>
+      </div>
+
+      <!-- features -->
+      <div class="mx-auto mt-14 grid max-w-5xl grid-cols-1 gap-6 sm:grid-cols-3">
+        <div class="rounded-2xl bg-white p-6 bw-border bw-shadow">
+          <div class="h-10 w-10 rounded-lg bg-sky-100 text-sky-700 grid place-items-center mb-3">
+            <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <path d="M3 4h18M3 12h18M3 20h18"/>
+            </svg>
+          </div>
+          <h3 class="font-semibold text-slate-900">{% trans "레이아웃 보존" %}</h3>
+          <p class="mt-2 text-sm text-slate-600">{% trans "문단·표·각주·이미지까지 최대한 원본 구조를 유지하여 HTML로 재구성합니다." %}</p>
+        </div>
+        <div class="rounded-2xl bg-white p-6 bw-border bw-shadow">
+          <div class="h-10 w-10 rounded-lg bg-violet-100 text-violet-700 grid place-items-center mb-3">
+            <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <path d="M12 6v12m6-6H6"/>
+            </svg>
+          </div>
+          <h3 class="font-semibold text-slate-900">{% trans "다중 포맷 지원" %}</h3>
+          <p class="mt-2 text-sm text-slate-600">{% trans "PDF·이미지 스캔본 모두 OK. 대용량은 자동으로 최적 처리를 사용합니다." %}</p>
+        </div>
+        <div class="rounded-2xl bg-white p-6 bw-border bw-shadow">
+          <div class="h-10 w-10 rounded-lg bg-emerald-100 text-emerald-700 grid place-items-center mb-3">
+            <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <path d="M5 13l4 4L19 7"/>
+            </svg>
+          </div>
+          <h3 class="font-semibold text-slate-900">{% trans "간편한 결과 확인" %}</h3>
+          <p class="mt-2 text-sm text-slate-600">{% trans "브라우저에서 즉시 결과 미리보기. 페이지 네비게이션과 검색도 지원됩니다." %}</p>
+        </div>
+      </div>
+    </section>
 {% endblock %}
 
 {% block extra_js %}

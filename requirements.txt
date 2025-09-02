@@ -53,6 +53,7 @@ MarkupSafe==3.0.2
 mdurl==0.1.2
 packaging==25.0
 pillow==11.3.0
+polib==1.2.0
 prompt_toolkit==3.0.51
 proto-plus==1.26.1
 protobuf==5.29.5
