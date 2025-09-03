@@ -34,3 +34,16 @@ class RegisterSerializer(serializers.Serializer):
 class LoginSerializer(serializers.Serializer):
     username = serializers.CharField(max_length=150)
     password = serializers.CharField(write_only=True)
+
+
+class ContactSerializer(serializers.Serializer):
+    name = serializers.CharField(max_length=80)
+    email = serializers.EmailField()
+    subject = serializers.CharField(max_length=120)
+    message = serializers.CharField()
+    # 봇 트랩(honeypot): 사람은 비워둠. 채워져 있으면 스팸으로 간주
+    website = serializers.CharField(required=False, allow_blank=True, write_only=True)
+
+    def validate(self, attrs):
+        # 여기서는 유효성만 확인하고, 실제로는 view에서 is_bot 플래그로 처리
+        return attrs

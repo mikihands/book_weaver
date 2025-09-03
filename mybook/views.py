@@ -5,17 +5,23 @@ from rest_framework.permissions import IsAuthenticated, AllowAny
 from rest_framework.parsers import MultiPartParser, FormParser
 from rest_framework.views import APIView
 from rest_framework.response import Response
+from rest_framework.throttling import ScopedRateThrottle
 from datetime import datetime
 from typing import Dict
 
 from django.conf import settings
+from django.core.mail import EmailMessage
 from django.db import transaction, models
 from django.contrib.auth.models import User
 from django.core.files.storage import default_storage
 from django.shortcuts import get_object_or_404, render, redirect
 from django.urls import reverse
 
-from .serializers import FileUploadSerializer, RegisterSerializer, LoginSerializer, RetranslateRequestSerializer, StartTranslationSerializer, BookSettingsSerializer
+from .serializers import (
+    FileUploadSerializer, RegisterSerializer, LoginSerializer, 
+    RetranslateRequestSerializer, StartTranslationSerializer, 
+    BookSettingsSerializer, ContactSerializer
+)
 from .models import Book, BookPage, PageImage, TranslatedPage, UserProfile
 from .utils.font_scaler import FontScaler
 from .utils.gemini_helper import GeminiHelper
@@ -584,6 +590,14 @@ class LoginView(HmacSignMixin, APIView):
 class LoginPage(APIView):
     def get(self, request, *args, **kwargs):
         return render(request, 'mybook/login_page.html')
+    
+class PricingPage(APIView):
+    def get(self, request, *args, **kwargs):
+        return render(request, 'mybook/pricing.html')
+
+class FeaturesPage(APIView):
+    def get(self, request, *args, **kwargs):
+        return render(request, 'mybook/features.html')
 
 class BookshelfView(APIView):
     permission_classes = [IsAuthenticated]
@@ -666,3 +680,56 @@ class BookSearchAPIView(APIView):
                 processed_pages.add(page.page_no)
 
         return Response(results)
+
+def _client_ip(request):
+    xff = request.META.get("HTTP_X_FORWARDED_FOR")
+    if xff:
+        return xff.split(",")[0].strip()
+    return request.META.get("REMOTE_ADDR", "")
+
+class ContactAPIView(APIView):
+    """
+    POST /api/contact/
+    - JSON Body: {name, email, subject, message, website?}
+    - 웹/모바일 공용. (웹은 CSRF 필요, 모바일은 추후 토큰/JWT 적용 권장)
+    """
+    permission_classes = [AllowAny]
+    throttle_classes = [ScopedRateThrottle]
+    throttle_scope = "contact"  # settings에서 rate 지정
+
+    def post(self, request, *args, **kwargs):
+        serializer = ContactSerializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+        data = serializer.validated_data
+
+        is_bot = bool(data.get("website"))  # honeypot # type: ignore
+        ip = _client_ip(request) or "unknown"
+
+        if not is_bot:
+            name = data["name"] # type: ignore
+            user_email = data["email"] # type: ignore
+            subject = data["subject"] # type: ignore
+            message = data["message"] # type: ignore
+
+            admin_to = getattr(settings, "ADMIN_EMAIL_ADDRESS", None) or settings.EMAIL_HOST_USER
+            from_addr = getattr(settings, "DEFAULT_FROM_EMAIL", settings.EMAIL_HOST_USER)
+
+            email_subject = f"[Weaver Contact] {subject}"
+            email_body = (
+                f"From : {name} <{user_email}>\n"
+                f"IP   : {ip}\n"
+                f"-----\n\n"
+                f"{message}\n"
+            )
+
+            mail = EmailMessage(
+                subject=email_subject,
+                body=email_body,
+                from_email=from_addr,
+                to=[admin_to],
+                reply_to=[user_email],
+            )
+            mail.send(fail_silently=False)
+
+        # 봇이든 아니든 동일 응답(탐지 회피)
+        return Response({"ok": True}, status=status.HTTP_201_CREATED)

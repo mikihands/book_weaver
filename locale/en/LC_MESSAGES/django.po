@@ -1,0 +1,780 @@
+# SOME DESCRIPTIVE TITLE.
+# Copyright (C) YEAR THE PACKAGE'S COPYRIGHT HOLDER
+# This file is distributed under the same license as the PACKAGE package.
+# FIRST AUTHOR <EMAIL@ADDRESS>, YEAR.
+#
+#, fuzzy
+msgid ""
+msgstr ""
+"Project-Id-Version: PACKAGE VERSION\n"
+"Report-Msgid-Bugs-To: \n"
+"POT-Creation-Date: 2025-09-03 01:22+0000\n"
+"PO-Revision-Date: YEAR-MO-DA HO:MI+ZONE\n"
+"Last-Translator: FULL NAME <EMAIL@ADDRESS>\n"
+"Language-Team: LANGUAGE <LL@li.org>\n"
+"Language: \n"
+"MIME-Version: 1.0\n"
+"Content-Type: text/plain; charset=UTF-8\n"
+"Content-Transfer-Encoding: 8bit\n"
+"Plural-Forms: nplurals=2; plural=(n != 1);\n"
+
+#: templates/base.html:74 templates/mybook/bookshelf.html:4
+#: templates/mybook/bookshelf.html:10
+msgid "내 서재"
+msgstr "My Library"
+
+#: templates/base.html:75
+msgid "로그아웃"
+msgstr "Logout"
+
+#: templates/mybook/book_page.html:61
+msgid "이전"
+msgstr "Previous"
+
+#: templates/mybook/book_page.html:62
+msgid "다음"
+msgstr "Next"
+
+#: templates/mybook/book_page.html:67
+msgid "맞춤(가로)"
+msgstr "Fit (Landscape)"
+
+#: templates/mybook/book_page.html:68
+msgid "맞춤(세로)"
+msgstr "Custom Portrait"
+
+#: templates/mybook/book_page.html:75
+msgid "배경"
+msgstr "Background"
+
+#: templates/mybook/book_page.html:87
+msgid "이 페이지는 아직 처리 중이거나 실패했습니다."
+msgstr "This page is still processing or has failed."
+
+#: templates/mybook/book_prepare.html:7 templates/mybook/bookshelf.html:46
+msgid "번역 준비"
+msgstr "Translation Preparation"
+
+#: templates/mybook/book_prepare.html:9
+msgid "번역 품질을 높이기 위해 책의 정보를 확인하고 용어집을 추가해 주세요."
+msgstr ""
+"To improve translation quality, please check the book's information and add "
+"a glossary."
+
+#: templates/mybook/book_prepare.html:15
+msgid "책 제목"
+msgstr "Book Title"
+
+#: templates/mybook/book_prepare.html:21
+msgid "장르"
+msgstr "Genre"
+
+#: templates/mybook/book_prepare.html:24 templates/mybook/upload_page.html:70
+msgid "장르를 선택하세요"
+msgstr "Select a genre"
+
+#: templates/mybook/book_prepare.html:26 templates/mybook/upload_page.html:71
+msgid "소설"
+msgstr "Novel"
+
+#: templates/mybook/book_prepare.html:27 templates/mybook/upload_page.html:72
+msgid "비소설"
+msgstr "Non-fiction"
+
+#: templates/mybook/book_prepare.html:28 templates/mybook/upload_page.html:73
+msgid "기술/과학"
+msgstr "Technology/Science"
+
+#: templates/mybook/book_prepare.html:29 templates/mybook/upload_page.html:74
+msgid "역사"
+msgstr "History"
+
+#: templates/mybook/book_prepare.html:30 templates/mybook/upload_page.html:75
+msgid "자기계발"
+msgstr "Self-help"
+
+#: templates/mybook/book_prepare.html:31 templates/mybook/upload_page.html:76
+msgid "판타지"
+msgstr "Fantasy"
+
+#: templates/mybook/book_prepare.html:32 templates/mybook/upload_page.html:77
+msgid "SF (공상 과학)"
+msgstr "SF (Science Fiction)"
+
+#: templates/mybook/book_prepare.html:33 templates/mybook/upload_page.html:78
+msgid "로맨스"
+msgstr "Romance"
+
+#: templates/mybook/book_prepare.html:34 templates/mybook/upload_page.html:79
+msgid "스릴러/미스터리"
+msgstr "thriller/mystery"
+
+#: templates/mybook/book_prepare.html:35 templates/mybook/upload_page.html:80
+msgid "아동"
+msgstr "Children"
+
+#: templates/mybook/book_prepare.html:36 templates/mybook/upload_page.html:81
+msgid "기타"
+msgstr "Other"
+
+#: templates/mybook/book_prepare.html:42
+msgid "용어집 (Glossary)"
+msgstr "Glossary"
+
+#: templates/mybook/book_prepare.html:45
+msgid ""
+"placeholder=\"번역 일관성을 위한 규칙을 입력하세요. (선택 사항)&#10;예시:&#10;- Venice as 베네치아 "
+"&#10;- Use informal style between John and Mary.&#10;- Brand name like "
+"'BookWeaver' stays untranslated.\""
+msgstr ""
+"Enter rules for translation consistency. (Optional)&#10;Example:&#10;- "
+"Venice as 베네치아 &#10;- Use informal style between John and Mary.&#10;- Brand "
+"name like 'BookWeaver' stays untranslated."
+
+#: templates/mybook/book_prepare.html:49 templates/mybook/upload_page.html:86
+msgid "번역할 언어"
+msgstr "Target language"
+
+#: templates/mybook/book_prepare.html:65
+#: templates/mybook/book_prepare.html:140
+msgid "설정 저장"
+msgstr "Save settings"
+
+#: templates/mybook/book_prepare.html:70
+#: templates/mybook/book_prepare.html:178
+#: templates/mybook/book_prepare.html:184
+msgid "번역 시작"
+msgstr "Start Translation"
+
+#: templates/mybook/book_prepare.html:130
+#: templates/mybook/book_prepare.html:173
+msgid "로그인이 필요합니다."
+msgstr "Login required."
+
+#: templates/mybook/book_prepare.html:130
+#: templates/mybook/book_prepare.html:173
+msgid "로그인 페이지로 이동"
+msgstr "Go to Login Page"
+
+#: templates/mybook/book_prepare.html:132
+#: templates/mybook/book_prepare.html:175
+msgid "오류:"
+msgstr "Error:"
+
+#: templates/mybook/book_prepare.html:136
+#: templates/mybook/book_prepare.html:181 templates/mybook/login_page.html:81
+#: templates/mybook/register_page.html:90
+msgid "네트워크 오류가 발생했습니다."
+msgstr "A network error has occurred."
+
+#: templates/mybook/book_prepare.html:142
+msgid "설정이 성공적으로 저장되었습니다."
+msgstr "Settings saved successfully."
+
+#: templates/mybook/book_prepare.html:154
+msgid "번역 요청 중..."
+msgstr "Requesting translation..."
+
+#: templates/mybook/book_prepare.html:169
+msgid "잠시 후 번역 페이지로 이동합니다."
+msgstr "Redirecting to the translation page shortly."
+
+#: templates/mybook/bookshelf.html:15
+msgid "새 책 업로드"
+msgstr "Upload New Book"
+
+#: templates/mybook/bookshelf.html:26
+msgid "완료"
+msgstr "Completed"
+
+#: templates/mybook/bookshelf.html:28
+msgid "번역 중"
+msgstr "Translating"
+
+#: templates/mybook/bookshelf.html:30
+msgid "번역 대기"
+msgstr "Translation pending"
+
+#: templates/mybook/bookshelf.html:32
+msgid "실패"
+msgstr "Failed"
+
+#: templates/mybook/bookshelf.html:37 templates/mybook/pricing.html:94
+msgid "페이지"
+msgstr "Page"
+
+#: templates/mybook/bookshelf.html:38
+msgid "업로드"
+msgstr "Upload"
+
+#: templates/mybook/bookshelf.html:40
+msgid "번역 언어"
+msgstr "Translation Language"
+
+#: templates/mybook/bookshelf.html:50 templates/mybook/bookshelf.html:61
+msgid "책 보기"
+msgstr "View Book"
+
+#: templates/mybook/bookshelf.html:56
+msgid "번역 진행 중..."
+msgstr "Translation in progress..."
+
+#: templates/mybook/bookshelf.html:73
+msgid "아직 책이 없습니다."
+msgstr "No books yet."
+
+#: templates/mybook/bookshelf.html:74
+msgid "첫 번째 책을 업로드하고 번역을 시작해 보세요."
+msgstr "Upload your first book and start translating."
+
+#: templates/mybook/bookshelf.html:77
+msgid "새 책 업로드하기"
+msgstr "Upload New Book"
+
+#: templates/mybook/features.html:4
+msgid "Weaver · 기능"
+msgstr "Weaver · Features"
+
+#: templates/mybook/features.html:22
+msgid "BookWeaver 기능"
+msgstr "BookWeaver Features"
+
+#: templates/mybook/features.html:23
+msgid "원서의 레이아웃을 지키면서 번역본을 만드는 가장 쉬운 방법. 대용량 파일도, 표와 도표도 문제없이."
+msgstr ""
+"The easiest way to create translated books while maintaining the original "
+"layout. Handles large files, tables, and diagrams seamlessly."
+
+#: templates/mybook/features.html:25 templates/mybook/pricing.html:60
+msgid "지금 업로드"
+msgstr "Upload now"
+
+#: templates/mybook/features.html:26
+msgid "데모 보기"
+msgstr "View Demo"
+
+#: templates/mybook/features.html:34
+msgid "핵심 기능"
+msgstr "Core Features"
+
+#: templates/mybook/features.html:35
+msgid "번역 품질, 레이아웃 보존, 확장성과 속도까지 한 번에."
+msgstr ""
+"Translation quality, layout preservation, scalability, and speed — all in "
+"one."
+
+#: templates/mybook/features.html:45
+msgid "멀티모달 문서 이해"
+msgstr "Multimodal Document Understanding"
+
+#: templates/mybook/features.html:46
+msgid "텍스트뿐 아니라 표·차트·다이어그램까지 인지하고 번역 흐름에 반영."
+msgstr ""
+"Recognizes and incorporates not only text but also tables, charts, and "
+"diagrams into the translation workflow."
+
+#: templates/mybook/features.html:53
+msgid "레이아웃 및 서식 보존"
+msgstr "Layout and Formatting Preservation"
+
+#: templates/mybook/features.html:54
+msgid "문단·목록·표·각주를 최대한 유지하여 원본과 유사한 HTML 생성."
+msgstr ""
+"Generates HTML closely resembling the original, maximizing the preservation "
+"of paragraphs, lists, tables, and footnotes."
+
+#: templates/mybook/features.html:61
+msgid "대용량 파일 처리"
+msgstr "Large File Processing"
+
+#: templates/mybook/features.html:62
+msgid "최대 50MB PDF 지원. 파일 크기에 맞춰 최적 방식으로 업로드."
+msgstr "Supports PDFs up to 50MB. Uploads are optimized based on file size."
+
+#: templates/mybook/features.html:69
+msgid "페이지 단위 비동기 처리"
+msgstr "Page-level asynchronous processing"
+
+#: templates/mybook/features.html:70
+msgid "먼저 끝난 페이지부터 바로 읽기 가능. 대기 시간을 최소화."
+msgstr ""
+"Read pages as soon as they're translated, minimizing your waiting time."
+
+#: templates/mybook/features.html:77
+msgid "문서 내 검색 & 페이지 점프"
+msgstr "Search in Document & Jump to Page"
+
+#: templates/mybook/features.html:78
+msgid "키워드 검색과 빠른 페이지 이동으로 탐색 효율 극대화."
+msgstr ""
+"Maximize navigation efficiency with keyword search and quick page jumps."
+
+#: templates/mybook/features.html:85
+msgid "내 서재 & 국제화"
+msgstr "My Library & Internationalization"
+
+#: templates/mybook/features.html:86
+msgid "번역본을 라이브러리에서 관리하고, UI 다국어 환경을 지원."
+msgstr ""
+"Manage translated books in your library, with multilingual UI support."
+
+#: templates/mybook/features.html:94
+msgid "두 가지 출력 모드"
+msgstr "Two Output Modes"
+
+#: templates/mybook/features.html:95
+msgid "출판용 정밀 모드와, 모바일 친화 가독 모드 중 선택."
+msgstr ""
+"Choose between Publishing Precision Mode and Mobile-Friendly Reading Mode."
+
+#: templates/mybook/features.html:99
+msgid "Booky · 정밀 모드 (Faithful HTML)"
+msgstr "Booky · Precision Mode (Faithful HTML)"
+
+#: templates/mybook/features.html:100
+msgid "원본 레이아웃을 최대한 보존. 캡션·각주·복잡한 표도 그대로."
+msgstr ""
+"Preserve the original layout as much as possible. Captions, footnotes, and "
+"complex tables are kept intact."
+
+#: templates/mybook/features.html:102
+msgid "절대 좌표/레이어 기반 배치"
+msgstr "Absolute Positioning / Layer-based Layout"
+
+#: templates/mybook/features.html:103
+msgid "아카이빙/출판용"
+msgstr "Archiving/Publishing"
+
+#: templates/mybook/features.html:104
+msgid "레이아웃 무결성 우선"
+msgstr "Layout Integrity First"
+
+#: templates/mybook/features.html:108
+msgid "Readable · 가독 모드 (Responsive)"
+msgstr "Readable · Reading Mode (Responsive)"
+
+#: templates/mybook/features.html:109
+msgid "의미 구조 중심 재배치. 모바일·태블릿·PC까지 반응형."
+msgstr ""
+"Semantic structure-centric repositioning. Responsive for mobile, tablet, and"
+" PC."
+
+#: templates/mybook/features.html:111
+msgid "문단/목차/표/그림/각주 재조립"
+msgstr "Paragraphs/Table of Contents/Tables/Figures/Footnotes Reassembly"
+
+#: templates/mybook/features.html:112
+msgid "공백·단 제거, 가독성 강화"
+msgstr "Remove extra spaces and column breaks, enhance readability"
+
+#: templates/mybook/features.html:113
+msgid "CSS Grid/Flex 기반"
+msgstr "CSS Grid/Flex-based"
+
+#: templates/mybook/features.html:122
+msgid "동작 방식"
+msgstr "How it works"
+
+#: templates/mybook/features.html:123
+msgid "업로드부터 결과 확인까지, 네 단계로 끝."
+msgstr "Done in four steps, from upload to result confirmation."
+
+#: templates/mybook/features.html:128 templates/mybook/upload_page.html:37
+msgid "파일 업로드"
+msgstr "File Upload"
+
+#: templates/mybook/features.html:129
+msgid "PDF(최대 50MB) 혹은 이미지→PDF 변환 예정."
+msgstr "PDF (max 50MB) or images will be converted to PDF."
+
+#: templates/mybook/features.html:133
+msgid "AI 분석/번역"
+msgstr "AI Analysis/Translation"
+
+#: templates/mybook/features.html:134
+msgid "페이지별로 구조/요소를 분석하고 번역 생성."
+msgstr "Analyze page structure and elements, then generate translation."
+
+#: templates/mybook/features.html:138
+msgid "미리보기"
+msgstr "Preview"
+
+#: templates/mybook/features.html:139
+msgid "먼저 완료된 페이지부터 브라우저에서 확인."
+msgstr "Preview completed pages in your browser first."
+
+#: templates/mybook/features.html:143
+msgid "저장/다운로드"
+msgstr "Save/Download"
+
+#: templates/mybook/features.html:144
+msgid "유료는 PDF 다운로드 가능. 무료는 브라우저 열람."
+msgstr "Paid: PDF download. Free: View in browser."
+
+#: templates/mybook/features.html:152
+msgid "샘플 미리보기"
+msgstr "Sample Preview"
+
+#: templates/mybook/features.html:153
+msgid "표/도표/각주가 포함된 페이지 예시 (플레이스홀더)"
+msgstr "Example page with tables/diagrams/footnotes (placeholder)"
+
+#: templates/mybook/features.html:164
+msgid "자주 묻는 질문"
+msgstr "Frequently Asked Questions"
+
+#: templates/mybook/features.html:168
+msgid "무료 플랜에서 페이지 제한은?"
+msgstr "What is the page limit on the free plan?"
+
+#: templates/mybook/features.html:171
+msgid "무료는 1회 최대 30페이지. 초과는 세션 분할 또는 유료 업그레이드."
+msgstr ""
+"Free users can process up to 30 pages per session. If you need more, you can"
+" split your session or upgrade to a paid plan."
+
+#: templates/mybook/features.html:175
+msgid "PDF 다운로드는 누구나 가능한가요?"
+msgstr "Can anyone download the PDF?"
+
+#: templates/mybook/features.html:178
+msgid "유료 플랜에서 제공됩니다. 무료는 브라우저 열람만 지원."
+msgstr ""
+"Available on paid plans. The free version only supports browser viewing."
+
+#: templates/mybook/features.html:182
+msgid "이미지/차트는 어떻게 처리되나요?"
+msgstr "How are images/charts handled?"
+
+#: templates/mybook/features.html:185
+msgid "번역본에 삽입되는 이미지는 업로드한 문서로부터 자동으로 추출되어 정확한 위치에 배치됩니다."
+msgstr ""
+"Images inserted into the translated document are automatically extracted "
+"from the uploaded document and accurately positioned."
+
+#: templates/mybook/features.html:189
+msgid "저작권 관련 유의사항은?"
+msgstr "Copyright considerations?"
+
+#: templates/mybook/features.html:192
+msgid "반드시 합법적으로 구입/소유한 도서를 사용해야 하며 책임은 사용자에게 있습니다."
+msgstr ""
+"You are solely responsible for using books that are legally purchased or "
+"owned."
+
+#: templates/mybook/features.html:201 templates/mybook/pricing.html:210
+msgid "지금 바로 번역을 시작해보세요"
+msgstr "Start translating now"
+
+#: templates/mybook/features.html:202 templates/mybook/pricing.html:213
+msgid "무료로 테스트하고, 필요할 때만 업그레이드하세요."
+msgstr "Test for free, and upgrade only when needed."
+
+#: templates/mybook/features.html:205 templates/mybook/pricing.html:102
+#: templates/mybook/pricing.html:194 templates/mybook/pricing.html:219
+msgid "무료로 시작"
+msgstr "Start for free"
+
+#: templates/mybook/features.html:206 templates/mybook/pricing.html:223
+msgid "업그레이드"
+msgstr "Upgrade"
+
+#: templates/mybook/login_page.html:7 templates/mybook/login_page.html:25
+msgid "로그인"
+msgstr "Login"
+
+#: templates/mybook/login_page.html:11 templates/mybook/register_page.html:14
+msgid "사용자 이름"
+msgstr "Username"
+
+#: templates/mybook/login_page.html:17 templates/mybook/register_page.html:26
+msgid "비밀번호"
+msgstr "Password"
+
+#: templates/mybook/login_page.html:60
+msgid "로그인 처리 중..."
+msgstr "Logging in..."
+
+#: templates/mybook/login_page.html:77 templates/mybook/register_page.html:86
+msgid "오류"
+msgstr "Error"
+
+#: templates/mybook/pricing.html:4
+msgid "가격"
+msgstr "Price"
+
+#: templates/mybook/pricing.html:52
+msgid "쉽고 합리적인 요금제"
+msgstr "Easy and affordable pricing plan"
+
+#: templates/mybook/pricing.html:55
+msgid "원서의 레이아웃을 그대로 유지한 번역을 무료 또는 합리적인 구독으로 경험해 보세요."
+msgstr ""
+"Experience translations that preserve the original layout, available for "
+"free or with an affordable subscription."
+
+#: templates/mybook/pricing.html:64
+msgid "문의하기"
+msgstr "Contact Us"
+
+#: templates/mybook/pricing.html:78
+msgid "무료 (Free)"
+msgstr "Free"
+
+#: templates/mybook/pricing.html:79
+msgid "가볍게 체험하고 작은 프로젝트에 적합"
+msgstr "Ideal for trying out and small projects"
+
+#: templates/mybook/pricing.html:82
+msgid "광고 포함"
+msgstr "Includes advertisements"
+
+#: templates/mybook/pricing.html:94
+msgid "1회 최대"
+msgstr "Max per session"
+
+#: templates/mybook/pricing.html:94
+msgid "번역"
+msgstr "Translation"
+
+#: templates/mybook/pricing.html:95 templates/mybook/pricing.html:164
+msgid "번역 횟수"
+msgstr "Translation Count"
+
+#: templates/mybook/pricing.html:95 templates/mybook/pricing.html:165
+#: templates/mybook/pricing.html:166
+msgid "무제한"
+msgstr "Unlimited"
+
+#: templates/mybook/pricing.html:96
+msgid "광고 노출"
+msgstr "Ad Display"
+
+#: templates/mybook/pricing.html:97
+msgid "PDF 다운로드 미지원 (브라우저 열람만)"
+msgstr "PDF download unsupported (browser viewing only)"
+
+#: templates/mybook/pricing.html:110
+msgid "가장 인기"
+msgstr "Most Popular"
+
+#: templates/mybook/pricing.html:116
+msgid "유료 (Standard)"
+msgstr "Paid (Standard)"
+
+#: templates/mybook/pricing.html:117
+msgid "광고 없이, 프로젝트 제한 없이"
+msgstr "Ad-free, unlimited projects"
+
+#: templates/mybook/pricing.html:120
+msgid "7일 무료체험"
+msgstr "7-Day Free Trial"
+
+#: templates/mybook/pricing.html:132
+msgid "1회 최대 페이지 제한 없음 (파일 50MB까지)"
+msgstr "Unlimited pages per upload (up to 50MB file)"
+
+#: templates/mybook/pricing.html:133
+msgid "번역 횟수 무제한"
+msgstr "Unlimited translation count"
+
+#: templates/mybook/pricing.html:134
+msgid "광고 없음"
+msgstr "Ad-free"
+
+#: templates/mybook/pricing.html:135
+msgid "번역 결과 PDF 다운로드 지원"
+msgstr "Translated PDF Download Support"
+
+#: templates/mybook/pricing.html:136
+msgid "가입 후 1주일 무료 (청구일 전 해지 가능)"
+msgstr "1 week free after sign-up (cancel before your first bill)"
+
+#: templates/mybook/pricing.html:141 templates/mybook/pricing.html:198
+msgid "유료로 업그레이드"
+msgstr "Upgrade to a paid plan"
+
+#: templates/mybook/pricing.html:151
+msgid "상세 비교"
+msgstr "Detailed Comparison"
+
+#: templates/mybook/pricing.html:157
+msgid "기능"
+msgstr "Feature"
+
+#: templates/mybook/pricing.html:158
+msgid "무료"
+msgstr "Free"
+
+#: templates/mybook/pricing.html:159
+msgid "유료"
+msgstr "Paid"
+
+#: templates/mybook/pricing.html:169
+msgid "1회 처리 페이지"
+msgstr "Pages per process"
+
+#: templates/mybook/pricing.html:170
+msgid "최대 30페이지"
+msgstr "Up to 30 pages"
+
+#: templates/mybook/pricing.html:171
+msgid "제한 없음 (50MB)"
+msgstr "Unlimited (50MB)"
+
+#: templates/mybook/pricing.html:174
+msgid "광고"
+msgstr "Advertisement"
+
+#: templates/mybook/pricing.html:175
+msgid "있음"
+msgstr "Available"
+
+#: templates/mybook/pricing.html:176
+msgid "없음"
+msgstr "None"
+
+#: templates/mybook/pricing.html:179
+msgid "PDF 다운로드"
+msgstr "Download PDF"
+
+#: templates/mybook/pricing.html:180
+msgid "미지원"
+msgstr "Unsupported"
+
+#: templates/mybook/pricing.html:181
+msgid "지원"
+msgstr "Support"
+
+#: templates/mybook/pricing.html:189
+msgid "저작권 보호를 위해, 번역에 사용할 문서는 반드시 사용자가 합법적으로 구입/소유한 자료여야 합니다."
+msgstr ""
+"To protect copyrights, the document you use for translation must be legally "
+"purchased or owned by you."
+
+#: templates/mybook/register_page.html:7
+msgid "회원가입"
+msgstr "Sign up"
+
+#: templates/mybook/register_page.html:9
+msgid "Mikihands 계정을 생성하고 Weaver 서비스를 이용하세요."
+msgstr "Create a Mikihands account and use the Weaver service."
+
+#: templates/mybook/register_page.html:20
+msgid "이메일"
+msgstr "Email"
+
+#: templates/mybook/register_page.html:34
+msgid "계정 생성"
+msgstr "Create Account"
+
+#: templates/mybook/register_page.html:69
+msgid "회원가입 처리 중..."
+msgstr "Signing up..."
+
+#: templates/mybook/register_success.html:7
+msgid "회원가입 성공"
+msgstr "Registration successful"
+
+#: templates/mybook/register_success.html:56
+msgid "회원가입이 완료되었습니다!"
+msgstr "Registration complete!"
+
+#: templates/mybook/register_success.html:57
+msgid "이제 로그인하여 서비스를 이용하실 수 있습니다."
+msgstr "You can now log in and use the service."
+
+#: templates/mybook/register_success.html:58
+msgid "로그인하러 가기"
+msgstr "Go to Login"
+
+#: templates/mybook/upload_page.html:5
+msgid "원서를, 당신의 언어로"
+msgstr "Original books, in your language"
+
+#: templates/mybook/upload_page.html:12
+msgid ""
+"\n"
+"          원서를 당신의 언어로, <span class=\"bg-gradient-to-r from-[var(--bw-bg-from)] to-[var(--bw-bg-to)] bg-clip-text text-transparent\">페이지 그대로</span>\n"
+"          "
+msgstr ""
+"\n"
+"          Your original book, in your language, <span class=\"bg-gradient-to-r from-[var(--bw-bg-from)] to-[var(--bw-bg-to)] bg-clip-text text-transparent\">with pages intact</span>"
+
+#: templates/mybook/upload_page.html:17
+msgid "PDF/스캔본을 올리면, 원본의 레이아웃을 유지한 번역본을 생성합니다. 표·각주·이미지까지 깔끔하게."
+msgstr ""
+"Upload a PDF or scanned document, and we'll generate a translated version "
+"that preserves the original layout. Tables, footnotes, and images are "
+"handled flawlessly."
+
+#: templates/mybook/upload_page.html:28
+msgid "파일 선택"
+msgstr "Select File"
+
+#: templates/mybook/upload_page.html:41
+msgid "찾아보기"
+msgstr "Browse"
+
+#: templates/mybook/upload_page.html:43
+msgid "최대 50MB 까지 처리됩니다."
+msgstr "Up to 50MB will be processed."
+
+#: templates/mybook/upload_page.html:49
+msgid "책 제목 (선택)"
+msgstr "Book Title (Optional)"
+
+#: templates/mybook/upload_page.html:50
+msgid "입력하지 않으면 파일명이 사용됩니다."
+msgstr "If left blank, the filename will be used."
+
+#: templates/mybook/upload_page.html:58
+msgid "장르 (선택)"
+msgstr "Genre (Optional)"
+
+#: templates/mybook/upload_page.html:64
+msgid "정확한 genre를 입력하면 AI가 번역본을 제작하는데 도움이 됩니다."
+msgstr "Entering an accurate genre helps the AI generate the translation."
+
+#: templates/mybook/upload_page.html:102
+msgid "파일 업로드 시작"
+msgstr "Start file upload"
+
+#: templates/mybook/upload_page.html:104
+msgid "개인정보는 암호화되어 전송됩니다. 업로드한 파일은 일정 기간 후 자동 삭제됩니다."
+msgstr ""
+"Your personal data is encrypted during transmission. Uploaded files are "
+"automatically deleted after a set period."
+
+#: templates/mybook/upload_page.html:119
+msgid "레이아웃 보존"
+msgstr "Layout Preservation"
+
+#: templates/mybook/upload_page.html:120
+msgid "문단·표·각주·이미지까지 최대한 원본 구조를 유지하여 HTML로 재구성합니다."
+msgstr ""
+"Reconstructs into HTML, maintaining the original structure of paragraphs, "
+"tables, footnotes, and images as much as possible."
+
+#: templates/mybook/upload_page.html:128
+msgid "다중 포맷 지원"
+msgstr "Multi-format support"
+
+#: templates/mybook/upload_page.html:129
+msgid "PDF·이미지 스캔본 모두 OK. 대용량은 자동으로 최적 처리를 사용합니다."
+msgstr ""
+"Accepts both PDF and image scans. Large files are automatically optimized."
+
+#: templates/mybook/upload_page.html:137
+msgid "간편한 결과 확인"
+msgstr "Easy Result Viewing"
+
+#: templates/mybook/upload_page.html:138
+msgid "브라우저에서 즉시 결과 미리보기. 페이지 네비게이션과 검색도 지원됩니다."
+msgstr ""
+"Instant preview of results in your browser. Page navigation and search are "
+"also supported."
+
+#: templates/page_base.html:7
+msgid "언어의 장벽을 넘어 더 넓은 세상으로"
+msgstr "Beyond language barriers, into a wider world"

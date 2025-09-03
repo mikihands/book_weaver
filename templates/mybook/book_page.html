@@ -58,21 +58,21 @@
 
   <div class="toolbar">
     <div class="group">
-      {% if prev_url %}<a href="{{ prev_url }}"><button>← 이전</button></a>{% endif %}
-      {% if next_url %}<a href="{{ next_url }}"><button>다음 →</button></a>{% endif %}
+      {% if prev_url %}<a href="{{ prev_url }}"><button>← {% trans "이전" %}</button></a>{% endif %}
+      {% if next_url %}<a href="{{ next_url }}"><button>{% trans "다음" %} →</button></a>{% endif %}
       <span class="hint">p{{ page_no }} / {{ book.page_count }}</span>
     </div>
 
     <div class="group">
-      <button id="fitW">맞춤(가로)</button>
-      <button id="fitH">맞춤(세로)</button>
+      <button id="fitW">{% trans "맞춤(가로)" %}</button>
+      <button id="fitH">{% trans "맞춤(세로)" %}</button>
       <button id="zoomOut">-</button>
       <span id="zoomLabel" class="hint">100%</span>
       <button id="zoomIn">+</button>
     </div>
 
     <div class="group">
-      <label>배경:
+      <label>{% trans "배경" %}:
         <select id="bgMode">
           <option value="auto">auto</option>
           <option value="on">on</option>
@@ -84,7 +84,7 @@
 
   {% if not data or status != "ready" %}
     <div class="pending">
-      이 페이지는 아직 처리 중이거나 실패했습니다. (status={{ status }})
+      {% trans "이 페이지는 아직 처리 중이거나 실패했습니다." %} (status={{ status }})
     </div>
   {% else %}
     <div class="stage" id="stage">

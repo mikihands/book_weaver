@@ -1,18 +1,18 @@
 {% extends 'base.html' %}
-{% load static tailwind_tags %}
+{% load static tailwind_tags i18n %}
 
-{% block title %}내 서재{% endblock %}
+{% block title %}{% trans "내 서재" %}{% endblock %}
 
 {% block content %}
 <div class="bg-gray-50 min-h-screen-minus-nav-footer">
     <div class="max-w-7xl mx-auto py-12 px-4 sm:px-6 lg:px-8">
         <div class="flex justify-between items-center mb-8">
-            <h1 class="text-3xl font-bold text-gray-900">내 서재</h1>
+            <h1 class="text-3xl font-bold text-gray-900">{% trans "내 서재" %}</h1>
             <a href="{% url 'mybook:upload_page' %}" class="inline-flex items-center px-4 py-2 border border-transparent text-sm font-medium rounded-md shadow-sm text-white bg-blue-600 hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500">
                 <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5 mr-2" viewBox="0 0 20 20" fill="currentColor">
                     <path fill-rule="evenodd" d="M10 3a1 1 0 011 1v5h5a1 1 0 110 2h-5v5a1 1 0 11-2 0v-5H4a1 1 0 110-2h5V4a1 1 0 011-1z" clip-rule="evenodd" />
                 </svg>
-                새 책 업로드
+                {% trans "새 책 업로드" %}
             </a>
         </div>
 
@@ -23,42 +23,42 @@
                     <div class="flex justify-between items-start">
                         <h2 class="text-xl font-semibold text-gray-800 truncate pr-4" title="{{ book.title }}">{{ book.title }}</h2>
                         {% if book.status == 'completed' %}
-                            <span class="flex-shrink-0 inline-block px-2 py-1 text-xs font-semibold leading-tight text-green-700 bg-green-100 rounded-full">완료</span>
+                            <span class="flex-shrink-0 inline-block px-2 py-1 text-xs font-semibold leading-tight text-green-700 bg-green-100 rounded-full">{% trans "완료" %}</span>
                         {% elif book.status == 'processing' %}
-                            <span class="flex-shrink-0 inline-block px-2 py-1 text-xs font-semibold leading-tight text-yellow-700 bg-yellow-100 rounded-full">번역 중</span>
+                            <span class="flex-shrink-0 inline-block px-2 py-1 text-xs font-semibold leading-tight text-yellow-700 bg-yellow-100 rounded-full">{% trans "번역 중" %}</span>
                         {% elif book.status == 'uploaded' %}
-                            <span class="flex-shrink-0 inline-block px-2 py-1 text-xs font-semibold leading-tight text-blue-700 bg-blue-100 rounded-full">번역 대기</span>
+                            <span class="flex-shrink-0 inline-block px-2 py-1 text-xs font-semibold leading-tight text-blue-700 bg-blue-100 rounded-full">{% trans "번역 대기" %}</span>
                         {% elif book.status == 'failed' %}
-                            <span class="flex-shrink-0 inline-block px-2 py-1 text-xs font-semibold leading-tight text-red-700 bg-red-100 rounded-full">실패</span>
+                            <span class="flex-shrink-0 inline-block px-2 py-1 text-xs font-semibold leading-tight text-red-700 bg-red-100 rounded-full">{% trans "실패" %}</span>
                         {% else %}
                             <span class="flex-shrink-0 inline-block px-2 py-1 text-xs font-semibold leading-tight text-gray-700 bg-gray-100 rounded-full">{{ book.get_status_display }}</span>
                         {% endif %}
                     </div>
-                    <p class="text-sm text-gray-500 mt-2">페이지: {{ book.page_count }}</p>
-                    <p class="text-sm text-gray-500 mt-1">업로드: {{ book.created_at|date:"Y.m.d" }}</p>
+                    <p class="text-sm text-gray-500 mt-2">{% trans "페이지" %}: {{ book.page_count }}</p>
+                    <p class="text-sm text-gray-500 mt-1">{% trans "업로드" %}: {{ book.created_at|date:"Y.m.d" }}</p>
                     {% if book.target_lang %}
-                        <p class="text-sm text-gray-500 mt-1">번역 언어: <span class="font-medium text-gray-700">{{ book.target_lang|upper }}</span></p>
+                        <p class="text-sm text-gray-500 mt-1">{% trans "번역 언어" %}: <span class="font-medium text-gray-700">{{ book.target_lang|upper }}</span></p>
                     {% endif %}
 
                     <div class="mt-6">
                         {% if book.status == 'uploaded' or book.status == 'failed' %}
                             <a href="{% url 'mybook:book_prepare' book.id %}" class="w-full flex justify-center py-2 px-4 border border-transparent rounded-md shadow-sm text-sm font-medium text-white bg-blue-600 hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500">
-                                번역 준비
+                                {% trans "번역 준비" %}
                             </a>
                         {% elif book.status == 'completed' %}
                              <a href="{% url 'mybook:book_page' book.id 1 %}" class="w-full flex justify-center py-2 px-4 border border-transparent rounded-md shadow-sm text-sm font-medium text-white bg-gray-800 hover:bg-gray-900 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-gray-500">
-                                책 보기
+                                {% trans "책 보기" %}
                             </a>
                         {% elif book.status == 'processing' %}
                             <a href="{% url 'mybook:book_page' book.id 1 %}" class="w-full flex justify-center py-2 px-4 border border-gray-300 rounded-md shadow-sm text-sm font-medium text-gray-700 bg-gray-100 cursor-not-allowed">
                                 <div class="flex justify-center items-center">
                                     <div class="animate-spin rounded-full h-4 w-4 border-b-2 border-gray-600 mr-2"></div>
-                                    <span>번역 진행 중...</span>
+                                    <span>{% trans "번역 진행 중..." %}</span>
                                 </div>
                             </a>
                         {% else %}
                              <a href="{% url 'mybook:book_page' book.id 1 %}" class="w-full flex justify-center py-2 px-4 border border-transparent rounded-md shadow-sm text-sm font-medium text-white bg-gray-800 hover:bg-gray-900 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-gray-500">
-                                책 보기
+                                {% trans "책 보기" %}
                             </a>
                         {% endif %}
                     </div>
@@ -70,11 +70,11 @@
                     <svg class="mx-auto h-12 w-12 text-gray-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" aria-hidden="true">
                         <path vector-effect="non-scaling-stroke" stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 13h6m-3-3v6m-9 1V7a2 2 0 012-2h6l2 2h6a2 2 0 012 2v8a2 2 0 01-2 2H5a2 2 0 01-2-2z" />
                     </svg>
-                    <h3 class="mt-2 text-sm font-medium text-gray-900">아직 책이 없습니다.</h3>
-                    <p class="mt-1 text-sm text-gray-500">첫 번째 책을 업로드하고 번역을 시작해 보세요.</p>
+                    <h3 class="mt-2 text-sm font-medium text-gray-900">{% trans "아직 책이 없습니다." %}</h3>
+                    <p class="mt-1 text-sm text-gray-500">{% trans "첫 번째 책을 업로드하고 번역을 시작해 보세요." %}</p>
                     <div class="mt-6">
                         <a href="{% url 'mybook:upload_page' %}" class="inline-flex items-center px-4 py-2 border border-transparent text-sm font-medium rounded-md shadow-sm text-white bg-blue-600 hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500">
-                            새 책 업로드하기
+                            {% trans "새 책 업로드하기" %}
                         </a>
                     </div>
                 </div>

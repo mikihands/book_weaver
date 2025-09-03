@@ -25,7 +25,10 @@ class SessionAuthWithToken(authentication.BaseAuthentication):
         is_valid, new_token = TokenRefresher.refresh_access_token_if_needed(request)
         
         if not is_valid:
-            raise exceptions.AuthenticationFailed('Authentication failed: Invalid or expired token.')
+            # 토큰 갱신 실패 시, 세션에 유효하지 않은 토큰 정보가 남아있는 것이므로
+            # 세션을 완전히 초기화하고 익명 사용자로 처리합니다.
+            request.session.flush()
+            return None # 인증 실패를 예외가 아닌 None으로 처리
         
         try:
             username = request.session.get("username")
@@ -46,4 +49,3 @@ class SessionAuthWithToken(authentication.BaseAuthentication):
         except Exception as e:
             logger.error(f"Authentication error: {e}")
             raise exceptions.AuthenticationFailed('Authentication failed: An unexpected error occurred.')
-

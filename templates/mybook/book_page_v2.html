@@ -74,6 +74,7 @@
   const pageW = {{ page_w|default:800 }};
   const pageH = {{ page_h|default:1200 }};
   const stage  = document.getElementById('stage');
+  if (!stage) return;
   const vp    = document.getElementById('pageViewport');
   const page   = document.getElementById('page');
   const zoomLabel = document.getElementById('zoomLabel');
@@ -105,7 +106,6 @@
 
   }
   
-
   function fitWidth(){
     const pad = 24*2;
     const avail = stage.clientWidth - pad;
@@ -122,7 +122,6 @@
   zoomIn.addEventListener('click', ()=>applyScale(scale*1.1));
   zoomOut.addEventListener('click',()=>applyScale(scale/1.1));
   window.addEventListener('resize', ()=>fitWidth());
-  new ResizeObserver(()=>fitWidth()).observe(stage);
 
   // 초기 가로 맞춤
   fitWidth();

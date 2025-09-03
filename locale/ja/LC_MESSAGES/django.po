@@ -1,0 +1,765 @@
+# SOME DESCRIPTIVE TITLE.
+# Copyright (C) YEAR THE PACKAGE'S COPYRIGHT HOLDER
+# This file is distributed under the same license as the PACKAGE package.
+# FIRST AUTHOR <EMAIL@ADDRESS>, YEAR.
+#
+#, fuzzy
+msgid ""
+msgstr ""
+"Project-Id-Version: PACKAGE VERSION\n"
+"Report-Msgid-Bugs-To: \n"
+"POT-Creation-Date: 2025-09-03 02:20+0000\n"
+"PO-Revision-Date: YEAR-MO-DA HO:MI+ZONE\n"
+"Last-Translator: FULL NAME <EMAIL@ADDRESS>\n"
+"Language-Team: LANGUAGE <LL@li.org>\n"
+"Language: \n"
+"MIME-Version: 1.0\n"
+"Content-Type: text/plain; charset=UTF-8\n"
+"Content-Transfer-Encoding: 8bit\n"
+"Plural-Forms: nplurals=1; plural=0;\n"
+
+#: templates/base.html:74 templates/mybook/bookshelf.html:4
+#: templates/mybook/bookshelf.html:10
+msgid "내 서재"
+msgstr "マイ書斎"
+
+#: templates/base.html:75
+msgid "로그아웃"
+msgstr "ログアウト"
+
+#: templates/mybook/book_page.html:61
+msgid "이전"
+msgstr "前へ"
+
+#: templates/mybook/book_page.html:62
+msgid "다음"
+msgstr "次"
+
+#: templates/mybook/book_page.html:67
+msgid "맞춤(가로)"
+msgstr "幅に合わせる"
+
+#: templates/mybook/book_page.html:68
+msgid "맞춤(세로)"
+msgstr "高さに合わせる"
+
+#: templates/mybook/book_page.html:75
+msgid "배경"
+msgstr "背景"
+
+#: templates/mybook/book_page.html:87
+msgid "이 페이지는 아직 처리 중이거나 실패했습니다."
+msgstr "このページはまだ処理中か、失敗しました。"
+
+#: templates/mybook/book_prepare.html:7 templates/mybook/bookshelf.html:46
+msgid "번역 준비"
+msgstr "翻訳準備"
+
+#: templates/mybook/book_prepare.html:9
+msgid "번역 품질을 높이기 위해 책의 정보를 확인하고 용어집을 추가해 주세요."
+msgstr "翻訳の品質を向上させるため、書籍情報を確認し、用語集を追加してください。"
+
+#: templates/mybook/book_prepare.html:15
+msgid "책 제목"
+msgstr "本のタイトル"
+
+#: templates/mybook/book_prepare.html:21
+msgid "장르"
+msgstr "ジャンル"
+
+#: templates/mybook/book_prepare.html:24 templates/mybook/upload_page.html:70
+msgid "장르를 선택하세요"
+msgstr "ジャンルを選択してください"
+
+#: templates/mybook/book_prepare.html:26 templates/mybook/upload_page.html:71
+msgid "소설"
+msgstr "小説"
+
+#: templates/mybook/book_prepare.html:27 templates/mybook/upload_page.html:72
+msgid "비소설"
+msgstr "ノンフィクション"
+
+#: templates/mybook/book_prepare.html:28 templates/mybook/upload_page.html:73
+msgid "기술/과학"
+msgstr "技術/科学"
+
+#: templates/mybook/book_prepare.html:29 templates/mybook/upload_page.html:74
+msgid "역사"
+msgstr "履歴"
+
+#: templates/mybook/book_prepare.html:30 templates/mybook/upload_page.html:75
+msgid "자기계발"
+msgstr "自己啓発"
+
+#: templates/mybook/book_prepare.html:31 templates/mybook/upload_page.html:76
+msgid "판타지"
+msgstr "ファンタジー"
+
+#: templates/mybook/book_prepare.html:32 templates/mybook/upload_page.html:77
+msgid "SF (공상 과학)"
+msgstr "SF (サイエンス・フィクション)"
+
+#: templates/mybook/book_prepare.html:33 templates/mybook/upload_page.html:78
+msgid "로맨스"
+msgstr "ロマンス"
+
+#: templates/mybook/book_prepare.html:34 templates/mybook/upload_page.html:79
+msgid "스릴러/미스터리"
+msgstr "スリラー/ミステリー"
+
+#: templates/mybook/book_prepare.html:35 templates/mybook/upload_page.html:80
+msgid "아동"
+msgstr "子供"
+
+#: templates/mybook/book_prepare.html:36 templates/mybook/upload_page.html:81
+msgid "기타"
+msgstr "その他"
+
+#: templates/mybook/book_prepare.html:42
+msgid "용어집 (Glossary)"
+msgstr "用語集 (Glossary)"
+
+#: templates/mybook/book_prepare.html:45
+msgid ""
+"placeholder=\"번역 일관성을 위한 규칙을 입력하세요. (선택 사항)&#10;예시:&#10;- Venice as 베네치아 "
+"&#10;- Use informal style between John and Mary.&#10;- Brand name like "
+"'BookWeaver' stays untranslated.\""
+msgstr ""
+"placeholder=\"翻訳の一貫性のためのルールを入力してください。（オプション）&#10;例：&#10;- "
+"「Venice」は「ヴェネツィア」と翻訳する&#10;- ジョンとメアリーの会話は口語体にする。&#10;- "
+"「BookWeaver」のようなブランド名は翻訳しない。\""
+
+#: templates/mybook/book_prepare.html:49 templates/mybook/upload_page.html:86
+msgid "번역할 언어"
+msgstr "翻訳先の言語"
+
+#: templates/mybook/book_prepare.html:65
+#: templates/mybook/book_prepare.html:140
+msgid "설정 저장"
+msgstr "設定を保存"
+
+#: templates/mybook/book_prepare.html:70
+#: templates/mybook/book_prepare.html:178
+#: templates/mybook/book_prepare.html:184
+msgid "번역 시작"
+msgstr "翻訳開始"
+
+#: templates/mybook/book_prepare.html:130
+#: templates/mybook/book_prepare.html:173
+msgid "로그인이 필요합니다."
+msgstr "ログインが必要です"
+
+#: templates/mybook/book_prepare.html:130
+#: templates/mybook/book_prepare.html:173
+msgid "로그인 페이지로 이동"
+msgstr "ログインページに移動"
+
+#: templates/mybook/book_prepare.html:132
+#: templates/mybook/book_prepare.html:175
+msgid "오류:"
+msgstr "エラー:"
+
+#: templates/mybook/book_prepare.html:136
+#: templates/mybook/book_prepare.html:181 templates/mybook/login_page.html:81
+#: templates/mybook/register_page.html:90
+msgid "네트워크 오류가 발생했습니다."
+msgstr "ネットワークエラーが発生しました。"
+
+#: templates/mybook/book_prepare.html:142
+msgid "설정이 성공적으로 저장되었습니다."
+msgstr "設定が正常に保存されました。"
+
+#: templates/mybook/book_prepare.html:154
+msgid "번역 요청 중..."
+msgstr "翻訳リクエスト中..."
+
+#: templates/mybook/book_prepare.html:169
+msgid "잠시 후 번역 페이지로 이동합니다."
+msgstr "まもなく翻訳ページに移動します。"
+
+#: templates/mybook/bookshelf.html:15
+msgid "새 책 업로드"
+msgstr "新しい本のアップロード"
+
+#: templates/mybook/bookshelf.html:26
+msgid "완료"
+msgstr "完了"
+
+#: templates/mybook/bookshelf.html:28
+msgid "번역 중"
+msgstr "翻訳中"
+
+#: templates/mybook/bookshelf.html:30
+msgid "번역 대기"
+msgstr "翻訳待機中"
+
+#: templates/mybook/bookshelf.html:32
+msgid "실패"
+msgstr "失敗"
+
+#: templates/mybook/bookshelf.html:37 templates/mybook/pricing.html:94
+msgid "페이지"
+msgstr "ページ"
+
+#: templates/mybook/bookshelf.html:38
+msgid "업로드"
+msgstr "アップロード"
+
+#: templates/mybook/bookshelf.html:40
+msgid "번역 언어"
+msgstr "翻訳言語"
+
+#: templates/mybook/bookshelf.html:50 templates/mybook/bookshelf.html:61
+msgid "책 보기"
+msgstr "書籍を見る"
+
+#: templates/mybook/bookshelf.html:56
+msgid "번역 진행 중..."
+msgstr "翻訳進行中..."
+
+#: templates/mybook/bookshelf.html:73
+msgid "아직 책이 없습니다."
+msgstr "まだ本がありません。"
+
+#: templates/mybook/bookshelf.html:74
+msgid "첫 번째 책을 업로드하고 번역을 시작해 보세요."
+msgstr "最初の本をアップロードして、翻訳を始めてみましょう。"
+
+#: templates/mybook/bookshelf.html:77
+msgid "새 책 업로드하기"
+msgstr "新しい本をアップロード"
+
+#: templates/mybook/features.html:4
+msgid "Weaver · 기능"
+msgstr "Weaver · 機能"
+
+#: templates/mybook/features.html:22
+msgid "BookWeaver 기능"
+msgstr "BookWeaver 機能"
+
+#: templates/mybook/features.html:23
+msgid "원서의 레이아웃을 지키면서 번역본을 만드는 가장 쉬운 방법. 대용량 파일도, 표와 도표도 문제없이."
+msgstr "原書のレイアウトをそのままに、翻訳版を作成する最も簡単な方法。大容量ファイルも、表や図も問題なく対応できます。"
+
+#: templates/mybook/features.html:25 templates/mybook/pricing.html:60
+msgid "지금 업로드"
+msgstr "今すぐアップロード"
+
+#: templates/mybook/features.html:26
+msgid "데모 보기"
+msgstr "デモを見る"
+
+#: templates/mybook/features.html:34
+msgid "핵심 기능"
+msgstr "主な機能"
+
+#: templates/mybook/features.html:35
+msgid "번역 품질, 레이아웃 보존, 확장성과 속도까지 한 번에."
+msgstr "翻訳品質、レイアウト保持、拡張性、そして速度まで、一度に。"
+
+#: templates/mybook/features.html:45
+msgid "멀티모달 문서 이해"
+msgstr "マルチモーダル文書理解"
+
+#: templates/mybook/features.html:46
+msgid "텍스트뿐 아니라 표·차트·다이어그램까지 인지하고 번역 흐름에 반영."
+msgstr "テキストだけでなく、表、チャート、図も認識し、翻訳フローに反映させます。"
+
+#: templates/mybook/features.html:53
+msgid "레이아웃 및 서식 보존"
+msgstr "レイアウトおよび書式の保持"
+
+#: templates/mybook/features.html:54
+msgid "문단·목록·표·각주를 최대한 유지하여 원본과 유사한 HTML 생성."
+msgstr "段落、リスト、表、脚注を可能な限り維持し、元に近いHTMLを生成します。"
+
+#: templates/mybook/features.html:61
+msgid "대용량 파일 처리"
+msgstr "大容量ファイルの処理"
+
+#: templates/mybook/features.html:62
+msgid "최대 50MB PDF 지원. 파일 크기에 맞춰 최적 방식으로 업로드."
+msgstr "最大50MBのPDFに対応。ファイルサイズに応じ、最適な方法でアップロードします。"
+
+#: templates/mybook/features.html:69
+msgid "페이지 단위 비동기 처리"
+msgstr "ページごとの非同期処理"
+
+#: templates/mybook/features.html:70
+msgid "먼저 끝난 페이지부터 바로 읽기 가능. 대기 시간을 최소화."
+msgstr "先に完了したページからすぐにお読みいただけます。待ち時間を最小限に抑えます。"
+
+#: templates/mybook/features.html:77
+msgid "문서 내 검색 & 페이지 점프"
+msgstr "文書内検索・ページジャンプ"
+
+#: templates/mybook/features.html:78
+msgid "키워드 검색과 빠른 페이지 이동으로 탐색 효율 극대화."
+msgstr "キーワード検索と高速ページ移動で、閲覧効率を最大限に高めます。"
+
+#: templates/mybook/features.html:85
+msgid "내 서재 & 국제화"
+msgstr "マイライブラリ & 国際化"
+
+#: templates/mybook/features.html:86
+msgid "번역본을 라이브러리에서 관리하고, UI 다국어 환경을 지원."
+msgstr "翻訳本をライブラリで管理し、UIの多言語環境をサポートします。"
+
+#: templates/mybook/features.html:94
+msgid "두 가지 출력 모드"
+msgstr "2つの出力モード"
+
+#: templates/mybook/features.html:95
+msgid "출판용 정밀 모드와, 모바일 친화 가독 모드 중 선택."
+msgstr "出版用の精密モードと、モバイル向け読みやすさモードからお選びください。"
+
+#: templates/mybook/features.html:99
+msgid "Booky · 정밀 모드 (Faithful HTML)"
+msgstr "ブッキー・精密モード（HTML忠実再現）"
+
+#: templates/mybook/features.html:100
+msgid "원본 레이아웃을 최대한 보존. 캡션·각주·복잡한 표도 그대로."
+msgstr "オリジナルのレイアウトを可能な限り保持。キャプション、脚注、複雑な表もそのままです。"
+
+#: templates/mybook/features.html:102
+msgid "절대 좌표/레이어 기반 배치"
+msgstr "絶対座標／レイヤーベースの配置"
+
+#: templates/mybook/features.html:103
+msgid "아카이빙/출판용"
+msgstr "アーカイブ/出版用"
+
+#: templates/mybook/features.html:104
+msgid "레이아웃 무결성 우선"
+msgstr "レイアウトの整合性を最優先"
+
+#: templates/mybook/features.html:108
+msgid "Readable · 가독 모드 (Responsive)"
+msgstr "読みやすい · 読書モード (レスポンシブ)"
+
+#: templates/mybook/features.html:109
+msgid "의미 구조 중심 재배치. 모바일·태블릿·PC까지 반응형."
+msgstr "意味構造中心の再配置。モバイル・タブレット・PCまで対応するレスポンシブ表示。"
+
+#: templates/mybook/features.html:111
+msgid "문단/목차/표/그림/각주 재조립"
+msgstr "段落/目次/表/図/脚注の再構築"
+
+#: templates/mybook/features.html:112
+msgid "공백·단 제거, 가독성 강화"
+msgstr "スペース・ハイフンの削除、可読性の向上"
+
+#: templates/mybook/features.html:113
+msgid "CSS Grid/Flex 기반"
+msgstr "CSS Grid/Flex ベース"
+
+#: templates/mybook/features.html:122
+msgid "동작 방식"
+msgstr "仕組み"
+
+#: templates/mybook/features.html:123
+msgid "업로드부터 결과 확인까지, 네 단계로 끝."
+msgstr "アップロードから結果確認まで、4つのステップで完了。"
+
+#: templates/mybook/features.html:128 templates/mybook/upload_page.html:37
+msgid "파일 업로드"
+msgstr "ファイルアップロード"
+
+#: templates/mybook/features.html:129
+msgid "PDF(최대 50MB) 혹은 이미지→PDF 변환 예정."
+msgstr "PDF (最大50MB) または 画像→PDF変換を予定しています。"
+
+#: templates/mybook/features.html:133
+msgid "AI 분석/번역"
+msgstr "AI 分析/翻訳"
+
+#: templates/mybook/features.html:134
+msgid "페이지별로 구조/요소를 분석하고 번역 생성."
+msgstr "ページごとに構造・要素を分析し、翻訳を生成します。"
+
+#: templates/mybook/features.html:138
+msgid "미리보기"
+msgstr "プレビュー"
+
+#: templates/mybook/features.html:139
+msgid "먼저 완료된 페이지부터 브라우저에서 확인."
+msgstr "まず、ブラウザで完成したページをご確認ください。"
+
+#: templates/mybook/features.html:143
+msgid "저장/다운로드"
+msgstr "保存/ダウンロード"
+
+#: templates/mybook/features.html:144
+msgid "유료는 PDF 다운로드 가능. 무료는 브라우저 열람."
+msgstr "有料版ではPDFのダウンロードが可能です。無料版ではブラウザで閲覧いただけます。"
+
+#: templates/mybook/features.html:152
+msgid "샘플 미리보기"
+msgstr "サンプルプレビュー"
+
+#: templates/mybook/features.html:153
+msgid "표/도표/각주가 포함된 페이지 예시 (플레이스홀더)"
+msgstr "表・図・脚注が含まれるページの例（プレースホルダー）"
+
+#: templates/mybook/features.html:164
+msgid "자주 묻는 질문"
+msgstr "よくある質問"
+
+#: templates/mybook/features.html:168
+msgid "무료 플랜에서 페이지 제한은?"
+msgstr "無料プランのページ制限は？"
+
+#: templates/mybook/features.html:171
+msgid "무료는 1회 최대 30페이지. 초과는 세션 분할 또는 유료 업그레이드."
+msgstr "無料の場合は1回あたり最大30ページです。それを超える場合は、セッションを分割するか有料アップグレードが必要です。"
+
+#: templates/mybook/features.html:175
+msgid "PDF 다운로드는 누구나 가능한가요?"
+msgstr "PDFのダウンロードは誰でもできますか？"
+
+#: templates/mybook/features.html:178
+msgid "유료 플랜에서 제공됩니다. 무료는 브라우저 열람만 지원."
+msgstr "有料プランでご利用いただけます。無料版はブラウザでの閲覧のみ対応しています。"
+
+#: templates/mybook/features.html:182
+msgid "이미지/차트는 어떻게 처리되나요?"
+msgstr "画像/グラフはどのように処理されますか？"
+
+#: templates/mybook/features.html:185
+msgid "번역본에 삽입되는 이미지는 업로드한 문서로부터 자동으로 추출되어 정확한 위치에 배치됩니다."
+msgstr "翻訳版に挿入される画像は、アップロードされたドキュメントから自動的に抽出され、正しい位置に配置されます。"
+
+#: templates/mybook/features.html:189
+msgid "저작권 관련 유의사항은?"
+msgstr "著作権に関する留意事項は？"
+
+#: templates/mybook/features.html:192
+msgid "반드시 합법적으로 구입/소유한 도서를 사용해야 하며 책임은 사용자에게 있습니다."
+msgstr "合法的に購入または所有された書籍のみをご利用ください。使用に関する責任は利用者ご自身にあります。"
+
+#: templates/mybook/features.html:201 templates/mybook/pricing.html:210
+msgid "지금 바로 번역을 시작해보세요"
+msgstr "今すぐ翻訳を始めましょう"
+
+#: templates/mybook/features.html:202 templates/mybook/pricing.html:213
+msgid "무료로 테스트하고, 필요할 때만 업그레이드하세요."
+msgstr "無料でテストし、必要な時だけアップグレードしてください。"
+
+#: templates/mybook/features.html:205 templates/mybook/pricing.html:102
+#: templates/mybook/pricing.html:194 templates/mybook/pricing.html:219
+msgid "무료로 시작"
+msgstr "無料で始める"
+
+#: templates/mybook/features.html:206 templates/mybook/pricing.html:223
+msgid "업그레이드"
+msgstr "アップグレード"
+
+#: templates/mybook/login_page.html:7 templates/mybook/login_page.html:25
+msgid "로그인"
+msgstr "ログイン"
+
+#: templates/mybook/login_page.html:11 templates/mybook/register_page.html:14
+msgid "사용자 이름"
+msgstr "ユーザー名"
+
+#: templates/mybook/login_page.html:17 templates/mybook/register_page.html:26
+msgid "비밀번호"
+msgstr "パスワード"
+
+#: templates/mybook/login_page.html:60
+msgid "로그인 처리 중..."
+msgstr "ログイン処理中..."
+
+#: templates/mybook/login_page.html:77 templates/mybook/register_page.html:86
+msgid "오류"
+msgstr "エラー"
+
+#: templates/mybook/pricing.html:4
+msgid "가격"
+msgstr "価格"
+
+#: templates/mybook/pricing.html:52
+msgid "쉽고 합리적인 요금제"
+msgstr "シンプルで手頃な料金プラン"
+
+#: templates/mybook/pricing.html:55
+msgid "원서의 레이아웃을 그대로 유지한 번역을 무료 또는 합리적인 구독으로 경험해 보세요."
+msgstr "原書のレイアウトをそのまま維持した翻訳を、無料またはお得なサブスクリプションでご体験ください。"
+
+#: templates/mybook/pricing.html:64
+msgid "문의하기"
+msgstr "お問い合わせ"
+
+#: templates/mybook/pricing.html:78
+msgid "무료 (Free)"
+msgstr "無料 (Free)"
+
+#: templates/mybook/pricing.html:79
+msgid "가볍게 체험하고 작은 프로젝트에 적합"
+msgstr "手軽に試せて、小規模プロジェクトに最適です"
+
+#: templates/mybook/pricing.html:82
+msgid "광고 포함"
+msgstr "広告あり"
+
+#: templates/mybook/pricing.html:94
+msgid "1회 최대"
+msgstr "1回あたりの最大"
+
+#: templates/mybook/pricing.html:94
+msgid "번역"
+msgstr "翻訳"
+
+#: templates/mybook/pricing.html:95 templates/mybook/pricing.html:164
+msgid "번역 횟수"
+msgstr "翻訳回数"
+
+#: templates/mybook/pricing.html:95 templates/mybook/pricing.html:165
+#: templates/mybook/pricing.html:166
+msgid "무제한"
+msgstr "無制限"
+
+#: templates/mybook/pricing.html:96
+msgid "광고 노출"
+msgstr "広告表示"
+
+#: templates/mybook/pricing.html:97
+msgid "PDF 다운로드 미지원 (브라우저 열람만)"
+msgstr "PDFダウンロード未対応 (ブラウザ閲覧のみ)"
+
+#: templates/mybook/pricing.html:110
+msgid "가장 인기"
+msgstr "最も人気"
+
+#: templates/mybook/pricing.html:116
+msgid "유료 (Standard)"
+msgstr "有料 (Standard)"
+
+#: templates/mybook/pricing.html:117
+msgid "광고 없이, 프로젝트 제한 없이"
+msgstr "広告なし、プロジェクト制限なし"
+
+#: templates/mybook/pricing.html:120
+msgid "7일 무료체험"
+msgstr "7日間の無料体験"
+
+#: templates/mybook/pricing.html:132
+msgid "1회 최대 페이지 제한 없음 (파일 50MB까지)"
+msgstr "1回あたりのページ制限なし (ファイル50MBまで)"
+
+#: templates/mybook/pricing.html:133
+msgid "번역 횟수 무제한"
+msgstr "翻訳回数無制限"
+
+#: templates/mybook/pricing.html:134
+msgid "광고 없음"
+msgstr "広告なし"
+
+#: templates/mybook/pricing.html:135
+msgid "번역 결과 PDF 다운로드 지원"
+msgstr "翻訳結果PDFダウンロード対応"
+
+#: templates/mybook/pricing.html:136
+msgid "가입 후 1주일 무료 (청구일 전 해지 가능)"
+msgstr "ご登録後1週間無料 (請求日までに解約可能)"
+
+#: templates/mybook/pricing.html:141 templates/mybook/pricing.html:198
+msgid "유료로 업그레이드"
+msgstr "有料版にアップグレード"
+
+#: templates/mybook/pricing.html:151
+msgid "상세 비교"
+msgstr "詳細比較"
+
+#: templates/mybook/pricing.html:157
+msgid "기능"
+msgstr "機能"
+
+#: templates/mybook/pricing.html:158
+msgid "무료"
+msgstr "無料"
+
+#: templates/mybook/pricing.html:159
+msgid "유료"
+msgstr "有料"
+
+#: templates/mybook/pricing.html:169
+msgid "1회 처리 페이지"
+msgstr "1回処理ページ"
+
+#: templates/mybook/pricing.html:170
+msgid "최대 30페이지"
+msgstr "最大30ページ"
+
+#: templates/mybook/pricing.html:171
+msgid "제한 없음 (50MB)"
+msgstr "無制限 (50MB)"
+
+#: templates/mybook/pricing.html:174
+msgid "광고"
+msgstr "広告"
+
+#: templates/mybook/pricing.html:175
+msgid "있음"
+msgstr "あり"
+
+#: templates/mybook/pricing.html:176
+msgid "없음"
+msgstr "なし"
+
+#: templates/mybook/pricing.html:179
+msgid "PDF 다운로드"
+msgstr "PDFダウンロード"
+
+#: templates/mybook/pricing.html:180
+msgid "미지원"
+msgstr "未対応"
+
+#: templates/mybook/pricing.html:181
+msgid "지원"
+msgstr "サポート"
+
+#: templates/mybook/pricing.html:189
+msgid "저작권 보호를 위해, 번역에 사용할 문서는 반드시 사용자가 합법적으로 구입/소유한 자료여야 합니다."
+msgstr "著作権保護のため、翻訳に使用する文書は、ユーザーが合法的に購入・所有した資料である必要があります。"
+
+#: templates/mybook/register_page.html:7
+msgid "회원가입"
+msgstr "会員登録"
+
+#: templates/mybook/register_page.html:9
+msgid "Mikihands 계정을 생성하고 Weaver 서비스를 이용하세요."
+msgstr "Mikihandsアカウントを作成して、Weaverサービスをご利用ください。"
+
+#: templates/mybook/register_page.html:20
+msgid "이메일"
+msgstr "メール"
+
+#: templates/mybook/register_page.html:34
+msgid "계정 생성"
+msgstr "アカウント作成"
+
+#: templates/mybook/register_page.html:69
+msgid "회원가입 처리 중..."
+msgstr "登録処理中..."
+
+#: templates/mybook/register_success.html:7
+msgid "회원가입 성공"
+msgstr "登録成功"
+
+#: templates/mybook/register_success.html:56
+msgid "회원가입이 완료되었습니다!"
+msgstr "会員登録が完了しました！"
+
+#: templates/mybook/register_success.html:57
+msgid "이제 로그인하여 서비스를 이용하실 수 있습니다."
+msgstr "これでログインしてサービスをご利用いただけます。"
+
+#: templates/mybook/register_success.html:58
+msgid "로그인하러 가기"
+msgstr "ログインページへ"
+
+#: templates/mybook/upload_page.html:5
+msgid "원서를, 당신의 언어로"
+msgstr "原書を、あなたの言語で"
+
+#: templates/mybook/upload_page.html:12
+msgid ""
+"\n"
+"          원서를 당신의 언어로, <span class=\"bg-gradient-to-r from-[var(--bw-bg-from)] to-[var(--bw-bg-to)] bg-clip-text text-transparent\">페이지 그대로</span>\n"
+"          "
+msgstr ""
+"\n"
+"          原書をあなたの言語で、<span class=\"bg-gradient-to-r from-[var(--bw-bg-from)] to-[var(--bw-bg-to)] bg-clip-text text-transparent\">ページそのままに</span>"
+
+#: templates/mybook/upload_page.html:17
+msgid "PDF/스캔본을 올리면, 원본의 레이아웃을 유지한 번역본을 생성합니다. 표·각주·이미지까지 깔끔하게."
+msgstr "PDF/スキャンファイルをアップロードすると、元のレイアウトを維持した翻訳版を生成します。表、脚注、画像もきれいに再現します。"
+
+#: templates/mybook/upload_page.html:28
+msgid "파일 선택"
+msgstr "ファイルを選択"
+
+#: templates/mybook/upload_page.html:41
+msgid "찾아보기"
+msgstr "参照"
+
+#: templates/mybook/upload_page.html:43
+msgid "최대 50MB 까지 처리됩니다."
+msgstr "最大50MBまで処理されます。"
+
+#: templates/mybook/upload_page.html:49
+msgid "책 제목 (선택)"
+msgstr "本のタイトル (任意)"
+
+#: templates/mybook/upload_page.html:50
+msgid "입력하지 않으면 파일명이 사용됩니다."
+msgstr "入力しないとファイル名が使用されます。"
+
+#: templates/mybook/upload_page.html:58
+msgid "장르 (선택)"
+msgstr "ジャンル (オプション)"
+
+#: templates/mybook/upload_page.html:64
+msgid "정확한 genre를 입력하면 AI가 번역본을 제작하는데 도움이 됩니다."
+msgstr "正確なジャンルをご入力いただくことで、AIがより質の高い翻訳を作成できるようになります。"
+
+#: templates/mybook/upload_page.html:102
+msgid "파일 업로드 시작"
+msgstr "ファイルのアップロードを開始"
+
+#: templates/mybook/upload_page.html:104
+msgid "개인정보는 암호화되어 전송됩니다. 업로드한 파일은 일정 기간 후 자동 삭제됩니다."
+msgstr "個人情報は暗号化されて送信されます。アップロードされたファイルは一定期間後に自動削除されます。"
+
+#: templates/mybook/upload_page.html:119
+msgid "레이아웃 보존"
+msgstr "レイアウト保持"
+
+#: templates/mybook/upload_page.html:120
+msgid "문단·표·각주·이미지까지 최대한 원본 구조를 유지하여 HTML로 재구성합니다."
+msgstr "段落、表、脚注、画像まで、元の構造を可能な限り維持してHTMLとして再構築します。"
+
+#: templates/mybook/upload_page.html:128
+msgid "다중 포맷 지원"
+msgstr "複数フォーマット対応"
+
+#: templates/mybook/upload_page.html:129
+msgid "PDF·이미지 스캔본 모두 OK. 대용량은 자동으로 최적 처리를 사용합니다."
+msgstr "PDF、画像スキャンデータ、どちらも問題なくご利用いただけます。大容量の場合は、自動で最適な処理を行います。"
+
+#: templates/mybook/upload_page.html:137
+msgid "간편한 결과 확인"
+msgstr "結果を簡単に確認"
+
+#: templates/mybook/upload_page.html:138
+msgid "브라우저에서 즉시 결과 미리보기. 페이지 네비게이션과 검색도 지원됩니다."
+msgstr "ブラウザで即座に結果をプレビューできます。ページナビゲーションと検索もサポートされています。"
+
+#: templates/page_base.html:7
+msgid "언어의 장벽을 넘어 더 넓은 세상으로"
+msgstr "言語の壁を越えて、より広い世界へ"
+
+#: weaber/settings/base.py:107
+msgid "English"
+msgstr "英語"
+
+#: weaber/settings/base.py:108
+msgid "Korean"
+msgstr "韓国語"
+
+#: weaber/settings/base.py:109
+msgid "Japanese"
+msgstr "日本語"
+
+#: weaber/settings/base.py:110
+msgid "Spanish"
+msgstr "スペイン語"
+
+#: weaber/settings/base.py:111
+msgid "German"
+msgstr "ドイツ語"
+
+#: weaber/settings/base.py:112
+msgid "French"
+msgstr "フランス語"

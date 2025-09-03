@@ -2,6 +2,7 @@ import environ
 import os
 import sys
 from pathlib import Path
+from django.utils.translation import gettext_lazy as _
 
 BASE_DIR = Path(__file__).resolve().parent.parent.parent
 
@@ -29,6 +30,7 @@ INSTALLED_APPS = [
 MIDDLEWARE = [
     'django.middleware.security.SecurityMiddleware',
     'django.contrib.sessions.middleware.SessionMiddleware',
+    "django.middleware.locale.LocaleMiddleware",
     'django.middleware.common.CommonMiddleware',
     'django.middleware.csrf.CsrfViewMiddleware',
     'django.contrib.auth.middleware.AuthenticationMiddleware',
@@ -90,7 +92,8 @@ AUTH_PASSWORD_VALIDATORS = [
 ]
 
 # Internationalization
-LANGUAGE_CODE = 'en-us'
+#LANGUAGE_CODE = 'en-us'
+LANGUAGE_CODE = 'ko'
 
 TIME_ZONE = 'UTC'
 
@@ -100,10 +103,21 @@ USE_TZ = True
 
 STATIC_URL = '/static/'
 
+LANGUAGES = [
+    ("en", _("English")),
+    ("ko", _("Korean")),
+    ("ja", _("Japanese")),
+    ("es", _("Spanish")),
+    ("de", _("German")),
+    ("fr", _("French")),
+]
+
 # 공통 정적 파일 디렉토리 (필요시)
 STATICFILES_DIRS = [BASE_DIR / "static"]
 
 MEDIA_URL = "/media/"
+
+LOCALE_PATHS = [BASE_DIR / "locale"]
 
 # Default primary key field type
 # https://docs.djangoproject.com/en/5.2/ref/settings/#default-auto-field
@@ -111,6 +125,7 @@ MEDIA_URL = "/media/"
 DEFAULT_AUTO_FIELD = 'django.db.models.BigAutoField'
 
 GEMINI_API_KEY = env("GEMINI_API_KEY")
+PAID_GEMINI_KEY = env("PAID_GEMINI_KEY")
 
 SECURE_PROXY_SSL_HEADER = ('HTTP_X_FORWARDED_PROTO', 'https')
 
@@ -190,6 +205,12 @@ HMAC_APP_ID = "weaver"
 MAC_SECRET=env('HMAC_SECRET_WEAVER')
 
 REST_FRAMEWORK = {
+    "DEFAULT_THROTTLE_CLASSES": [
+        "rest_framework.throttling.ScopedRateThrottle",
+    ],
+    "DEFAULT_THROTTLE_RATES": {
+        "contact": "5/min",  # 1분에 5회 제한(원하면 10/min, 100/day 등으로 변경)
+    },
     'DEFAULT_AUTHENTICATION_CLASSES': (
         'mybook.auth.SessionAuthWithToken',
     ),
@@ -198,3 +219,13 @@ REST_FRAMEWORK = {
         'rest_framework.permissions.AllowAny',
     ),
 }
+
+# 이메일 서버구성
+EMAIL_BACKEND = "django.core.mail.backends.smtp.EmailBackend"
+EMAIL_HOST = "smtp.gmail.com"
+EMAIL_PORT = 587
+EMAIL_USE_TLS = True
+EMAIL_HOST_USER = "jessekim80@gmail.com"
+EMAIL_HOST_PASSWORD = env("EMAIL_HOST_PASSWORD")
+ADMIN_EMAIL_ADDRESS = "info@mikihands.com"
+DEFAULT_FROM_EMAIL = EMAIL_HOST_USER

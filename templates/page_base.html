@@ -1,4 +1,4 @@
-{% load static tailwind_tags %}
+{% load static tailwind_tags i18n %}
 <!DOCTYPE html>
 <html lang="ko">
 <head>
@@ -32,8 +32,10 @@
         <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
             <div class="flex justify-between h-16">
                 <div class="flex">
-                    <a href="{% url 'mybook:upload_page' %}" class="flex-shrink-0 flex items-center font-bold text-xl">
-                        📚 BookWeaver
+                    <a href="{% url 'mybook:upload_page' %}" class="flex-shrink-0 flex items-center font-bold text-xl gap-2">
+                        {% comment %} 📚 BookWeaver {% endcomment %}
+                        <span class="inline-flex h-8 w-8 items-center justify-center rounded-lg bg-slate-900 text-white">W</span>
+                        <span class="text-slate-900">BookWeaver</span>
                     </a>
                 </div>
                 <div class="flex items-center">
@@ -42,19 +44,19 @@
                             <div>
                                 <button type="button" id="user-menu-button-page" class="flex items-center text-gray-500 hover:text-gray-700 focus:outline-none rounded-md text-sm font-medium" aria-expanded="false" aria-haspopup="true">
                                     <span class="sr-only">Open user menu</span>
-                                    <span>{{ request.user.username }} 님</span>
+                                    <span>{{ request.user.username }} {% if LANGUAGE_CODE == 'ko' %}님{% elif LANGUAGE_CODE == 'ja' %}様{% endif %}</span>
                                     <svg class="w-4 h-4 ml-1" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"></path></svg>
                                 </button>
                             </div>
                             <div id="user-menu-page" class="hidden origin-top-right absolute right-0 mt-2 w-48 rounded-md shadow-lg py-1 bg-white ring-1 ring-black ring-opacity-5 focus:outline-none z-50" role="menu" aria-orientation="vertical" aria-labelledby="user-menu-button-page">
-                                <a href="{% url 'mybook:bookshelf' %}" class="block px-4 py-2 text-sm text-gray-700 hover:bg-gray-100" role="menuitem">내 서재</a>
-                                <a href="{% url 'mybook:logout' %}" class="block px-4 py-2 text-sm text-gray-700 hover:bg-gray-100" role="menuitem">로그아웃</a>
+                                <a href="{% url 'mybook:bookshelf' %}" class="block px-4 py-2 text-sm text-gray-700 hover:bg-gray-100" role="menuitem">{% trans "내 서재" %}</a>
+                                <a href="{% url 'mybook:logout' %}" class="block px-4 py-2 text-sm text-gray-700 hover:bg-gray-100" role="menuitem">{% trans "로그아웃" %}</a>
                             </div>
                         </div>
                     {% else %}
-                        <a href="{% url 'mybook:login_page' %}" class="text-gray-500 hover:text-gray-700 px-3 py-2 rounded-md text-sm font-medium">로그인</a>
+                        <a href="{% url 'mybook:login_page' %}" class="text-gray-500 hover:text-gray-700 px-3 py-2 rounded-md text-sm font-medium">{% trans "로그인" %}</a>
                         <a href="{% url 'mybook:register_page' %}" class="ml-4 inline-flex items-center px-4 py-2 border border-transparent text-sm font-medium rounded-md shadow-sm text-white bg-blue-600 hover:bg-blue-700">
-                            회원가입
+                            {% trans "회원가입" %}
                         </a>
                     {% endif %}
                 </div>
@@ -64,10 +66,10 @@
     {# -- 1. 작업 실패 시 재시도 UI -- #}
     {% if book.status == 'failed' %}
     <div id="retry-banner" class="fixed top-20 right-5 bg-red-100 border border-red-400 text-red-700 px-4 py-3 rounded-lg shadow-lg z-50" role="alert">
-      <strong class="font-bold">번역 실패!</strong>
-      <span class="block sm:inline">일부 페이지 번역에 실패했습니다.</span>
+      <strong class="font-bold">{% trans "번역 실패!" %}</strong>
+      <span class="block sm:inline">{% trans "일부 페이지 번역에 실패했습니다." %}</span>
       <button id="retry-book-button" class="mt-2 bg-red-500 hover:bg-red-700 text-white font-bold py-1 px-3 rounded">
-        실패한 작업 재시도
+        {% trans "실패한 작업 재시도" %}
       </button>
       <button onclick="document.getElementById('retry-banner').style.display='none'" class="absolute top-0 bottom-0 right-0 px-4 py-3">
         <svg class="fill-current h-6 w-6 text-red-500" role="button" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20"><title>Close</title><path d="M14.348 14.849a1.2 1.2 0 0 1-1.697 0L10 11.819l-2.651 3.029a1.2 1.2 0 1 1-1.697-1.697l2.758-3.15-2.759-3.152a1.2 1.2 0 1 1 1.697-1.697L10 8.183l2.651-3.031a1.2 1.2 0 1 1 1.697 1.697l-2.758 3.152 2.758 3.15a1.2 1.2 0 0 1 0 1.698z"/></svg>
@@ -79,8 +81,8 @@
 
     <div class="toolbar">
         <div class="group">
-        {% if prev_url %}<a href="{{ prev_url }}"><button>← 이전</button></a>{% endif %}
-        {% if next_url %}<a href="{{ next_url }}"><button>다음 →</button></a>{% endif %}
+        {% if prev_url %}<a href="{{ prev_url }}"><button>← {% trans "이전" %}</button></a>{% endif %}
+        {% if next_url %}<a href="{{ next_url }}"><button>{% trans "다음" %} →</button></a>{% endif %}
         {% if book.page_count and book.page_count > 1 %}
         <form id="page-jump-form" class="flex items-center ml-2">
             <input type="number" id="page-jump-input" value="{{ page_no }}" min="1" max="{{ book.page_count }}" 
@@ -92,15 +94,15 @@
         </div>
 
         <div class="group">
-        <button id="fitW">맞춤(가로)</button>
-        <button id="fitH">맞춤(세로)</button>
-        <button id="zoomOut">-</button>
+        <button id="fitW" {% if status != "ready" or not html_stage_final %}disabled class="disabled:opacity-50 disabled:cursor-not-allowed"{% endif %}>{% trans "맞춤(가로)" %}</button>
+        <button id="fitH" {% if status != "ready" or not html_stage_final %}disabled class="disabled:opacity-50 disabled:cursor-not-allowed"{% endif %}>{% trans "맞춤(세로)" %}</button>
+        <button id="zoomOut" {% if status != "ready" or not html_stage_final %}disabled class="disabled:opacity-50 disabled:cursor-not-allowed"{% endif %}>-</button>
         <span id="zoomLabel" style="color:#6b7280">100%</span>
-        <button id="zoomIn">+</button>
+        <button id="zoomIn" {% if status != "ready" or not html_stage_final %}disabled class="disabled:opacity-50 disabled:cursor-not-allowed"{% endif %}>+</button>
         </div>
 
         <div class="group">
-        <label>배경:
+        <label>{% trans "배경" %}:
             <select id="bgMode">
             <option value="auto" {% if bg_mode == "auto" %}selected{% endif %}>auto</option>
             <option value="on"   {% if bg_mode == "on" %}selected{% endif %}>on</option>
@@ -118,12 +120,12 @@
     {% if status != "ready" or not html_stage_final %}
         <div id="status-banner" style="padding:24px;background:#fff7ed;border:1px solid #fdba74;color:#9a3412;border-radius:12px">
         {% if status == 'failed' %}
-            이 페이지 번역에 실패했습니다. (status={{ status }})
+            {% trans "이 페이지 번역에 실패했습니다." %} (status={{ status }})
             <button id="retranslate-modal-button-inline" class="mt-2 bg-yellow-500 hover:bg-yellow-700 text-white font-bold py-1 px-3 rounded">
-                이 페이지 재번역
+                {% trans "이 페이지 재번역" %}
             </button>
         {% else %}
-            이 페이지는 아직 처리 중이거나 준비되지 않았습니다. (status={{ status }})
+            {% trans "이 페이지는 아직 처리 중이거나 준비되지 않았습니다." %} (status={{ status }})
         {% endif %}
         </div>
     {% else %}
@@ -145,20 +147,20 @@
     <div id="search-panel" class="fixed top-0 -left-96 h-full w-96 bg-white shadow-2xl z-40 transition-all duration-300 ease-in-out flex flex-col">
         <!-- Header -->
         <div class="flex justify-between items-center p-4 border-b">
-            <h2 class="text-xl font-semibold">책 검색</h2>
+            <h2 class="text-xl font-semibold">{% trans "책 검색" %}</h2>
             <button id="search-panel-close" class="text-gray-500 hover:text-gray-800 text-2xl">&times;</button>
         </div>
         <!-- Search Input -->
         <div class="p-4 border-b">
             <form id="search-form">
-                <input type="search" id="search-input" name="q" placeholder="검색어 입력 후 Enter..." class="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500" required minlength="2">
+                <input type="search" id="search-input" name="q" placeholder="{% trans '검색어 입력 후 Enter...' %}" class="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500" required minlength="2">
             </form>
         </div>
         <!-- Results -->
         <div id="search-results-container" class="flex-grow overflow-y-auto">
             <div id="search-results-list" class="divide-y"></div>
             <div id="search-message" class="p-6 text-center text-gray-500">
-                검색어를 입력하고 Enter를 누르세요.
+                {% trans "검색어를 입력하고 Enter를 누르세요." %}
             </div>
         </div>
     </div>
@@ -174,17 +176,17 @@
     <div id="retranslate-modal" class="fixed inset-0 bg-gray-600 bg-opacity-50 overflow-y-auto h-full w-full z-50 hidden">
       <div class="relative top-20 mx-auto p-5 border w-full max-w-md shadow-lg rounded-md bg-white">
         <div class="mt-3 text-center">
-          <h3 class="text-lg leading-6 font-medium text-gray-900">페이지 {{ page_no }} 재번역 요청</h3>
+          <h3 class="text-lg leading-6 font-medium text-gray-900">{% trans "페이지" %} {{ page_no }} {% trans "재번역 요청" %}</h3>
           <div class="mt-2 px-7 py-3">
-            <p class="text-sm text-gray-500 mb-4">번역이 어색하거나 잘못된 부분을 구체적으로 알려주세요. (예: "앤디를 안디로 번역했어요", "친한 사이인데 존댓말을 써요")</p>
-            <textarea id="retranslate-feedback" class="w-full h-24 p-2 border rounded" placeholder="피드백을 입력하세요... (선택 사항)"></textarea>
+            <p class="text-sm text-gray-500 mb-4">{% trans "번역이 어색하거나 잘못된 부분을 구체적으로 알려주세요." %} ({% trans "예: Kipper는 어린이입니다. 아이말투로 바꿔주세요." %})</p>
+            <textarea id="retranslate-feedback" class="w-full h-24 p-2 border rounded" placeholder="{% trans '피드백을 입력하세요... (선택 사항)' %}"></textarea>
           </div>
           <div class="items-center px-4 py-3">
             <button id="submit-retranslate" class="px-4 py-2 bg-blue-500 text-white text-base font-medium rounded-md w-full shadow-sm hover:bg-blue-600 focus:outline-none focus:ring-2 focus:ring-blue-300">
-              요청하기
+              {% trans "요청하기" %}
             </button>
             <button id="close-retranslate-modal" class="mt-2 px-4 py-2 bg-gray-200 text-gray-800 text-base font-medium rounded-md w-full shadow-sm hover:bg-gray-300">
-              취소
+              {% trans "취소" %}
             </button>
           </div>
         </div>
@@ -250,7 +252,7 @@
                     currentUrl.pathname = pathParts.join('/');
                     window.location.href = currentUrl.toString();
                 } else {
-                    alert(`1에서 ${maxPage} 사이의 페이지 번호를 입력해주세요.`);
+                    alert(`{% blocktrans %}1에서 {{ maxPage }} 사이의 유효한 페이지 번호를 입력하세요.{% endblocktrans %}`);
                     pageJumpInput.value = {{ page_no }};
                     pageJumpInput.select();
                 }
@@ -269,7 +271,7 @@
                 const pollingIndicator = document.createElement('div');
                 pollingIndicator.id = 'polling-indicator';
                 pollingIndicator.className = 'mt-2 text-sm text-gray-600';
-                pollingIndicator.textContent = '번역 상태를 확인 중입니다... (완료 시 자동 새로고침)';
+                pollingIndicator.textContent = '{% trans "번역 상태를 확인 중입니다... (완료 시 자동 새로고침)" %}';
                 statusBanner.appendChild(pollingIndicator);
             }
 
@@ -283,7 +285,7 @@
                         const response = await fetch(url);
                         if (!response.ok) {
                             if (response.status === 403) {
-                                alert("인증에 실패했습니다. 다시 로그인해주세요.");
+                                alert("{% trans '인증에 실패했습니다. 다시 로그인해주세요.' %}");
                             }
                             return reject(new Error(`Status check failed with status: ${response.status}`));
                         }
@@ -308,7 +310,7 @@
                     console.log(`Polling finished with status: ${finalStatus}`);
                     const indicator = document.getElementById('polling-indicator');
                     if (indicator) {
-                        indicator.textContent = '번역이 완료되었습니다. 페이지를 새로고침합니다...';
+                        indicator.textContent = '{% trans "번역이 완료되었습니다. 페이지를 새로고침합니다..." %}';
                         indicator.className = 'mt-2 text-sm text-green-700 font-bold';
                     }
                     setTimeout(() => window.location.reload(), 500);
@@ -351,7 +353,7 @@
                 e.preventDefault();
                 const query = searchInput.value.trim();
                 if (query.length < 2) {
-                    searchMessage.textContent = '검색어는 2글자 이상 입력해주세요.';
+                    searchMessage.textContent = '{% trans "검색어는 2글자 이상 입력해주세요." %}';
                     return;
                 }
 
@@ -363,12 +365,12 @@
                     const response = await fetch(`/books/${bookId}/search/?q=${encodeURIComponent(query)}`);
                     if (!response.ok) {
                         const err = await response.json();
-                        throw new Error(err.error || '검색 중 오류가 발생했습니다.');
+                        throw new Error(err.error || '{% trans "검색 중 오류가 발생했습니다." %}');
                     }
                     const results = await response.json();
 
                     if (results.length === 0) {
-                        searchMessage.textContent = `'${query}'에 대한 검색 결과가 없습니다.`;
+                        searchMessage.textContent = `{% blocktrans %}'${query}'에 대한 검색 결과가 없습니다.{% endblocktrans %}`;
                     } else {
                         searchMessage.classList.add('hidden');
                         results.forEach(result => {
@@ -408,7 +410,7 @@
         const retryBookButton = document.getElementById('retry-book-button');
         if (retryBookButton) {
             retryBookButton.addEventListener('click', async () => {
-                retryBookButton.textContent = '요청 중...';
+                retryBookButton.textContent = '{% trans "요청 중..." %}';
                 retryBookButton.disabled = true;
                 try {
                     const response = await fetch(`/books/{{ book.id }}/retry/`, {
@@ -417,16 +419,16 @@
                     });
                     const data = await response.json();
                     if (!response.ok && response.status === 403 && data.detail === "Authentication credentials were not provided.") {
-                        alert("로그인이 필요합니다.");
+                        alert('{% trans "로그인이 필요합니다." %}');
                         window.location.href = "{% url 'mybook:login_page' %}";
                         return;
                     }
                     alert(data.message || data.error);
                     if (response.ok) window.location.reload();
                 } catch (e) {
-                    alert('네트워크 오류가 발생했습니다.');
+                    alert('{% trans "네트워크 오류가 발생했습니다." %}');
                 } finally {
-                    retryBookButton.textContent = '실패한 작업 전체 재시도';
+                    retryBookButton.textContent = '{% trans "실패한 작업 전체 재시도" %}';
                     retryBookButton.disabled = false;
                 }
             });
@@ -446,8 +448,8 @@
 
         submitBtn.addEventListener('click', async () => {
             const feedback = document.getElementById('retranslate-feedback').value;
-            
-            submitBtn.textContent = '요청 중...';
+
+            submitBtn.textContent = '{% trans "요청 중..." %}';
             submitBtn.disabled = true;
 
             try {
@@ -458,7 +460,7 @@
                 });
                 const data = await response.json();
                 if (!response.ok && response.status === 403 && data.detail === "Authentication credentials were not provided.") {
-                    alert("로그인이 필요합니다.");
+                    alert('{% trans "로그인이 필요합니다." %}');
                     window.location.href = "{% url 'mybook:login_page' %}";
                     return;
                 }
@@ -468,9 +470,9 @@
                     setTimeout(() => window.location.reload(), 1500);
                 }
             } catch (e) {
-                alert('네트워크 오류가 발생했습니다.');
+                alert('{% trans "네트워크 오류가 발생했습니다." %}');
             } finally {
-                submitBtn.textContent = '요청하기';
+                submitBtn.textContent = '{% trans "요청하기" %}';
                 submitBtn.disabled = false;
             }
         });

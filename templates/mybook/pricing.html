@@ -1,0 +1,229 @@
+{% extends "base.html" %}
+{% load i18n static tailwind_tags %}
+
+{% block title %}Weaver · {% trans "가격" %}{% endblock %}
+{% block additional_head %}
+<style>
+  /* 브랜드 컬러 변수 (기존 랜딩과 톤 일치) */
+  :root {
+    --brand-start: #0ea5e9; /* blue-500 */
+    --brand-end:   #8b5cf6; /* violet-500 */
+  }
+
+  .hero-img {
+    position: relative;
+    background-image: url("{% static 'img/modern_study.webp' %}");
+    background-size: cover;
+    background-position: center;
+    background-repeat: no-repeat;
+
+    /* 사진 자체 톤 살짝 다운 (필요시 수치만 조정) */
+    filter: brightness(0.90) saturate(0.85) contrast(0.96);
+  }
+
+  /* 그라데이션 스크림 + 비네트 */
+  .hero-img::before {
+    content: "";
+    position: absolute;
+    inset: 0;
+
+    /* 1) 대각선 브랜드 그라데이션(투명)  2) 상단부 소프트 어둡게  3) 비네트 */
+    background:
+      linear-gradient(135deg, color-mix(in srgb, var(--brand-start) 28%, transparent) 0%,
+                              color-mix(in srgb, var(--brand-end)   28%, transparent) 100%),
+      linear-gradient(to bottom, rgba(0,0,0,0.28), rgba(0,0,0,0.12) 45%, rgba(0,0,0,0.08) 100%),
+      radial-gradient(120% 65% at 50% 100%, rgba(0,0,0,0.22) 0%, rgba(0,0,0,0) 60%);
+    pointer-events: none;
+  }
+
+  /* 텍스트 가독성 업: 아주 은은한 text-shadow */
+  .hero-title, .hero-sub {
+    text-shadow: 0 1px 14px rgba(0,0,0,0.28), 0 1px 2px rgba(0,0,0,0.35);
+  }
+</style>
+{% endblock %}
+
+{% block content %}
+
+<!-- Hero: 기존(라이트) 톤 일관 / 파랑→보라 대각선 그라데이션 -->
+<section class="text-white hero-img">
+  <div class="relative mx-auto max-w-7xl px-4 py-16 text-center">
+    <h1 class="hero-title text-3xl sm:text-4xl md:text-5xl font-extrabold tracking-tight">
+      {% trans "쉽고 합리적인 요금제" %}
+    </h1>
+    <p class="hero-sub mt-4 text-base md:text-lg">
+      {% trans "원서의 레이아웃을 그대로 유지한 번역을 무료 또는 합리적인 구독으로 경험해 보세요." %}
+    </p>
+    <div class="mt-8 flex items-center justify-center gap-3">
+      <a href="#"
+         class="inline-flex items-center justify-center rounded-xl bg-white text-slate-900 px-5 py-3 text-sm font-semibold shadow-sm hover:bg-white">
+        {% trans "지금 업로드" %}
+      </a>
+      <a href="#"
+         class="inline-flex items-center justify-center rounded-xl border border-white px-5 py-3 text-sm font-semibold text-white hover:bg-white/10">
+        {% trans "문의하기" %}
+      </a>
+    </div>
+  </div>
+</section>
+
+<!-- Plans -->
+<section class="mx-auto max-w-7xl px-4 py-10">
+  <div class="grid grid-cols-1 md:grid-cols-2 gap-6 md:gap-8">
+
+    <!-- Free Plan -->
+    <article class="relative rounded-2xl border border-slate-200 bg-white p-6 md:p-8 shadow-sm hover:shadow-md transition">
+      <div class="flex items-start justify-between gap-4">
+        <div>
+          <h3 class="text-xl font-bold text-slate-900">{% trans "무료 (Free)" %}</h3>
+          <p class="mt-1 text-sm text-slate-600">{% trans "가볍게 체험하고 작은 프로젝트에 적합" %}</p>
+        </div>
+        <span class="rounded-full bg-slate-100 text-slate-700 text-xs px-3 py-1">
+          {% trans "광고 포함" %}
+        </span>
+      </div>
+
+      <div class="mt-6">
+        <div class="flex items-baseline gap-2">
+          <span class="text-3xl font-extrabold text-slate-900">$0</span>
+          <span class="text-sm text-slate-500">/month</span>
+        </div>
+      </div>
+
+      <ul class="mt-6 space-y-3 text-sm text-slate-800">
+        <li class="flex items-start gap-2">✅ {% trans "1회 최대" %} <b>30{% trans "페이지" %}</b> {% trans "번역" %}</li>
+        <li class="flex items-start gap-2">✅ {% trans "번역 횟수" %} <b>{% trans "무제한" %}</b></li>
+        <li class="flex items-start gap-2">⚠️ {% trans "광고 노출" %}</li>
+        <li class="flex items-start gap-2">⛔ {% trans "PDF 다운로드 미지원 (브라우저 열람만)" %}</li>
+      </ul>
+
+      <a href="#"
+         class="mt-8 inline-flex w-full items-center justify-center rounded-xl border border-slate-300 px-4 py-3 text-sm font-semibold text-slate-700 hover:bg-slate-50">
+        {% trans "무료로 시작" %}
+      </a>
+    </article>
+
+    <!-- Standard Plan -->
+    <article class="relative rounded-2xl border border-indigo-200 bg-white p-6 md:p-8 shadow-sm ring-2 ring-indigo-500/30 hover:shadow-md transition">
+      <div class="absolute -top-3 right-6">
+        <span class="rounded-full bg-indigo-600 text-white text-xs px-3 py-1 shadow-sm">
+          {% trans "가장 인기" %}
+        </span>
+      </div>
+
+      <div class="flex items-start justify-between gap-4">
+        <div>
+          <h3 class="text-xl font-bold text-slate-900">{% trans "유료 (Standard)" %}</h3>
+          <p class="mt-1 text-sm text-slate-600">{% trans "광고 없이, 프로젝트 제한 없이" %}</p>
+        </div>
+        <span class="rounded-full bg-indigo-50 text-indigo-700 text-xs px-3 py-1">
+          {% trans "7일 무료체험" %}
+        </span>
+      </div>
+
+      <div class="mt-6">
+        <div class="flex items-baseline gap-2">
+          <span class="text-3xl md:text-4xl font-extrabold text-slate-900">$4.5</span>
+          <span class="text-sm text-slate-500">/month</span>
+        </div>
+      </div>
+
+      <ul class="mt-6 space-y-3 text-sm text-slate-800">
+        <li class="flex items-start gap-2">✅ {% trans "1회 최대 페이지 제한 없음 (파일 50MB까지)" %}</li>
+        <li class="flex items-start gap-2">✅ {% trans "번역 횟수 무제한" %}</li>
+        <li class="flex items-start gap-2">✅ {% trans "광고 없음" %}</li>
+        <li class="flex items-start gap-2">✅ {% trans "번역 결과 PDF 다운로드 지원" %}</li>
+        <li class="flex items-start gap-2">🎁 {% trans "가입 후 1주일 무료 (청구일 전 해지 가능)" %}</li>
+      </ul>
+
+      <a href="#"
+         class="mt-8 inline-flex w-full items-center justify-center rounded-xl bg-indigo-600 px-4 py-3 text-sm font-semibold text-white shadow-sm hover:bg-indigo-500">
+        {% trans "유료로 업그레이드" %}
+      </a>
+    </article>
+
+  </div>
+</section>
+
+<!-- Feature comparison -->
+<section class="mx-auto max-w-7xl px-4 pb-8 md:pb-12">
+  <div class="rounded-2xl border border-slate-200 bg-white p-6 md:p-8">
+    <h4 class="text-lg font-semibold text-slate-900">{% trans "상세 비교" %}</h4>
+
+    <div class="mt-6 overflow-x-auto">
+      <table class="min-w-full text-sm">
+        <thead>
+          <tr class="text-left border-b border-slate-200">
+            <th class="py-3 pr-6">{% trans "기능" %}</th>
+            <th class="py-3 pr-6">{% trans "무료" %}</th>
+            <th class="py-3">{% trans "유료" %}</th>
+          </tr>
+        </thead>
+        <tbody class="align-top">
+          <tr class="border-b border-slate-100">
+            <td class="py-4 pr-6">{% trans "번역 횟수" %}</td>
+            <td class="py-4 pr-6">{% trans "무제한" %}</td>
+            <td class="py-4">{% trans "무제한" %}</td>
+          </tr>
+          <tr class="border-b border-slate-100">
+            <td class="py-4 pr-6">{% trans "1회 처리 페이지" %}</td>
+            <td class="py-4 pr-6">{% trans "최대 30페이지" %}</td>
+            <td class="py-4">{% trans "제한 없음 (50MB)" %}</td>
+          </tr>
+          <tr class="border-b border-slate-100">
+            <td class="py-4 pr-6">{% trans "광고" %}</td>
+            <td class="py-4 pr-6">{% trans "있음" %}</td>
+            <td class="py-4">{% trans "없음" %}</td>
+          </tr>
+          <tr class="border-b border-slate-100">
+            <td class="py-4 pr-6">{% trans "PDF 다운로드" %}</td>
+            <td class="py-4 pr-6">{% trans "미지원" %}</td>
+            <td class="py-4">{% trans "지원" %}</td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+
+    <div class="mt-6 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
+      <p class="text-xs text-slate-500">
+        * {% trans "저작권 보호를 위해, 번역에 사용할 문서는 반드시 사용자가 합법적으로 구입/소유한 자료여야 합니다." %}
+      </p>
+      <div class="flex gap-3">
+        <a href="#"
+           class="inline-flex items-center justify-center rounded-xl border border-slate-300 px-4 py-2 text-sm font-semibold text-slate-700 hover:bg-slate-50">
+          {% trans "무료로 시작" %}
+        </a>
+        <a href="#"
+           class="inline-flex items-center justify-center rounded-xl bg-slate-900 px-4 py-2 text-sm font-semibold text-white shadow-sm hover:bg-slate-800">
+          {% trans "유료로 업그레이드" %}
+        </a>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- Footer CTA -->
+<section class="border-t border-slate-200 bg-white">
+  <div class="mx-auto max-w-7xl px-4 py-10 flex flex-col md:flex-row items-start md:items-center justify-between gap-6">
+    <div>
+      <h5 class="text-xl font-semibold text-slate-900">
+        {% trans "지금 바로 번역을 시작해보세요" %}
+      </h5>
+      <p class="mt-1 text-slate-600 text-sm">
+        {% trans "무료로 테스트하고, 필요할 때만 업그레이드하세요." %}
+      </p>
+    </div>
+    <div class="flex gap-3">
+      <a href="#"
+         class="inline-flex items-center justify-center rounded-xl border border-slate-300 px-4 py-2 text-sm font-semibold text-slate-700 hover:bg-slate-50">
+        {% trans "무료로 시작" %}
+      </a>
+      <a href="#"
+         class="inline-flex items-center justify-center rounded-xl bg-indigo-600 px-4 py-2 text-sm font-semibold text-white shadow-sm hover:bg-indigo-500">
+        {% trans "업그레이드" %}
+      </a>
+    </div>
+  </div>
+</section>
+
+{% endblock %}
