@@ -17,6 +17,7 @@
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Noto+Sans+KR:wght@400;500;700&display=swap" rel="stylesheet">
+    
     <style>
         :root{
         --bw-bg-from:#0ea5e9; /* sky-500 */
@@ -44,7 +45,8 @@
   <header class="w-full">
     <div class="mx-auto max-w-7xl px-6 py-5 flex items-center justify-between">
       <a class="group inline-flex items-center gap-2" href="{% url 'mybook:upload_page' %}" aria-label="BookWeaver">
-        <span class="relative grid h-8 w-8 place-items-center">
+        <span class="inline-flex h-8 w-8 items-center justify-center rounded-lg bg-slate-900 text-white dark:bg-white dark:text-slate-900">W</span>
+        {% comment %} <span class="relative grid h-8 w-8 place-items-center">
           <svg viewBox="0 0 64 64" class="h-8 w-8">
             <defs><linearGradient id="g" x1="0" x2="1" y1="0" y2="1">
               <stop offset="0%" stop-color="#0ea5e9"/><stop offset="100%" stop-color="#8b5cf6"/>
@@ -53,12 +55,12 @@
             <path d="M16 26c10 0 10 12 20 12s10-12 20-12" stroke="#fff" stroke-width="3" fill="none" stroke-linecap="round"/>
             <path d="M8 38c10 0 10 12 20 12s10-12 20-12" stroke="#fff" stroke-width="3" fill="none" stroke-linecap="round" opacity=".7"/>
           </svg>
-        </span>
+        </span> {% endcomment %}
         <span class="text-slate-800 text-lg font-semibold tracking-tight group-hover:opacity-90">BookWeaver</span>
       </a>
       <nav class="hidden md:flex items-center gap-6 text-sm text-slate-600">
-        <a href="#" class="hover:text-slate-800">기능</a>
-        <a href="#" class="hover:text-slate-800">가격</a>
+        <a href="{% url 'mybook:features' %}" class="hover:text-slate-800">{% trans "기능" %}</a>
+        <a href="{% url 'mybook:pricing' %}" class="hover:text-slate-800">{% trans "가격" %}</a>
         <a href="#" class="hover:text-slate-800">FAQ</a>
       </nav>
       {% if user_logged_in %}
@@ -74,8 +76,8 @@
         </div>
     {% else %}
       <div class="flex items-center gap-3">
-        <a href="{% url 'mybook:login_page' %}" class="hidden sm:inline-block text-sm font-medium text-slate-700 hover:text-slate-900">로그인</a>
-        <a href="{% url 'mybook:register_page' %}" class="rounded-xl bg-slate-900 px-4 py-2 text-sm font-semibold text-white hover:bg-slate-800">무료로 시작</a>
+        <a href="{% url 'mybook:login_page' %}" class="hidden sm:inline-block text-sm font-medium text-slate-700 hover:text-slate-900">{% trans "로그인" %}</a>
+        <a href="{% url 'mybook:register_page' %}" class="rounded-xl bg-slate-900 px-4 py-2 text-sm font-semibold text-white hover:bg-slate-800">{% trans "무료로 시작" %}</a>
       </div>
     {% endif %}
     </div>
@@ -90,9 +92,9 @@
     <div class="mx-auto max-w-7xl px-6 py-8 flex flex-col sm:flex-row items-center justify-between gap-4">
       <p class="text-sm text-slate-500">© <span id="y"></span> Mikihands · BookWeaver</p>
       <nav class="flex items-center gap-4 text-sm text-slate-600">
-        <a href="#" class="hover:text-slate-800">이용 약관</a>
-        <a href="#" class="hover:text-slate-800">개인정보 처리방침</a>
-        <a href="#" class="hover:text-slate-800">문의</a>
+        <a href="#" class="hover:text-slate-800">{% trans "이용 약관" %}</a>
+        <a href="#" class="hover:text-slate-800">{% trans "개인정보 처리방침" %}</a>
+        <a href="{% url 'mybook:contact' %}" class="hover:text-slate-800">{% trans "문의" %}</a>
       </nav>
     </div>
   </footer>
@@ -100,7 +102,7 @@
     {% block extra_js %}{% endblock %}
     <script>
     document.getElementById('y').textContent = new Date().getFullYear();
-  </script>
+    </script>
     <script>
         document.addEventListener('DOMContentLoaded', function() {
             const userMenuButton = document.getElementById('user-menu-button');

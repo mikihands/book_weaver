@@ -29,6 +29,8 @@ class TokenRefresher:
                 session["access_token"] = response_data["access"]
                 return True, "Access token refreshed successfully."
             else:
+                # 갱신 실패는 refresh_token이 만료되었거나 유효하지 않다는 의미이므로 세션을 초기화
+                session.flush()
                 return False, "Failed to refresh access token. Please re-login."
         except requests.exceptions.RequestException as e:
             return False, str(e)

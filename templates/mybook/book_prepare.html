@@ -1,52 +1,52 @@
 {% extends 'base.html' %}
-{% load static tailwind_tags %}
+{% load static tailwind_tags i18n %}
 
 {% block content %}
 <div class="flex items-center justify-center min-h-screen-minus-nav-footer p-4 bg-gray-50">
     <div class="bg-white p-8 rounded-xl shadow-2xl w-full max-w-2xl mx-auto">
-        <h1 class="text-3xl font-bold text-center text-gray-800 mb-2">번역 준비</h1>
+        <h1 class="text-3xl font-bold text-center text-gray-800 mb-2">{% trans "번역 준비" %}</h1>
         <p class="text-sm text-center text-gray-500 mb-8">
-            번역 품질을 높이기 위해 책의 정보를 확인하고 용어집을 추가해 주세요.
+            {% trans "번역 품질을 높이기 위해 책의 정보를 확인하고 용어집을 추가해 주세요." %}
         </p>
         <form id="translateForm" class="space-y-6">
             {% csrf_token %}
             
             <div class="flex flex-col space-y-2">
-                <label for="titleInput" class="text-gray-700 font-medium">책 제목</label>
+                <label for="titleInput" class="text-gray-700 font-medium">{% trans "책 제목" %}</label>
                 <input type="text" id="titleInput" name="title" value="{{ book.title }}"
                        class="px-4 py-2 text-gray-700 bg-gray-50 border border-gray-300 rounded-md shadow-sm focus:ring-blue-500 focus:border-blue-500">
             </div>
 
             <div class="flex flex-col space-y-2">
-                <label for="genreSelect" class="text-gray-700 font-medium">장르</label>
+                <label for="genreSelect" class="text-gray-700 font-medium">{% trans "장르" %}</label>
                 <select id="genreSelect" name="genre"
                         class="block w-full px-4 py-2 text-gray-700 bg-gray-50 border border-gray-300 rounded-md shadow-sm focus:ring-blue-500 focus:border-blue-500">
-                    <option value="">장르를 선택하세요</option>
+                    <option value="">{% trans "장르를 선택하세요" %}</option>
                     {% with current_genre=book.genre|default:"" %}
-                    <option value="fiction" {% if current_genre == "fiction" %}selected{% endif %}>소설</option>
-                    <option value="non-fiction" {% if current_genre == "non-fiction" %}selected{% endif %}>비소설</option>
-                    <option value="technical" {% if current_genre == "technical" %}selected{% endif %}>기술/과학</option>
-                    <option value="history" {% if current_genre == "history" %}selected{% endif %}>역사</option>
-                    <option value="self-help" {% if current_genre == "self-help" %}selected{% endif %}>자기계발</option>
-                    <option value="fantasy" {% if current_genre == "fantasy" %}selected{% endif %}>판타지</option>
-                    <option value="science-fiction" {% if current_genre == "science-fiction" %}selected{% endif %}>SF (공상 과학)</option>
-                    <option value="romance" {% if current_genre == "romance" %}selected{% endif %}>로맨스</option>
-                    <option value="thriller" {% if current_genre == "thriller" %}selected{% endif %}>스릴러/미스터리</option>
-                    <option value="children" {% if current_genre == "children" %}selected{% endif %}>아동</option>
-                    <option value="other" {% if current_genre == "other" %}selected{% endif %}>기타</option>
+                    <option value="fiction" {% if current_genre == "fiction" %}selected{% endif %}>{% trans "소설" %}</option>
+                    <option value="non-fiction" {% if current_genre == "non-fiction" %}selected{% endif %}>{% trans "비소설" %}</option>
+                    <option value="technical" {% if current_genre == "technical" %}selected{% endif %}>{% trans "기술/과학" %}</option>
+                    <option value="history" {% if current_genre == "history" %}selected{% endif %}>{% trans "역사" %}</option>
+                    <option value="self-help" {% if current_genre == "self-help" %}selected{% endif %}>{% trans "자기계발" %}</option>
+                    <option value="fantasy" {% if current_genre == "fantasy" %}selected{% endif %}>{% trans "판타지" %}</option>
+                    <option value="science-fiction" {% if current_genre == "science-fiction" %}selected{% endif %}>{% trans "SF (공상 과학)" %}</option>
+                    <option value="romance" {% if current_genre == "romance" %}selected{% endif %}>{% trans "로맨스" %}</option>
+                    <option value="thriller" {% if current_genre == "thriller" %}selected{% endif %}>{% trans "스릴러/미스터리" %}</option>
+                    <option value="children" {% if current_genre == "children" %}selected{% endif %}>{% trans "아동" %}</option>
+                    <option value="other" {% if current_genre == "other" %}selected{% endif %}>{% trans "기타" %}</option>
                     {% endwith %}
                 </select>
             </div>
 
             <div class="flex flex-col space-y-2">
-                <label for="glossaryTextarea" class="text-gray-700 font-medium">용어집 (Glossary)</label>
+                <label for="glossaryTextarea" class="text-gray-700 font-medium">{% trans "용어집 (Glossary)" %}</label>
                 <textarea id="glossaryTextarea" name="glossary" rows="8"
                           class="px-4 py-2 text-gray-700 bg-gray-50 border border-gray-300 rounded-md shadow-sm focus:ring-blue-500 focus:border-blue-500"
-                          placeholder="번역 일관성을 위한 규칙을 입력하세요. (선택 사항)&#10;예시:&#10;- Andie -> 앤디 (안디 X)&#10;- Pip과 Ravi는 항상 반말로 대화합니다.&#10;- 'BookWeaver'는 '북위버'로 음차합니다.">{{ book.glossary|default:"" }}</textarea>
+                          {% blocktrans %}placeholder="번역 일관성을 위한 규칙을 입력하세요. (선택 사항)&#10;예시:&#10;- Venice as 베네치아 &#10;- Use informal style between John and Mary.&#10;- Brand name like 'BookWeaver' stays untranslated."{% endblocktrans %}>{{ book.glossary|default:"" }}</textarea>
             </div>
 
             <div class="flex flex-col space-y-2">
-                <label for="languageSelect" class="text-gray-700 font-medium">번역할 언어</label>
+                <label for="languageSelect" class="text-gray-700 font-medium">{% trans "번역할 언어" %}</label>
                 <select id="languageSelect" name="target_language" required
                         class="block w-full px-4 py-2 text-gray-700 bg-gray-50 border border-gray-300 rounded-md shadow-sm focus:ring-blue-500 focus:border-blue-500">
                     <option value="ko">한국어</option>
@@ -54,6 +54,7 @@
                     <option value="es">Español</option>
                     <option value="ja">日本語</option>
                     <option value="fr">Français</option>
+                    <option value="de">Deutsch</option>
                 </select>
             </div>
 
@@ -61,12 +62,12 @@
                 <button type="button" id="saveSettingsButton"
                         class="w-full sm:w-1/2 px-4 py-3 text-lg font-bold text-gray-800 bg-gray-200 rounded-md
                                hover:bg-gray-300 transition duration-300 focus:outline-none focus:ring-2 focus:ring-gray-400 focus:ring-offset-2">
-                    설정 저장
+                    {% trans "설정 저장" %}
                 </button>
                 <button type="submit" id="submitButton"
                         class="w-full sm:w-1/2 px-4 py-3 text-lg font-bold text-white bg-blue-600 rounded-md
                                hover:bg-blue-700 transition duration-300 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2">
-                    번역 시작
+                    {% trans "번역 시작" %}
                 </button>
             </div>
         </form>
@@ -126,19 +127,19 @@
                 messageDiv.innerHTML = `<span class="text-green-600">${responseData.message}</span>`;
             } else {
                 if (response.status === 403 && responseData.detail === "Authentication credentials were not provided.") {
-                    messageDiv.innerHTML = `<span class="text-red-600">로그인이 필요합니다. <a href="{% url 'mybook:login_page' %}" class="underline">로그인 페이지로 이동</a></span>`;
+                    messageDiv.innerHTML = `<span class="text-red-600">{% trans "로그인이 필요합니다." %} <a href="{% url 'mybook:login_page' %}" class="underline">{% trans "로그인 페이지로 이동" %}</a></span>`;
                 } else {
-                    messageDiv.innerHTML = `<span class="text-red-600">오류: ${responseData.error || JSON.stringify(responseData)}</span>`;
+                    messageDiv.innerHTML = `<span class="text-red-600">{% trans "오류:" %} ${responseData.error || JSON.stringify(responseData)}</span>`;
                 }
             }
         } catch (error) {
-            messageDiv.innerHTML = '<span class="text-red-600">네트워크 오류가 발생했습니다.</span>';
+            messageDiv.innerHTML = `<span class="text-red-600">{% trans "네트워크 오류가 발생했습니다." %}</span>`;
             console.error('Error:', error);
         } finally {
             saveButton.disabled = false;
-            saveButton.innerHTML = '설정 저장';
+            saveButton.innerHTML = `{% trans "설정 저장" %}`;
             setTimeout(() => {
-                if (messageDiv.innerHTML.includes('설정이 성공적으로 저장되었습니다.')) messageDiv.innerHTML = '';
+                if (messageDiv.innerHTML.includes('{% trans "설정이 성공적으로 저장되었습니다." %}')) messageDiv.innerHTML = '';
             }, 3000);
         }
     });
@@ -150,7 +151,7 @@
         const data = Object.fromEntries(formData.entries());
 
         submitButton.disabled = true;
-        submitButton.innerHTML = '<div class="flex justify-center items-center"><div class="animate-spin rounded-full h-5 w-5 border-b-2 border-white"></div><span class="ml-3">번역 요청 중...</span></div>';
+        submitButton.innerHTML = '<div class="flex justify-center items-center"><div class="animate-spin rounded-full h-5 w-5 border-b-2 border-white"></div><span class="ml-3">{% trans "번역 요청 중..." %}</span></div>';
 
         try {
             const response = await fetch(`{% url "mybook:start_translation" book.id %}`, {
@@ -165,22 +166,22 @@
             const responseData = await response.json();
 
             if (response.ok) {
-                messageDiv.innerHTML = `<span class="text-green-600">${responseData.message} 잠시 후 번역 페이지로 이동합니다.</span>`;
+                messageDiv.innerHTML = `<span class="text-green-600">${responseData.message} {% trans "잠시 후 번역 페이지로 이동합니다." %}</span>`;
                 window.location.href = responseData.page1_url;
             } else {
                 if (response.status === 403 && responseData.detail === "Authentication credentials were not provided.") {
-                    messageDiv.innerHTML = `<span class="text-red-600">로그인이 필요합니다. <a href="{% url 'mybook:login_page' %}" class="underline">로그인 페이지로 이동</a></span>`;
+                    messageDiv.innerHTML = `<span class="text-red-600">{% trans "로그인이 필요합니다." %} <a href="{% url 'mybook:login_page' %}" class="underline">{% trans "로그인 페이지로 이동" %}</a></span>`;
                 } else {
-                    messageDiv.innerHTML = `<span class="text-red-600">오류: ${responseData.error || JSON.stringify(responseData)}</span>`;
+                    messageDiv.innerHTML = `<span class="text-red-600">{% trans "오류:" %} ${responseData.error || JSON.stringify(responseData)}</span>`;
                 }
                 submitButton.disabled = false;
-                submitButton.innerHTML = '번역 시작';
+                submitButton.innerHTML = `{% trans "번역 시작" %}`;
             }
         } catch (error) {
-            messageDiv.innerHTML = '<span class="text-red-600">네트워크 오류가 발생했습니다.</span>';
+            messageDiv.innerHTML = '<span class="text-red-600">{% trans "네트워크 오류가 발생했습니다." %}</span>';
             console.error('Error:', error);
             submitButton.disabled = false;
-            submitButton.innerHTML = '번역 시작';
+            submitButton.innerHTML = '{% trans "번역 시작" %}';
         }
     });
 </script>

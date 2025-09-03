@@ -1,9 +1,10 @@
+{% load i18n %}
 <!DOCTYPE html>
-<html lang="ko">
+<html lang={{ LANGUAGE_CODE|default:"ko" }}>
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>회원가입 성공</title>
+    <title>{% trans "회원가입 성공" %}</title>
     <style>
         body {
             font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
@@ -52,9 +53,9 @@
 </head>
 <body>
     <div class="container">
-        <h1>회원가입이 완료되었습니다!</h1>
-        <p>이제 로그인하여 서비스를 이용하실 수 있습니다.</p>
-        <a href="{% url 'mybook:login_page' %}">로그인하러 가기</a>
+        <h1>{% trans "회원가입이 완료되었습니다!" %}</h1>
+        <p>{% trans "이제 로그인하여 서비스를 이용하실 수 있습니다." %}</p>
+        <a href="{% url 'mybook:login_page' %}">{% trans "로그인하러 가기" %}</a>
     </div>
 </body>
 </html>

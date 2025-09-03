@@ -1,4 +1,5 @@
 from django.urls import path
+from django.views.generic import TemplateView
 from .views import (
     BookUploadView, 
     BookPageView, 
@@ -14,9 +15,12 @@ from .views import (
     RegisterPage,
     LoginView,
     LoginPage,
+    PricingPage,
+    FeaturesPage,
     user_logout,
     BookshelfView,
-    BookSearchAPIView
+    BookSearchAPIView,
+    ContactAPIView
 )
 
 app_name = 'mybook'
@@ -37,6 +41,10 @@ urlpatterns = [
     path('auth/register/page/', RegisterPage.as_view(), name='register_page'),
     path('auth/login/', LoginView.as_view(), name='auth_login'),
     path('auth/login/page/', LoginPage.as_view(), name='login_page'),
+    path('pricing/', PricingPage.as_view(), name='pricing'),
+    path('features/', FeaturesPage.as_view(), name='features'),
     path('auth/logout/', user_logout, name='logout'),  # 로그아웃 URL 추가
-     path('bookshelf/', BookshelfView.as_view(), name='bookshelf'),
+    path('bookshelf/', BookshelfView.as_view(), name='bookshelf'),
+    path("api/contact/", ContactAPIView.as_view(), name="api_contact"),
+    path("contact/", TemplateView.as_view(template_name="contact_us.html"), name="contact"),
 ]
