@@ -27,8 +27,9 @@ from .utils.font_scaler import FontScaler
 from .utils.gemini_helper import GeminiHelper
 from .utils.extract_image import extract_images_and_bboxes, is_fullpage_background
 from .utils.layout_norm import normalize_pages_layout
-from .utils.html_inject import inject_sources
-from .tasks import translate_book_pages, retranslate_single_page
+from .utils.html_inject import inject_sources, escape_html
+from .utils.pdf_inspector import inspect_pdf, choose_processing_mode
+from .tasks import translate_book_pages, retranslate_single_page, translate_book_pages_born_digital
 from .permissions import IsBookOwner
 from common.mixins.hmac_sign_mixin import HmacSignMixin
 
@@ -78,6 +79,10 @@ class BookUploadView(APIView):
         try:
             # 1) 파일 해시(스트리밍) → 중복 업로드 방지
             file_hash = sha256_streaming(uploaded_file)
+            try:
+                uploaded_file.seek(0)
+            except Exception:
+                pass
 
             # 2) Book get_or_create (파일 저장 포함)
             #    파일 저장은 DB 트랜잭션 바깥에서 수행해도 OK
@@ -100,15 +105,60 @@ class BookUploadView(APIView):
 
             # Set status to processing for the extraction phase
             book.status = 'processing'
-            book.save(update_fields=['status'])
-            # 3) PDF 메타/이미지 추출 (동기)
-            #    FileField가 저장됐으니 경로 접근 가능
+            # record basic source info
+            try:
+                book.source_mime = ctype or book.source_mime
+                # uploaded_file may have size attribute or seek/read to get size
+                try:
+                    uploaded_file.seek(0, 2)
+                    size = uploaded_file.tell()
+                    uploaded_file.seek(0)
+                    book.source_size = size
+                except Exception:
+                    # fallback to file object on disk after save
+                    pass
+                book.save(update_fields=['status', 'source_mime', 'source_size'])
+            except Exception:
+                book.save(update_fields=['status'])
+
+            # === 여기서부터는 book.original_file.path 접근 가능 ===
+            # 3) PDF 검사: inspect_pdf 호출하여 메타/판정 저장
             pdf_path = book.original_file.path
+            try:
+                inspect_result = inspect_pdf(pdf_path)
+                proc_mode = choose_processing_mode(inspect_result)
+
+                # OCR 판정 간단 룰: 텍스트 커버리지가 높으면 OCR로 간주
+                if inspect_result.text_layer_coverage is not None:
+                    if inspect_result.text_layer_coverage >= 0.6:
+                        book.ocr_status = 'ocr'
+                    elif inspect_result.text_layer_coverage <= 0.2:
+                        book.ocr_status = 'image'
+                    else:
+                        book.ocr_status = 'unknown'
+                    book.text_coverage = float(inspect_result.text_layer_coverage)
+
+                book.processing_mode = proc_mode
+                book.avg_score = float(inspect_result.avg_score)
+                book.median_score = float(inspect_result.median_score)
+                book.inspection = inspect_result.asdict() # type: ignore
+                # update source_size from inspector if available
+                try:
+                    book.source_size = int(inspect_result.file_size)
+                except Exception:
+                    pass
+                book.save(update_fields=['ocr_status','text_coverage','processing_mode','avg_score','median_score','inspection','source_size'])
+            except Exception as ie:
+                # 검사 실패시에도 진행: 로깅만
+                logger.exception("PDF inspection failed, continuing extraction: %s", str(ie))
+                
+            # 4) PDF 메타/이미지 추출 (동기)
+            #    FileField가 저장됐으니 경로 접근 가능
             out_dir = os.path.join(settings.MEDIA_ROOT, "extracted_images", str(book.id)) # type: ignore
             os.makedirs(out_dir, exist_ok=True)
 
-            extracted_pages = extract_images_and_bboxes(pdf_path, out_dir, dpi=144)
-            # pages: [{ "page_no": int, "size": {"w":..., "h":...}, "images": [{"ref","path","bbox"}] }, ...]
+            extracted_pages = extract_images_and_bboxes(pdf_path, out_dir, dpi=144, media_root=settings.MEDIA_ROOT)
+            # pages: [{ "page_no": int, "size": {"w":..., "h":...}, "images": [{"ref","path","bbox","xref"}] }, ...]
             norm_pages = normalize_pages_layout(extracted_pages, base_width=1200)
 
             # 4) DB 저장 (트랜잭션: 짧게)
@@ -123,6 +173,7 @@ class BookUploadView(APIView):
                             page_no=p["page_no"],
                             width=p["size"]["w"],
                             height=p["size"]["h"],
+                            meta=p.get("meta")
                         )
                     )
                 BookPage.objects.bulk_create(page_objs, ignore_conflicts=True)
@@ -134,9 +185,16 @@ class BookUploadView(APIView):
                             PageImage(
                                 book=book,
                                 page_no=pno,
+                                xref=im.get("xref", None),
                                 ref=im["ref"],
                                 path=im["path"],
                                 bbox=im["bbox"],
+                                transform=im.get("transform", None),
+                                img_w=im.get("img_w"),
+                                img_h=im.get("img_h"),
+                                clip_bbox=im.get("clip_bbox"),
+                                origin_w=im.get("origin_w"),
+                                origin_h=im.get("origin_h"),
                             )
                         )
                 if img_objs:
@@ -297,6 +355,18 @@ class BookPageView(APIView):
             # 페이지 사이즈는 v2가 주는 값 사용(정규화된 값)
             page_w = W
             page_h = H
+        elif data and data.get("schema_version") == "weaver.page.born_digital.v1":
+            # 'born_digital' 모드에서는 HTML이 이미 완성되어 있음
+            # 'faithful' 모드는 이미지 src 주입이 필요할 수 있음
+            if mode == 'faithful':
+                html_stage_final = inject_sources(data.get("html", ""), image_url_map)
+            else: # readable 모드는 이미지가 없음
+                html_stage_final = data.get("html", "")
+
+            page_info = data.get("page", {})
+            if page_info.get("page_w") and page_info.get("page_h"):
+                page_w = page_info["page_w"]
+                page_h = page_info["page_h"]
 
         # 4) prev/next
         prev_url = next_url = None
@@ -397,9 +467,15 @@ class StartTranslationView(generics.GenericAPIView):
         book.status = 'processing'
         book.save(update_fields=['title', 'genre', 'glossary', 'status'])
         # 4) 번역 작업 시작
-        translate_book_pages.delay(book.id, validated_data['target_language']) # type: ignore
+        target_lang = validated_data['target_language'] # type: ignore
+        if book.processing_mode == 'born_digital':
+            logger.debug(f"Starting born-digital translation for book {book.id} to {target_lang}")
+            translate_book_pages_born_digital.delay(book.id, target_lang)
+        else: # 'ai_layout' or 'mixed'
+            logger.debug(f"Starting ai-layout translation for book {book.id} to {target_lang}")
+            translate_book_pages.delay(book.id, target_lang)
         # 5) 응답
-        page1_url = reverse('mybook:book_page', kwargs={'book_id': book.id, 'page_no': 1}) # type: ignore
+        page1_url = reverse('mybook:book_page', kwargs={'book_id': book.id, 'page_no': 1}) # type: ignore # type: ignore
         return Response({"message": "Translation has started.", "page1_url": page1_url}, status=status.HTTP_202_ACCEPTED)
 
 class RetranslatePageView(generics.GenericAPIView):
@@ -422,10 +498,17 @@ class RetranslatePageView(generics.GenericAPIView):
             return Response({"error": "No translated pages found for this book."}, status=status.HTTP_400_BAD_REQUEST)
         target_lang = first_tp.lang
 
-        # Set the specific page status to 'pending' to indicate re-translation
-        TranslatedPage.objects.filter(book=book, page_no=page_no, lang=target_lang, mode='faithful').update(status='pending')
-        
-        # Asynchronously call the re-translation task
+        # Set the specific page status to 'pending' to indicate re-translation.
+        # For 'born_digital' books, both 'faithful' and 'readable' modes must be updated.
+        if book.processing_mode == 'born_digital':
+            TranslatedPage.objects.filter(
+                book=book, page_no=page_no, lang=target_lang, mode__in=['faithful', 'readable']
+            ).update(status='pending')
+        else: # For 'ai_layout' or other modes, only 'faithful' mode is affected.
+            TranslatedPage.objects.filter(
+                book=book, page_no=page_no, lang=target_lang, mode='faithful'
+            ).update(status='pending')
+
         retranslate_single_page.delay(book.id, page_no, target_lang, feedback) # type: ignore
 
         return Response({"message": f"Retranslation for page {page_no} has been queued."}, status=status.HTTP_202_ACCEPTED)

@@ -1,6 +1,11 @@
 # utils/html_inject.py
 from __future__ import annotations
+import html
 from bs4 import BeautifulSoup, Tag
+
+def escape_html(s: str) -> str:
+    return html.escape(s, quote=True)
+
 def clamp_bbox(bbox, W, H):
     x, y, w, h = bbox
     x = max(0, min(x, W))

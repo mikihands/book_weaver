@@ -453,7 +453,7 @@
             submitBtn.disabled = true;
 
             try {
-                const response = await fetch(`/books/{{ book.id }}/pages/{{ page_no }}/retranslate/`, {
+                const response = await fetch('{% url "mybook:retranslate_page" book_id=book.id page_no=page_no %}', {
                     method: 'POST',
                     headers: { 'X-CSRFToken': csrftoken, 'Content-Type': 'application/json' },
                     body: JSON.stringify({ feedback: feedback || "Retranslate this page." }) // 피드백이 없으면 기본 메시지

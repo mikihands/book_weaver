@@ -6,15 +6,65 @@ from celery import shared_task
 from django.db import transaction
 from mybook.models import Book, BookPage, PageImage, TranslatedPage
 
+from .utils.born_digital_prompt import build_prompt_born_digital
 from .utils.faithful_prompt import build_prompt_faithful
 from .utils.gemini_helper import GeminiHelper
 from .utils.gemini_file_ref import GeminiFileRefManager
 from .utils.extract_image import split_images_for_prompt, ImageExtractor
 from .utils.schema_loader import load_weaver_schema
+from .utils.born_digital import (
+    collect_page_layout, spans_to_units, build_faithful_html, build_readable_html
+)
+
+from urllib.parse import urljoin
 
 logger = logging.getLogger(__name__)
 
 SCHEMA_PATH = Path(settings.BASE_DIR) / "mybook" / "utils" / "page.v2.json"
+BORN_DIGITAL_SCHEMA_PATH = Path(settings.BASE_DIR) / "mybook" / "utils" / "born_digital.v1.json"
+
+def _media_url(rel_path: str) -> str:
+    return urljoin(settings.MEDIA_URL, rel_path.lstrip("/\\"))
+
+def _inject_images_from_db(layout: dict, book: Book, page_no: int) -> dict:
+    # 0) 페이지 크기/메타(px) 주입
+    try:
+        bp = BookPage.objects.get(book=book, page_no=page_no)
+        layout["size"] = {"w": float(bp.width), "h": float(bp.height), "units": "px"}
+        layout["meta"] = bp.meta or {}
+    except BookPage.DoesNotExist:
+        layout.setdefault("size", {"w": 0.0, "h": 0.0, "units": "px"})
+        layout.setdefault("meta", {})
+
+    # 1) 이미지 주입: DB에 저장된 정규화 px 그대로
+    pis = list(
+        PageImage.objects
+        .filter(book=book, page_no=page_no)
+        .values("xref","path","bbox","clip_bbox","img_w","img_h","origin_w","origin_h","transform")
+    )
+    images = []
+    for pi in pis:
+        images.append({
+            "xref": int(pi["xref"]) if pi["xref"] is not None else None,
+            "path": pi["path"],
+            "bbox": pi.get("bbox"),             # px, xywh
+            "clip_bbox": pi.get("clip_bbox"),   # px, xywh or None
+            "img_w": pi.get("img_w"),
+            "img_h": pi.get("img_h"),
+            "origin_w": pi.get("origin_w"),
+            "origin_h": pi.get("origin_h"),
+            "matrix_page": pi.get("transform"),  #px (페이지 기준)
+        })
+    layout["images"] = images
+
+    # 2) xref -> URL 맵
+    image_src_map = {}
+    for pi in pis:
+        if pi["xref"] is not None and pi["path"]:
+            image_src_map[int(pi["xref"])] = _media_url(pi["path"])
+
+    return image_src_map
+
 
 @shared_task(bind=True)
 def translate_book_pages(self, book_id: int, target_lang: str, page_numbers_to_process: list[int] | None = None):
@@ -30,7 +80,7 @@ def translate_book_pages(self, book_id: int, target_lang: str, page_numbers_to_p
         else:
             pages_qs = BookPage.objects.filter(book=book)
         
-        pages = list(pages_qs.order_by("page_no").values("page_no", "width", "height"))
+        pages = list(pages_qs.order_by("page_no").values("page_no", "width", "height", "meta"))
         
         # 2. LLM에 전달할 '전체' 페이지 수와 현재 작업의 진행률을 위한 '작업' 페이지 수 분리
         total_book_pages = book.page_count
@@ -108,10 +158,199 @@ def translate_book_pages(self, book_id: int, target_lang: str, page_numbers_to_p
         raise
 
 @shared_task(bind=True)
+def translate_book_pages_born_digital(self, book_id: int, target_lang: str, page_numbers_to_process: list[int] | None = None):
+    book = Book.objects.get(id=book_id)
+    try:
+        schema = load_weaver_schema(BORN_DIGITAL_SCHEMA_PATH)
+        llm = GeminiHelper(schema=schema)
+
+        if page_numbers_to_process:
+            pages_qs = BookPage.objects.filter(book=book, page_no__in=page_numbers_to_process)
+        else:
+            pages_qs = BookPage.objects.filter(book=book)
+        
+        pages = list(pages_qs.order_by("page_no"))
+
+        total_job_pages = len(pages)
+        pdf_path = book.original_file.path
+
+        for i, page in enumerate(pages, start=1):
+            pno = page.page_no
+            self.update_state(state="PROGRESS", meta={"current": i, "total": total_job_pages})
+            
+            layout = collect_page_layout(pdf_path, pno)
+            units, idx_map = spans_to_units(layout.get("spans", []))
+
+            if not units:
+                # No text on page, create empty translated page for both modes
+                with transaction.atomic():
+                    for mode in ["faithful", "readable"]:
+                        TranslatedPage.objects.update_or_create(
+                            book=book, page_no=pno, lang=target_lang, mode=mode,
+                            defaults={"data": {}, "status": "ready"}
+                        )
+                continue
+
+            image_src_map = _inject_images_from_db(layout, book, pno)
+            logger.debug(f"[DEBUG-TASK]img_map : {image_src_map}")
+            
+            sys_msg, user_msg_json = build_prompt_born_digital(
+                units, target_lang, book_title=book.title, book_genre=book.genre, glossary=book.glossary
+            )
+            logger.debug(f"[DEBUG-TASK]user_msg : {user_msg_json}")
+
+            translated_units, errs = llm.translate_text_units(
+                sys_msg=sys_msg, user_msg_json=user_msg_json, max_retries=2, expected_length=len(units)
+            )
+
+            with transaction.atomic():
+                if translated_units and len(translated_units) == len(units):
+                    html_faithful = build_faithful_html(
+                        layout, translated_units, idx_map, 
+                        image_src_map=image_src_map, 
+                    )
+                    logger.debug(f"[DEBUG-TASK]html_faithful : {html_faithful}")
+                    html_readable = build_readable_html(layout, translated_units, idx_map)
+                    logger.debug(f"[DEBUG-TASK]html_readable : {html_readable}")
+
+                    base_db_data = {
+                        "schema_version": "weaver.page.born_digital.v1",
+                        "page": {
+                            "page_no": pno,
+                            "page_w": page.width,
+                            "page_h": page.height,
+                            "page_units": "px"
+                        },
+                        "translated_units": translated_units
+                    }
+
+                    data_faithful = {**base_db_data, "html": html_faithful}
+                    TranslatedPage.objects.update_or_create(
+                        book=book, page_no=pno, lang=target_lang, mode="faithful",
+                        defaults={"data": data_faithful, "status": "ready"}
+                    )
+
+                    data_readable = {**base_db_data, "html": html_readable}
+                    TranslatedPage.objects.update_or_create(
+                        book=book, page_no=pno, lang=target_lang, mode="readable",
+                        defaults={"data": data_readable, "status": "ready"}
+                    )
+                else:
+                    db_data = {"error": errs or ["Translated unit count mismatch."]}
+                    for mode in ["faithful", "readable"]:
+                        TranslatedPage.objects.update_or_create(
+                            book=book, page_no=pno, lang=target_lang, mode=mode,
+                            defaults={"data": db_data, "status": "failed"}
+                        )
+
+        ready_pages_count = TranslatedPage.objects.filter(book=book, lang=target_lang, mode='faithful', status='ready').count()
+        if book.page_count == ready_pages_count:
+            book.status = "completed"
+        else:
+            book.status = "failed"
+        book.save(update_fields=["status"])
+        return {"status": "done", "pages_processed": total_job_pages}
+
+    except Exception as e:
+        logger.error(f"Born-digital translation task for book {book_id} failed: {e}", exc_info=True)
+        book.status = "failed"
+        book.save(update_fields=["status"])
+        raise
+
+@shared_task(bind=True)
 def retranslate_single_page(self, book_id: int, page_no: int, target_lang: str, feedback: str):
     try:
         book = Book.objects.get(id=book_id)
         page = BookPage.objects.get(book=book, page_no=page_no)
+
+        # Branch based on processing mode
+        if book.processing_mode == 'born_digital':
+            # --- BORN DIGITAL RETRANSLATION ---
+            schema = load_weaver_schema(BORN_DIGITAL_SCHEMA_PATH)
+            llm = GeminiHelper(schema=schema)
+            pdf_path = book.original_file.path
+
+            # Get current flawed translation units for context
+            current_tp = TranslatedPage.objects.filter(book=book, page_no=page_no, lang=target_lang, mode='faithful').first()
+            current_translated_units = None
+            if current_tp and isinstance(current_tp.data, dict):
+                current_translated_units = current_tp.data.get('translated_units')
+
+            # Get original text units from PDF
+            layout = collect_page_layout(pdf_path, page_no)
+            units, idx_map = spans_to_units(layout.get("spans", []))
+
+            if not units:
+                logger.info(f"Retranslation skipped for born-digital page {page_no} as it has no text.")
+                with transaction.atomic():
+                    for mode in ["faithful", "readable"]:
+                        TranslatedPage.objects.update_or_create(
+                            book=book, page_no=page_no, lang=target_lang, mode=mode,
+                            defaults={"data": {}, "status": "ready"}
+                        )
+                return
+
+            # Build prompt with feedback
+            sys_msg, user_msg_json = build_prompt_born_digital(
+                units=units,
+                target_lang=target_lang,
+                book_title=book.title,
+                book_genre=book.genre,
+                glossary=book.glossary,
+                user_feedback=feedback,
+                current_translation=current_translated_units
+            )
+
+            # Call LLM for new translation
+            translated_units, errs = llm.translate_text_units(
+                sys_msg=sys_msg, user_msg_json=user_msg_json, max_retries=2, expected_length=len(units)
+            )
+
+            image_src_map = _inject_images_from_db(layout, book, page_no)
+            logger.debug(f"[DEBUG-TASK]img_map : {image_src_map}")
+
+            # Save new result
+            with transaction.atomic():
+                if translated_units and len(translated_units) == len(units):
+                    html_faithful = build_faithful_html(
+                        layout, translated_units, idx_map, 
+                        image_src_map=image_src_map, 
+                    )
+                    html_readable = build_readable_html(layout, translated_units, idx_map)
+
+                    base_db_data = {
+                        "schema_version": "weaver.page.born_digital.v1",
+                        "page": {
+                            "page_no": page_no,
+                            "page_w": page.width,
+                            "page_h": page.height,
+                            "page_units": "px"
+                        },
+                        "translated_units": translated_units
+                    }
+
+                    data_faithful = {**base_db_data, "html": html_faithful}
+                    TranslatedPage.objects.update_or_create(
+                        book=book, page_no=page_no, lang=target_lang, mode="faithful",
+                        defaults={"data": data_faithful, "status": "ready"}
+                    )
+
+                    data_readable = {**base_db_data, "html": html_readable}
+                    TranslatedPage.objects.update_or_create(
+                        book=book, page_no=page_no, lang=target_lang, mode="readable",
+                        defaults={"data": data_readable, "status": "ready"}
+                    )
+                else:
+                    db_data = {"error": errs or ["Retranslation failed: Translated unit count mismatch."]}
+                    for mode in ["faithful", "readable"]:
+                        TranslatedPage.objects.update_or_create(
+                            book=book, page_no=page_no, lang=target_lang, mode=mode,
+                            defaults={"data": db_data, "status": "failed"}
+                        )
+            logger.info(f"Born-digital retranslation for book {book_id}, page {page_no} completed.")
+            return # End of born-digital path
+
+        # --- AI LAYOUT (EXISTING) RETRANSLATION ---
         
         prev_page_html_context = None
         if page_no > 1:
