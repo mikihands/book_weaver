@@ -369,21 +369,6 @@ def _build_drawings_svg(drawings, w, h, scale=1.0):
     out.append("</svg>")
     return "".join(out)
 
-# ── helper: 행렬·원본크기 → 축정렬 컨테이너 사각형(px) 계산 ───────────────────
-def _container_from_matrix_px(transform, img_w, img_h, sx, sy):
-    # transform = [a,b,c,d,e,f] in *page pt*
-    a, b, c, d, e, f = transform
-    # 4개 코너(이미지 좌표)를 페이지 좌표( pt )로 변환
-    x00, y00 = e,                 f
-    x10, y10 = e + a*img_w,       f + b*img_w
-    x01, y01 = e + c*img_h,       f + d*img_h
-    x11, y11 = e + a*img_w + c*img_h, f + b*img_w + d*img_h
-    # 축정렬 외접 박스 (pt) → px 변환
-    minx = min(x00, x10, x01, x11) * sx
-    maxx = max(x00, x10, x01, x11) * sx
-    miny = min(y00, y10, y01, y11) * sy
-    maxy = max(y00, y10, y01, y11) * sy
-    return minx, miny, (maxx - minx), (maxy - miny)
 
 def build_faithful_html(
     layout: Dict[str, Any],
@@ -401,9 +386,10 @@ def build_faithful_html(
 
     # 2) PT→PX 스케일(m): 텍스트/드로잉용
     meta = layout.get("meta") or {}
-    pt_to_px   = float(meta.get("pt_to_px", 1.0) or 1.0)
+    pt_to_px = float((meta.get("norm") or {}).get("pt_to_px", 1.0) or 1.0)
     norm_scale = float((meta.get("norm") or {}).get("scale", 1.0) or 1.0)
     m = pt_to_px * norm_scale
+    logger.debug(f"[DEBUG-UTILS-BUILD]: m={m}")
 
     # 3) 이미지
     for im in layout.get("images", []):
@@ -453,6 +439,7 @@ def build_faithful_html(
     # 4) 드로잉(SVG) — 헤더 배경/수평선/세로 컬러바가 여기서 렌더됨
     drawings = layout.get("drawings", [])
     w_pt, h_pt = layout["size_pt"]["w"], layout["size_pt"]["h"] #페이지 사이즈 (pt 좌표)
+    logger.debug(f"[DEBUG-UTILS-BUILD]: w_pt={w_pt}, h_pt={h_pt}")
     if w_pt <= 0: w_pt = 1 # prevent division by zero
     html.append(_build_drawings_svg(drawings, w_pt, h_pt, scale=m))
 
