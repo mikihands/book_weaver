@@ -88,7 +88,7 @@
   </main>
 
   <!-- Footer -->
-  <footer class="mt-10 border-t border-slate-200/70 bg-white/70 backdrop-blur mt-auto">
+  {% comment %} <footer class="mt-10 border-t border-slate-200/70 bg-white/70 backdrop-blur mt-auto">
     <div class="mx-auto max-w-7xl px-6 py-8 flex flex-col sm:flex-row items-center justify-between gap-4">
       <p class="text-sm text-slate-500">© <span id="y"></span> Mikihands · BookWeaver</p>
       <nav class="flex items-center gap-4 text-sm text-slate-600">
@@ -97,7 +97,65 @@
         <a href="{% url 'mybook:contact' %}" class="hover:text-slate-800">{% trans "문의" %}</a>
       </nav>
     </div>
-  </footer>
+  </footer> {% endcomment %}
+  {# 현재 언어/지원 언어 목록 얻기 #}
+{% get_current_language as CURRENT_LANGUAGE_CODE %}
+{% get_available_languages as LANGUAGES %}
+{% get_language_info_list for LANGUAGES as languages %}
+
+<!-- Footer -->
+<footer class="mt-10 border-t border-slate-200/70 bg-white/70 backdrop-blur mt-auto">
+  <div class="mx-auto max-w-7xl px-6 py-8 flex flex-col sm:flex-row items-center justify-between gap-4">
+    <p class="text-sm text-slate-500">© <span id="y"></span> Mikihands · BookWeaver</p>
+
+    <div class="flex items-center gap-4">
+      <!-- Footer nav -->
+      <nav class="flex items-center gap-4 text-sm text-slate-600">
+        <a href="#" class="hover:text-slate-800">{% trans "이용 약관" %}</a>
+        <a href="#" class="hover:text-slate-800">{% trans "개인정보 처리방침" %}</a>
+        <a href="{% url 'mybook:contact' %}" class="hover:text-slate-800">{% trans "문의" %}</a>
+      </nav>
+
+      <!-- Language selector (no-JS dropdown) -->
+      <details class="relative">
+        <summary class="list-none inline-flex items-center gap-2 rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm font-medium text-slate-700 hover:bg-slate-50 cursor-pointer">
+          <span class="text-base" aria-hidden="true">
+            {# 간단한 국기 이모지 매핑 (필요 언어만 if로 확장) #}
+            {% if CURRENT_LANGUAGE_CODE|slice:":2" == "ko" %}🇰🇷{% elif CURRENT_LANGUAGE_CODE|slice:":2" == "en" %}🇺🇸{% elif CURRENT_LANGUAGE_CODE|slice:":2" == "ja" %}🇯🇵{% elif CURRENT_LANGUAGE_CODE|slice:":2" == "zh" %}🇨🇳{% elif CURRENT_LANGUAGE_CODE|slice:":2" == "de" %}🇩🇪{% elif CURRENT_LANGUAGE_CODE|slice:":2" == "fr" %}🇫🇷{% elif CURRENT_LANGUAGE_CODE|slice:":2" == "es" %}🇪🇸{% else %}🌐{% endif %}
+          </span>
+          <span class="sr-only">{% trans "언어 선택" %}</span>
+          <span class="uppercase">{{ CURRENT_LANGUAGE_CODE }}</span>
+          <svg class="h-4 w-4 text-slate-400" viewBox="0 0 20 20" fill="currentColor" aria-hidden="true">
+            <path fill-rule="evenodd" d="M5.23 7.21a.75.75 0 011.06.02L10 11.2l3.71-3.97a.75.75 0 111.08 1.04l-4.25 4.55a.75.75 0 01-1.08 0L5.21 8.27a.75.75 0 01.02-1.06z" clip-rule="evenodd" />
+          </svg>
+        </summary>
+
+        <div class="absolute bottom-full right-0 mb-2 w-56 rounded-xl border border-slate-200 bg-white shadow-lg p-2 z-50">
+          {% for lang in languages %}
+            <form method="post" action="{% url 'set_language' %}" class="w-full">
+              {% csrf_token %}
+              <input type="hidden" name="next" value="{{ request.get_full_path }}">
+              <input type="hidden" name="language" value="{{ lang.code }}">
+              <button type="submit"
+                      class="w-full flex items-center justify-between gap-3 rounded-lg px-3 py-2 text-sm hover:bg-slate-50 {% if lang.code == CURRENT_LANGUAGE_CODE %}text-slate-900 font-semibold{% else %}text-slate-700{% endif %}">
+                <span class="inline-flex items-center gap-2">
+                  <span aria-hidden="true">
+                    {% if lang.code|slice:":2" == "ko" %}🇰🇷{% elif lang.code|slice:":2" == "en" %}🇺🇸{% elif lang.code|slice:":2" == "ja" %}🇯🇵{% elif lang.code|slice:":2" == "zh" %}🇨🇳{% elif lang.code|slice:":2" == "de" %}🇩🇪{% elif lang.code|slice:":2" == "fr" %}🇫🇷{% elif lang.code|slice:":2" == "es" %}🇪🇸{% else %}🌐{% endif %}
+                  </span>
+                  <span>{{ lang.name_local }}</span>
+                </span>
+                {% if lang.code == CURRENT_LANGUAGE_CODE %}
+                  <span class="text-indigo-600">•</span>
+                {% endif %}
+              </button>
+            </form>
+          {% endfor %}
+        </div>
+      </details>
+    </div>
+  </div>
+</footer>
+
 
     {% block extra_js %}{% endblock %}
     <script>

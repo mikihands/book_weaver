@@ -27,13 +27,13 @@ BookWeaver — {% trans "원서를, 당신의 언어로" %}
             <div>
               <label class="block text-sm font-medium text-slate-700 mb-2">{% trans "파일 선택" %}</label>
               <label for="fileInput" class="flex items-center justify-between gap-3 rounded-xl border border-dashed border-slate-300 bg-white px-4 py-3 hover:border-slate-400 cursor-pointer transition-colors">
-                <div class="flex items-center gap-3">
+                <div class="flex items-center gap-3 min-w-0"> {# min-w-0 for truncate to work in flexbox #}
                   <div class="grid h-9 w-9 place-items-center rounded-lg bg-slate-100 text-slate-600">
                     <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
                       <path d="M12 5v14m-7-7h14"/>
                     </svg>
                   </div>
-                  <div class="text-sm">
+                  <div id="fileInputText" class="text-sm truncate">
                     <span class="font-medium text-slate-800">{% trans "파일 업로드" %}</span>
                     <span class="ml-2 text-slate-500">PDF, JPG, PNG</span>
                   </div>
@@ -85,10 +85,10 @@ BookWeaver — {% trans "원서를, 당신의 언어로" %}
               <div>
                 <label for="languageSelect" class="block text-sm font-medium text-slate-700 mb-2">{% trans "번역할 언어" %}</label>
                 <select id="languageSelect" name="target_language" class="w-full rounded-xl border-slate-300 bg-white focus:border-slate-500 focus:ring-slate-500">
-                    <option value="ko">한국어</option>
                     <option value="en">English</option>
                     <option value="es">Español</option>
                     <option value="ja">日本語</option>
+                    <option value="ko">한국어</option>
                     <option value="fr">Français</option>
                     <option value="de">Deutsch</option>
                 </select>
@@ -146,6 +146,20 @@ BookWeaver — {% trans "원서를, 당신의 언어로" %}
     const form = document.getElementById('uploadForm');
     const submitButton = document.getElementById('submitButton');
     const messageDiv = document.getElementById('message');
+    const fileInput = document.getElementById('fileInput');
+    const fileInputText = document.getElementById('fileInputText');
+    const originalFileInputHTML = fileInputText.innerHTML;
+
+    fileInput.addEventListener('change', () => {
+        if (fileInput.files.length > 0) {
+            const fileName = fileInput.files[0].name;
+            // 긴 파일명을 위해 truncate하고, 전체 이름은 title 속성으로 보여줍니다.
+            fileInputText.innerHTML = `<span class="font-medium text-slate-800" title="${fileName}">${fileName}</span>`;
+        } else {
+            // 파일 선택이 취소되면 원래 텍스트로 복원합니다.
+            fileInputText.innerHTML = originalFileInputHTML;
+        }
+    });
     
     function getCookie(name) {
         let cookieValue = null;
@@ -168,8 +182,7 @@ BookWeaver — {% trans "원서를, 당신의 언어로" %}
 
         const fileInput = document.getElementById('fileInput');
         if (!fileInput.files || fileInput.files.length === 0) {
-            messageDiv.textContent = '파일을 선택해주세요.';
-            messageDiv.className = 'text-red-500';
+            messageDiv.innerHTML = `<span class="text-red-600">{% trans "파일을 선택해주세요." %}</span>`;
             return;
         }
 
@@ -182,7 +195,7 @@ BookWeaver — {% trans "원서를, 당신의 언어로" %}
         messageDiv.innerHTML = '<div class="flex justify-center items-center"><div class="animate-spin rounded-full h-5 w-5 border-b-2 border-blue-600"></div><span class="ml-3 text-blue-600"> 업로드 중... 잠시만 기다려주세요.</span></div>';
 
         try {
-            const response = await fetch('/upload/', {
+            const response = await fetch('{% url "mybook:book_upload" %}', {
                 method: 'POST',
                 body: formData,
                 headers: {
@@ -198,14 +211,24 @@ BookWeaver — {% trans "원서를, 당신의 언어로" %}
                     window.location.href = data.prepare_url;
                 }
             } else {
-                if (response.status === 403 && data.detail === "Authentication credentials were not provided.") {
-                    messageDiv.innerHTML = `<span class="text-red-600">로그인이 필요합니다. <a href="{% url 'mybook:login_page' %}" class="underline">로그인 페이지로 이동</a></span>`;
+                if (response.status === 403) {
+                    messageDiv.innerHTML = `<span class="text-red-600">{% trans "로그인이 필요합니다." %} <a href="{% url 'mybook:login_page' %}" class="underline">{% trans "로그인 페이지로 이동" %}</a></span>`;
                 } else {
-                    messageDiv.innerHTML = `<span class="text-red-600">오류: ${data.error || JSON.stringify(data)}</span>`;
+                  let errorMessage = "{% trans '오류가 발생했습니다.' %}"; // Default message
+                  if (data.detail) {
+                      errorMessage = data.detail;
+                  } else if (data.error) {
+                      // This handles cases where the error message is nested
+                      // For example: {"error": {"detail": "..."}}
+                      errorMessage = data.error.detail || JSON.stringify(data.error);
+                  } else {
+                      errorMessage = JSON.stringify(data);
+                  }
+                  messageDiv.innerHTML = `<span class="text-red-600">{% trans "오류:" %} ${errorMessage}</span>`;
                 }
             }
         } catch (error) {
-            messageDiv.innerHTML = '<span class="text-red-600">네트워크 오류가 발생했습니다.</span>';
+            messageDiv.innerHTML = `<span class="text-red-600">{% trans "네트워크 오류가 발생했습니다." %}</span>`;
             console.error('Error:', error);
         } finally {
             submitButton.disabled = false;

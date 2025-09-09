@@ -41,6 +41,12 @@ class Book(models.Model):
         ('failed', '실패'),
     ]
 
+    OCR_STATUS = [
+        ('unknown', '판별 안됨'),
+        ('ocr', 'OCR 처리됨'),
+        ('image', 'OCR 미처리 (스캔본)'),
+    ]
+
     title = models.CharField(max_length=255, blank=True, help_text="업로드된 책의 제목")
     genre = models.CharField(max_length=100, blank=True, null=True, help_text="책의 장르")
     glossary = models.TextField(blank=True, null=True, help_text="번역에 사용할 사용자 정의 용어집")
@@ -63,11 +69,35 @@ class Book(models.Model):
     source_mime = models.CharField(max_length=64, default="application/pdf")
     source_size = models.BigIntegerField(default=0)
 
+    # ✅ OCR 여부 판별 결과
+    ocr_status = models.CharField(
+        max_length=16,
+        choices=OCR_STATUS,
+        default='unknown',
+        help_text="PDF가 OCR로 처리된 텍스트 기반인지, 이미지 기반인지"
+    )
+    text_coverage = models.FloatField(
+        null=True, blank=True,
+        help_text="페이지 내 텍스트 커버리지 비율(0.0~1.0). OCR 여부 추정 근거"
+    )
+
     # Gemini File API 메타(20~50MB 구간에서 사용)
     gemini_file_name = models.CharField(max_length=255, null=True, blank=True, db_index=True)
     gemini_file_uri = models.CharField(max_length=512, null=True, blank=True)
     gemini_file_uploaded_at = models.DateTimeField(null=True, blank=True)
     gemini_file_expires_at = models.DateTimeField(null=True, blank=True)
+
+    # === inspector 결과 저장 및 처리 모드 ===
+    processing_mode = models.CharField(
+        max_length=32, null=True, blank=True,
+        help_text="pdf_inspector가 권장하는 처리 모드 (born_digital | ai_layout | mixed)"
+    )
+    inspection = models.JSONField(
+        null=True, blank=True,
+        help_text="pdf_inspector.inspect_pdf() 결과의 직렬화된 dict"
+    )
+    avg_score = models.FloatField(null=True, blank=True)
+    median_score = models.FloatField(null=True, blank=True)
 
     def __str__(self):
         return self.title or self.original_file.name
@@ -91,6 +121,7 @@ class BookPage(models.Model):
     page_no = models.IntegerField(help_text="페이지 번호 (1부터 시작)")
     width = models.FloatField(help_text="페이지 너비 (px)")
     height = models.FloatField(help_text="페이지 높이 (px)")
+    meta = models.JSONField(null=True, blank=True, help_text="페이지 normalize 이후의 메타정보")
 
     def __str__(self):
         return f"Page {self.page_no} of {self.book.title or self.book.original_file.name}"
@@ -101,9 +132,17 @@ class BookPage(models.Model):
 class PageImage(models.Model):
     book = models.ForeignKey(Book, on_delete=models.CASCADE, related_name="images")
     page_no = models.IntegerField(help_text="이미지가 속한 페이지 번호")
+    xref = models.IntegerField(db_index=True, help_text=" OCR처리된 PDF 내 이미지 객체의 xref 번호", null=True, blank=True)
     ref = models.CharField(max_length=64, db_index=True, help_text="이미지 참조 ID (예: img_p1_1)")
     path = models.CharField(max_length=512, help_text="서버에 저장된 이미지 파일 경로")
     bbox = models.JSONField(help_text="페이지 내 이미지 위치 및 크기 [x, y, w, h]")
+    transform = models.JSONField(null=True, blank=True,
+        help_text="PDF CTM matrix [a,b,c,d,e,f] for positioning/cropping")
+    clip_bbox = models.JSONField(null=True, blank=True, help_text="페이지내 이미지가 crop되었을때 클리핑마스크 bbox")
+    img_w = models.IntegerField(null=True, blank=True, help_text="서버에 저장된 이미지 너비")
+    img_h = models.IntegerField(null=True, blank=True, help_text="서버에 저장된 이미지 높이")
+    origin_w = models.IntegerField(null=True, blank=True, help_text="원본 이미지 너비")
+    origin_h = models.IntegerField(null=True, blank=True, help_text="원본 이미지 높이")
 
     def __str__(self):
         return f"Image '{self.ref}' on page {self.page_no} of {self.book.title or self.book.original_file.name}"

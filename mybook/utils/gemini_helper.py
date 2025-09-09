@@ -14,17 +14,18 @@ logger = logging.getLogger(__name__)
 GEMINI_API_KEY = settings.GEMINI_API_KEY
 MODEL_NAME = "gemini-2.5-flash"
 
-def _dump_debug(payload: dict|str, prefix: str, attempt: int):
+def _dump_debug(payload: dict | str | list, prefix: str, attempt: int):
     debug_dir = os.path.join(settings.BASE_DIR, "media", "gemini_debug")
     os.makedirs(debug_dir, exist_ok=True)
     ts = time.strftime("%Y%m%d_%H%M%S")
-    path = os.path.join(debug_dir, f"{prefix}_a{attempt}_{ts}.json" if isinstance(payload, dict)
+    is_json_serializable = isinstance(payload, (dict, list))
+    path = os.path.join(debug_dir, f"{prefix}_a{attempt}_{ts}.json" if is_json_serializable
                         else f"{prefix}_a{attempt}_{ts}.txt")
     with open(path, "w", encoding="utf-8") as f:
-        if isinstance(payload, dict):
+        if is_json_serializable:
             json.dump(payload, f, ensure_ascii=False, indent=2)
         else:
-            f.write(payload)
+            f.write(str(payload))
     return path
 
 class GeminiHelper:
@@ -102,6 +103,56 @@ class GeminiHelper:
             contents.append("Schema validation errors:\n" + "\n".join(errs[:10]))
             last_errs = errs
 
+        return None, last_errs
+
+    def translate_text_units(
+        self,
+        sys_msg: str,
+        user_msg_json: str,
+        max_retries: int = 2,
+        expected_length: Optional[int] = None,
+    ) -> Tuple[Optional[List[str]], Optional[List[str]]]:
+        """
+        Calls Gemini to translate a list of text units.
+        Expects a JSON array of strings as a response, enforced by a schema.
+        """
+        # If an expected length is provided, make the schema stricter to enforce
+        # the exact number of items in the output array. This is crucial for`spans_to_units` 함수를 개선해서, 줄바꿈으로 나뉜 문장 조각들을 미리 합치는 로직을 추가해줘.
+        # preventing "unit count mismatch" errors.
+        schema_to_use = self.schema
+        if expected_length is not None:
+            # Create a copy to avoid modifying the instance's schema object.
+            schema_to_use = self.schema.copy()
+            schema_to_use["minItems"] = expected_length
+            schema_to_use["maxItems"] = expected_length
+
+        contents = [user_msg_json]
+        last_errs = None
+        for attempt in range(max_retries + 1):
+            raw_text = ""
+            try:
+                resp = self.client.models.generate_content(
+                    model=MODEL_NAME,
+                    contents=contents,# type: ignore
+                    config=types.GenerateContentConfig(
+                        system_instruction=sys_msg,
+                        response_mime_type="application/json",
+                        response_json_schema=schema_to_use
+                    )
+                )
+                raw_text = resp.text or ""
+                _dump_debug(raw_text, "born_digital_resp_text", attempt)
+                data = json.loads(raw_text)
+                # The schema should guarantee a list, but we can double-check.
+                if not isinstance(data, list):
+                    raise ValueError(f"Response was not a JSON array as expected, despite schema. Got type: {type(data)}")
+                _dump_debug(data, "born_digital_parsed_json", attempt)
+                return data, None
+            except Exception as e:
+                _dump_debug(raw_text or str(e), "born_digital_error_raw", attempt)
+                last_errs = [f"Attempt {attempt+1} failed: {e}"]
+                contents.append(f"Error: {e}. Please ensure the output is a valid JSON array of strings matching the schema.")
+                continue
         return None, last_errs
 
 def clamp_bbox(b, W, H):
