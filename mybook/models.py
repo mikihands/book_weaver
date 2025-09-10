@@ -1,5 +1,6 @@
 from django.db import models
 import hashlib
+from uuid import uuid4
 
 class UserProfile(models.Model):
     username = models.CharField(max_length=150, unique=True, help_text="인증 서버에서 제공받은 username")
@@ -32,6 +33,14 @@ class UserProfile(models.Model):
     def __str__(self):
         return self.username
 
+def book_upload_to(instance, filename):
+    # PK가 있으면 최종 경로
+    if instance.pk:
+        return f"original/book_{instance.pk}/{filename}"
+    # PK가 아직 없으면 임시 경로(뒤에서 post_save에서 이동)
+    return f"original/_tmp/{uuid4().hex}/{filename}"
+
+
 class Book(models.Model):
     PROCESSING_STATUS = [
         ('pending', '업로드 처리 대기 중'),
@@ -50,7 +59,7 @@ class Book(models.Model):
     title = models.CharField(max_length=255, blank=True, help_text="업로드된 책의 제목")
     genre = models.CharField(max_length=100, blank=True, null=True, help_text="책의 장르")
     glossary = models.TextField(blank=True, null=True, help_text="번역에 사용할 사용자 정의 용어집")
-    original_file = models.FileField(upload_to="original/", help_text="사용자가 업로드한 원본 파일")
+    original_file = models.FileField(upload_to=book_upload_to, help_text="사용자가 업로드한 원본 파일")
     file_hash = models.CharField(
         max_length=64, 
         db_index=True, 

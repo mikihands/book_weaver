@@ -1,5 +1,7 @@
 import logging, os, json, hashlib, re
 from bs4 import BeautifulSoup
+from pathlib import Path
+
 from rest_framework import generics, status
 from rest_framework.permissions import IsAuthenticated, AllowAny
 from rest_framework.parsers import MultiPartParser, FormParser
@@ -15,12 +17,15 @@ from django.db import transaction, models
 from django.contrib.auth.models import User
 from django.core.files.storage import default_storage
 from django.shortcuts import get_object_or_404, render, redirect
+from django.utils.encoding import smart_str
 from django.urls import reverse
+from django.http import FileResponse
 
 from .serializers import (
     FileUploadSerializer, RegisterSerializer, LoginSerializer, 
     RetranslateRequestSerializer, StartTranslationSerializer, 
-    BookSettingsSerializer, ContactSerializer
+    BookSettingsSerializer, ContactSerializer,
+    BulkDeleteSerializer, PublishRequestSerializer
 )
 from .models import Book, BookPage, PageImage, TranslatedPage, UserProfile
 from .utils.font_scaler import FontScaler
@@ -29,6 +34,7 @@ from .utils.extract_image import extract_images_and_bboxes, is_fullpage_backgrou
 from .utils.layout_norm import normalize_pages_layout
 from .utils.html_inject import inject_sources, escape_html
 from .utils.pdf_inspector import inspect_pdf, choose_processing_mode
+from .utils.delete_dir_files import safe_remove
 from .tasks import translate_book_pages, retranslate_single_page, translate_book_pages_born_digital
 from .permissions import IsBookOwner
 from common.mixins.hmac_sign_mixin import HmacSignMixin
@@ -410,15 +416,14 @@ class BookPageView(APIView):
         text_len = len(soup.get_text(" ", strip=True))
         return text_len, max(1, len(para_like))
 
-
 class BookPrepareView(APIView):
     permission_classes = [IsAuthenticated]
 
     def get(self, request, book_id, *args, **kwargs):
         book = get_object_or_404(Book, id=book_id, owner=request.user)
-        if book.status not in ['uploaded', 'failed']:
-            # 이미 번역이 시작되었거나 완료된 경우, 첫 페이지로 리디렉션
-            return redirect(reverse('mybook:book_page', kwargs={'book_id': book.id, 'page_no': 1})) # type: ignore
+        # if book.status not in ['uploaded', 'failed']:
+        #     # 이미 번역이 시작되었거나 완료된 경우, 첫 페이지로 리디렉션
+        #     return redirect(reverse('mybook:book_page', kwargs={'book_id': book.id, 'page_no': 1})) # type: ignore
         return render(request, 'mybook/book_prepare.html', {'book': book})
 
 class UpdateBookSettingsView(generics.UpdateAPIView):
@@ -816,3 +821,235 @@ class ContactAPIView(APIView):
 
         # 봇이든 아니든 동일 응답(탐지 회피)
         return Response({"ok": True}, status=status.HTTP_201_CREATED)
+
+# -------- Bookshelf 개선작업 ------------    
+class BulkDeleteBooksAPIView(APIView):
+    permission_classes = [IsAuthenticated, IsBookOwner]
+
+    def post(self, request):
+        """
+        요청 바디 예:
+        { "ids": [3, 5, 9] }
+        """
+        ser = BulkDeleteSerializer(data=request.data)
+        ser.is_valid(raise_exception=True)
+        ids = ser.validated_data["ids"] # type:ignore
+
+        # 소유자 한정
+        qs = Book.objects.filter(id__in=ids, owner=request.user)  # UserProfile를 인증 user로 매핑해둔 전제
+        found_ids = list(qs.values_list("id", flat=True))
+
+        # 실제 삭제: on_delete=CASCADE로 DB는 정리되지만, 파일 정리는 직접 해야 함
+        # - 원본 PDF: book.original_file.path
+        # - figures: MEDIA_ROOT/figures/book_{id}
+        # - 기타 생성물(추후 확장)
+        deleted_count = 0
+        with transaction.atomic():
+            for book in qs:
+                # 이미지페이지 제거 ( OCR 처리 안된 파일 이미지화 )
+                figures_dir = Path(settings.MEDIA_ROOT) / "figures" / f"book_{book.id}" #type:ignore
+                safe_remove(figures_dir)
+                # 출판물 제거
+                published_pdf = Path(settings.MEDIA_ROOT) / "published" / f"book_{book.id}.pdf" #type:ignore
+                safe_remove(published_pdf)
+                # 본문내 이미지 추출파일 제거
+                extracted_images = Path(settings.MEDIA_ROOT) / "extracted_images" / f"{book.id}" #type:ignore
+                safe_remove(extracted_images)
+                # 원본파일
+                original_files = Path(settings.MEDIA_ROOT) / "original" / f"book_{book.id}" #type:ignore
+                safe_remove(original_files)
+
+                # 마지막으로 DB 레코드 삭제
+                book.delete()
+                deleted_count += 1
+
+        logger.info(f"Book삭제됨: user: {request.user.username}, count: {len(ids)}, deleted: {deleted_count}")
+        return Response(
+            {
+                "deleted": deleted_count,
+                "requested_ids": ids,
+                "actually_deleted_ids": found_ids,
+            },
+            status=status.HTTP_200_OK,
+        )
+
+
+class PublishBookAPIView(APIView):
+    """
+    단일 책 PDF 출판.
+    - faithful/readable 둘 다 지원.
+    - 기본: faithful.
+    - 즉시 동기 PDF 생성(WeasyPrint 설치 권장). 미설치 시 400 반환.
+    """
+    permission_classes = [IsAuthenticated, IsBookOwner]
+
+    def _get_publish_params(self, request_data, book_id):
+        ser = PublishRequestSerializer(data=request_data)
+        ser.is_valid(raise_exception=True)
+        validated_data = ser.validated_data
+        lang = validated_data.get("lang") or self._guess_lang(book_id) #type:ignore
+        mode = validated_data.get("mode", "faithful") #type:ignore
+        return lang, mode
+
+    def get(self, request, book_id: int):
+        # 쿼리파라미터로 lang, mode 허용 ?lang=ko&mode=faithful
+        lang, mode = self._get_publish_params(request.query_params, book_id)
+        return self._publish_and_stream(book_id, lang, mode)
+
+    def post(self, request, book_id: int):
+        # POST body로 lang, mode
+        lang, mode = self._get_publish_params(request.data, book_id)
+        return self._publish_and_stream(book_id, lang, mode)
+
+    # --------- 내부 헬퍼 ---------
+    def _guess_lang(self, book_id: int) -> str:
+        # 번역된 페이지 중 가장 많은 lang을 추정(간단 추정)
+        agg = (
+            TranslatedPage.objects
+            .filter(book_id=book_id, status="ready")
+            .values_list("lang", flat=True)
+        )
+        # 첫 값 또는 기본 ko
+        return agg[0] if agg else "ko"
+
+    def _collect_pages_html(self, book_id: int, lang: str, mode: str) -> list[dict]:
+        """
+        태스크 구현 차이에 따라 data 키가 다름:
+        - born_digital 파이프라인: data['html'] 에 최종 HTML 저장됨 
+        - NO OCR faithful 파이프라인: data['html_stage'] 를 사용
+        
+        Returns a list of dictionaries, each containing html, page_no, width, and height.
+        """
+        pages_qs = (
+            TranslatedPage.objects
+            .filter(book_id=book_id, lang=lang, mode=mode, status="ready")
+            .order_by("page_no")
+        )
+
+        # Get all BookPage dimensions for this book in one query to avoid N+1
+        page_dims = {
+            p.page_no: (p.width, p.height) 
+            for p in BookPage.objects.filter(book_id=book_id)
+        }
+
+        results: list[dict] = []
+        for tp in pages_qs:
+            data = tp.data or {}
+            html = data.get("html") or data.get("html_stage") or ""
+            width, height = page_dims.get(tp.page_no, (None, None))
+            
+            results.append({
+                "html": html,
+                "page_no": tp.page_no,
+                "width": width,
+                "height": height,
+            })
+        return results
+
+    def _render_pdf(self, merged_html: str, dynamic_css: str, out_path: Path) -> bool:
+        """
+        WeasyPrint 기반 렌더링. 미설치/에러 시 False.
+        """
+        try:
+            from weasyprint import HTML, CSS  # type: ignore
+        except Exception:
+            return False
+
+        # 기본 CSS(여백/페이지 브레이크)
+        base_css = """
+            /* Default page size for pages without specific dimensions */
+            @page { size: A4; margin: 16mm; }
+            section.weaver-page { width: 100%; height: 100%; } /* Fill the page area */
+            img { max-width: 100%; height: auto; }
+        """
+        final_css = base_css + "\n" + dynamic_css
+        HTML(string=merged_html, base_url=str(settings.MEDIA_ROOT)).write_pdf(
+            target=str(out_path),
+            stylesheets=[CSS(string=final_css)],
+        )
+        return True
+
+    def _publish_and_stream(self, book_id: int, lang: str, mode: str):
+        book = get_object_or_404(Book, id=book_id, owner=self.request.user)
+
+        # 상태 점검: completed가 아니라도(부분 성공 등) 출판을 허용할지 정책 결정
+        # 1차 버전: 'ready' 페이지가 1장 이상이면 생성 시도
+        html_pages_data = self._collect_pages_html(book_id, lang, mode)
+        if not html_pages_data:
+            return Response(
+                {"detail": "출판 가능한 번역 페이지가 없습니다. (lang/mode 확인)"},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
+        # Dynamic CSS and HTML sections generation
+        css_rules = []
+        html_sections = []
+        unique_sizes = set()
+
+        for page_data in html_pages_data:
+            width = page_data.get('width')
+            height = page_data.get('height')
+            
+            if width and height:
+                w_int, h_int = int(width), int(height)
+                page_size_name = f"s_{w_int}x{h_int}"
+                
+                if (w_int, h_int) not in unique_sizes:
+                    css_rules.append(f"@page {page_size_name} {{ size: {w_int}px {h_int}px; margin: 0; }}")
+                    unique_sizes.add((w_int, h_int))
+                
+                html_sections.append(f'<section class="weaver-page" style="page: {page_size_name}; page-break-after: always;">{page_data["html"]}</section>')
+            else:
+                # Fallback for pages without dimensions, uses default @page rule
+                html_sections.append(f'<section class="weaver-page" style="page-break-after: always;">{page_data["html"]}</section>')
+
+
+        # HTML 합치기
+        doc_html = f"""
+        <!doctype html>
+        <html lang={lang}>
+        <head>
+          <meta charset="utf-8" />
+          <title>{smart_str(book.title or 'Weaver Book')}</title>
+        </head>
+        <body>
+          {''.join(html_sections)}
+        </body>
+        </html>
+        """
+
+        # WeasyPrint를 위해 이미지 경로를 URL에서 파일 시스템 경로로 변환
+        soup = BeautifulSoup(doc_html, 'html.parser')
+        for img in soup.find_all('img'):
+            src = img.get('src') #type:ignore
+            if src and src.startswith(settings.MEDIA_URL): #type:ignore
+                # URL 경로(/media/...)를 파일 시스템 절대 경로로 변환
+                # 예: /media/figures/book_1/fig.png -> /app/media/figures/book_1/fig.png
+                relative_path = src[len(settings.MEDIA_URL):].lstrip('/\\') #type:ignore
+                fs_path = os.path.join(settings.MEDIA_ROOT, relative_path)
+                
+                if os.path.exists(fs_path):
+                    # WeasyPrint가 인식할 수 있도록 file:// URI로 변환
+                    img['src'] = Path(fs_path).as_uri() #type:ignore
+                else:
+                    logger.warning(f"Image not found for PDF generation: {fs_path}")
+
+        # 출력 경로
+        pub_dir = Path(settings.MEDIA_ROOT) / "published"
+        pub_dir.mkdir(parents=True, exist_ok=True)
+        out_pdf = pub_dir / f"book_{book.id}.pdf" #type:ignore
+
+        # PDF 렌더
+        final_html_for_pdf = str(soup)
+        dynamic_css = "\n".join(css_rules)
+        ok = self._render_pdf(final_html_for_pdf, dynamic_css, out_pdf)
+        if not ok:
+            # WeasyPrint가 없으면 에러 안내
+            return Response(
+                {"detail": "PDF 엔진(weasyprint) 미설치 또는 렌더 오류"},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
+        # 성공 → 파일 스트리밍
+        response = FileResponse(open(out_pdf, "rb"), as_attachment=True, filename=out_pdf.name)
+        return response

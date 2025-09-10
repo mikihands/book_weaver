@@ -140,13 +140,23 @@ def collect_page_layout(pdf_path: str, page_no: int) -> Dict[str, Any]:
             "lineJoin": d.get("lineJoin"),
             "dashes": d.get("dashes"),
         })
+    
+    # ★ 링크 사각형 수집 (pt 좌표)
+    link_rects = []
+    try:
+        for L in page.get_links() or []: #type:ignore
+            r = L.get("from")
+            if r:
+                link_rects.append([float(r.x0), float(r.y0), float(r.x1), float(r.y1)])
+    except Exception:
+        pass
 
     logger.debug(f"[DEBUG-UTILS-COLLECT]page {page_no} spans: {spans}, images: {len(images)}, drawings: {drawings}")
     # drawings 디버깅
     for di, d in enumerate(drawings):
         logger.debug(f"[DEBUG-UTILS-COLLECT] drawing {di}: " + ", ".join(f"{k}={v}" for k,v in d.items() if v))
 
-    return {"page_no": page_no, "size_pt": {"w": w, "h": h}, "spans": spans, "images": images, "drawings": drawings}
+    return {"page_no": page_no, "size_pt": {"w": w, "h": h}, "spans": spans, "images": images, "drawings": drawings, "links": link_rects,}
 
 
 def spans_to_units(spans: List[Dict[str, Any]]) -> Tuple[List[str], List[List[int]]]:
@@ -302,7 +312,12 @@ def _parse_dashes_field(dashes_val):
 
     return None, None
 
-def _should_draw(d) -> bool:
+def _should_draw(d, page_area_pt: float, link_rects: list) -> bool:
+    # (0) 링크 밑줄이면 그리지 않음
+    ilu = IsLinkUnderline(d,link_rects)
+    if ilu.link_underline():
+        return False
+
     # (a) stroke와 fill이 모두 없음 → 그리지 않음 (클립/레이아웃 가능성 큼)
     if (d.get("stroke") is None or d.get("width", 0) == 0) and d.get("fill") is None:
         return False
@@ -316,22 +331,21 @@ def _should_draw(d) -> bool:
     if len(it) == 1 and it[0][0] == "re" and d.get("stroke") is None:
         (x0,y0,x1,y1) = d["rect"]
         area = max((x1-x0)*(y1-y0), 1.0)
-        page_area = 1.0  # call site에서 페이지 pt 면적 전달해서 비교해도 좋음
-        # 너무 보수적으로 가지 말고, 페이지의 40%↑ 덮는 사각형은 배경 후보로 본다
-        if area >= 0.40 * page_area and (d.get("fill") in ("#ffffff", "#000000", None)):
+        if area >= 0.40 * page_area_pt and (d.get("fill") in ("#ffffff", "#000000", None)):
             return False
 
     return True
 
-def _build_drawings_svg(drawings, w, h, scale=1.0):
+def _build_drawings_svg(drawings, w_pt, h_pt, scale=1.0, link_rects=None):
     if not drawings:
         return ""
-    page_area = w * h
-    out = [f'<svg class="pdf-vectors" width="{int(w*scale)}" height="{int(h*scale)}" '
-           f'viewBox="0 0 {w} {h}" style="position:absolute;left:0;top:0;">']
+    link_rects = link_rects or []
+    page_area_pt = w_pt * h_pt
+    out = [f'<svg class="pdf-vectors" width="{int(w_pt*scale)}" height="{int(h_pt*scale)}" '
+           f'viewBox="0 0 {w_pt} {h_pt}" style="position:absolute;left:0;top:0;">']
 
     for d in drawings:
-        if not _should_draw({**d, "page_area": page_area}):
+        if not _should_draw(d, page_area_pt, link_rects):
             continue
 
         stroke = d.get("stroke")
@@ -372,7 +386,7 @@ def _build_drawings_svg(drawings, w, h, scale=1.0):
 
 def build_faithful_html(
     layout: Dict[str, Any],
-    translated_units: List[str],
+    translated_units: List[str] | None,
     idx_map: List[List[int]],
     *,
     image_src_map: dict[int, str] | None = None,
@@ -439,9 +453,14 @@ def build_faithful_html(
     # 4) 드로잉(SVG) — 헤더 배경/수평선/세로 컬러바가 여기서 렌더됨
     drawings = layout.get("drawings", [])
     w_pt, h_pt = layout["size_pt"]["w"], layout["size_pt"]["h"] #페이지 사이즈 (pt 좌표)
+    link_rects = layout.get("links", [])  # pt 좌표
     logger.debug(f"[DEBUG-UTILS-BUILD]: w_pt={w_pt}, h_pt={h_pt}")
     if w_pt <= 0: w_pt = 1 # prevent division by zero
-    html.append(_build_drawings_svg(drawings, w_pt, h_pt, scale=m))
+    html.append(_build_drawings_svg(drawings, w_pt, h_pt, scale=m, link_rects=link_rects))
+
+    if not translated_units:
+        html.append("</div>")
+        return "".join(html)
 
     # 5) 텍스트 스팬
     spans = layout.get("spans", [])
@@ -478,15 +497,101 @@ def build_faithful_html(
     return "".join(html)
 
 
-def build_readable_html(layout: Dict[str, Any], translated_units: List[str], idx_map: List[List[int]]) -> str:
+def build_readable_html(layout: Dict[str, Any], translated_units: List[str] | None, idx_map: List[List[int]]) -> str:
     """
     가독 모드: 단락 중심. 간단 버전은 unit별 <p>로 나열.
     (실 서비스에서는 컬럼 분리/헤딩 추정/리스트 감지 등 확장)
     """
     parts = ["<article>"]
+    if not translated_units:
+        parts.append("</article>")
+        return "".join(parts)
     for text in translated_units:
         t = escape_html(text.strip())
         if t:
             parts.append(f"<p>{t}</p>")
     parts.append("</article>")
     return "".join(parts)
+
+class IsLinkUnderline:
+    """
+    PDF 드로잉 객체가 하이퍼링크의 시각적인 밑줄인지 판단하는 클래스입니다.
+    얇은 수평선을 감지하고, 이 선이 하이퍼링크의 경계 바로 아래에 위치하는지 확인합니다.
+    """
+    def __init__(
+        self,
+        drawing_obj: Dict[str, Any],
+        link_rects: List[List[float]],
+        ) -> None:
+        """초기화
+            :param drawing_obj: 밑줄인지 검사할 PDF 드로잉 객체.
+            :param link_rects: 문서 내 모든 하이퍼링크의 경계 상자 목록.
+        """
+        self.drawing_obj = drawing_obj
+        self.link_rects = link_rects
+
+    def _is_underline_for_rect(self, underline_cand_rect: List[float], text_rect: List[float]) -> bool:
+        """
+        후보 사각형이 텍스트 사각형에 대한 그럴듯한 밑줄인지 확인.
+        """
+        u_x0, u_y0, u_x1, u_y1 = underline_cand_rect
+        t_x0, t_y0, t_x1, t_y1 = text_rect
+
+        # 1. 수평 정렬: 밑줄은 텍스트와 수평으로 정렬되어함.
+        # 약간의 여유를 허용.
+        horizontal_overlap = max(0, min(u_x1, t_x1) - max(u_x0, t_x0))
+        text_width = t_x1 - t_x0
+        
+        # 텍스트 너비의 80% 이상 겹쳐야 함
+        if text_width > 0 and (horizontal_overlap / text_width) < 0.8:
+            return False
+
+        # 2. 수직 위치: 밑줄은 텍스트 기준선 바로 아래에 있어야 함.
+        # 밑줄의 상단(u_y0)이 텍스트의 하단(t_y1)에 가까워야 함.
+        # PyMuPDF 좌표는 Y가 아래로 갈수록 증가.
+        vertical_gap = u_y0 - t_y1
+        
+        # 텍스트 상자 안쪽(-2.0pt)부터 약간 아래(+4.0pt)까지 허용함.
+        if not (-2.0 < vertical_gap < 4.0):
+            return False
+            
+        return True
+
+    def _is_hairline_horizontal(self, hairline_pt: float = 1.5, min_width_pt: float = 10.0) -> bool:
+        """
+        PDF pt(포인트) 기준. 높이가 아주 얇고 폭이 충분히 크면 True를 반환합니다.
+        """
+        r = self.drawing_obj.get("rect")
+        if not r: return False
+        
+        # fitz.Rect 속성을 사용하여 안전하게 너비와 높이를 가져옴.
+        w = r.width
+        h = r.height
+        
+        # 얇은 수평선인지 확인.
+        return h <= hairline_pt and w >= min_width_pt
+
+    def link_underline(self) -> bool:
+        """
+        드로잉 객체가 링크의 밑줄인지 최종적으로 판단합니다.
+        """
+        if not self.link_rects or not self.drawing_obj:
+            return False
+        
+        # 1. 드로잉 자체가 얇은 수평선 모양인지 확인.
+        if not self._is_hairline_horizontal():
+            return False
+
+        r = self.drawing_obj.get("rect")
+        if not r:
+            return False
+        
+        # fitz.Rect를 float 리스트로 변환.
+        a = [float(r.x0), float(r.y0), float(r.x1), float(r.y1)]
+
+        # 2. 이 선이 링크 사각형 중 하나의 그럴듯한 밑줄인지 확인.
+        for link_rect in self.link_rects:
+            if self._is_underline_for_rect(a, link_rect):
+                return True
+                
+        return False

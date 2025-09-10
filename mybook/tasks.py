@@ -181,30 +181,24 @@ def translate_book_pages_born_digital(self, book_id: int, target_lang: str, page
             layout = collect_page_layout(pdf_path, pno)
             units, idx_map = spans_to_units(layout.get("spans", []))
 
-            if not units:
-                # No text on page, create empty translated page for both modes
-                with transaction.atomic():
-                    for mode in ["faithful", "readable"]:
-                        TranslatedPage.objects.update_or_create(
-                            book=book, page_no=pno, lang=target_lang, mode=mode,
-                            defaults={"data": {}, "status": "ready"}
-                        )
-                continue
+            translated_units, errs = [], None
+            if units:
+                # 텍스트가 있을 때만 LLM 호출
+                sys_msg, user_msg_json = build_prompt_born_digital(
+                    units, target_lang, book_title=book.title, book_genre=book.genre, glossary=book.glossary
+                )
+                logger.debug(f"[DEBUG-TASK]user_msg : {user_msg_json}")
 
-            image_src_map = _inject_images_from_db(layout, book, pno)
-            logger.debug(f"[DEBUG-TASK]img_map : {image_src_map}")
-            
-            sys_msg, user_msg_json = build_prompt_born_digital(
-                units, target_lang, book_title=book.title, book_genre=book.genre, glossary=book.glossary
-            )
-            logger.debug(f"[DEBUG-TASK]user_msg : {user_msg_json}")
-
-            translated_units, errs = llm.translate_text_units(
-                sys_msg=sys_msg, user_msg_json=user_msg_json, max_retries=2, expected_length=len(units)
-            )
+                translated_units, errs = llm.translate_text_units(
+                    sys_msg=sys_msg, user_msg_json=user_msg_json, max_retries=2, expected_length=len(units)
+                )
 
             with transaction.atomic():
-                if translated_units and len(translated_units) == len(units):
+                # 번역이 성공했거나, 원래 텍스트가 없었던 경우 HTML 생성
+                if (units and translated_units and len(translated_units) == len(units)) or not units:
+                    image_src_map = _inject_images_from_db(layout, book, pno)
+                    logger.debug(f"[DEBUG-TASK]img_map : {image_src_map}")
+
                     html_faithful = build_faithful_html(
                         layout, translated_units, idx_map, 
                         image_src_map=image_src_map, 
@@ -212,7 +206,6 @@ def translate_book_pages_born_digital(self, book_id: int, target_lang: str, page
                     logger.debug(f"[DEBUG-TASK]html_faithful : {html_faithful}")
                     html_readable = build_readable_html(layout, translated_units, idx_map)
                     logger.debug(f"[DEBUG-TASK]html_readable : {html_readable}")
-
                     base_db_data = {
                         "schema_version": "weaver.page.born_digital.v1",
                         "page": {
@@ -221,7 +214,7 @@ def translate_book_pages_born_digital(self, book_id: int, target_lang: str, page
                             "page_h": page.height,
                             "page_units": "px"
                         },
-                        "translated_units": translated_units
+                        "translated_units": translated_units or []
                     }
 
                     data_faithful = {**base_db_data, "html": html_faithful}
@@ -236,6 +229,7 @@ def translate_book_pages_born_digital(self, book_id: int, target_lang: str, page
                         defaults={"data": data_readable, "status": "ready"}
                     )
                 else:
+                    # 번역 실패
                     db_data = {"error": errs or ["Translated unit count mismatch."]}
                     for mode in ["faithful", "readable"]:
                         TranslatedPage.objects.update_or_create(
@@ -270,48 +264,40 @@ def retranslate_single_page(self, book_id: int, page_no: int, target_lang: str, 
             llm = GeminiHelper(schema=schema)
             pdf_path = book.original_file.path
 
-            # Get current flawed translation units for context
-            current_tp = TranslatedPage.objects.filter(book=book, page_no=page_no, lang=target_lang, mode='faithful').first()
-            current_translated_units = None
-            if current_tp and isinstance(current_tp.data, dict):
-                current_translated_units = current_tp.data.get('translated_units')
-
             # Get original text units from PDF
             layout = collect_page_layout(pdf_path, page_no)
             units, idx_map = spans_to_units(layout.get("spans", []))
 
-            if not units:
-                logger.info(f"Retranslation skipped for born-digital page {page_no} as it has no text.")
-                with transaction.atomic():
-                    for mode in ["faithful", "readable"]:
-                        TranslatedPage.objects.update_or_create(
-                            book=book, page_no=page_no, lang=target_lang, mode=mode,
-                            defaults={"data": {}, "status": "ready"}
-                        )
-                return
+            translated_units, errs = [], None
+            if units:
+                # Get current flawed translation units for context
+                current_tp = TranslatedPage.objects.filter(book=book, page_no=page_no, lang=target_lang, mode='faithful').first()
+                current_translated_units = None
+                if current_tp and isinstance(current_tp.data, dict):
+                    current_translated_units = current_tp.data.get('translated_units')
 
-            # Build prompt with feedback
-            sys_msg, user_msg_json = build_prompt_born_digital(
-                units=units,
-                target_lang=target_lang,
-                book_title=book.title,
-                book_genre=book.genre,
-                glossary=book.glossary,
-                user_feedback=feedback,
-                current_translation=current_translated_units
-            )
+                # Build prompt with feedback
+                sys_msg, user_msg_json = build_prompt_born_digital(
+                    units=units,
+                    target_lang=target_lang,
+                    book_title=book.title,
+                    book_genre=book.genre,
+                    glossary=book.glossary,
+                    user_feedback=feedback,
+                    current_translation=current_translated_units
+                )
 
-            # Call LLM for new translation
-            translated_units, errs = llm.translate_text_units(
-                sys_msg=sys_msg, user_msg_json=user_msg_json, max_retries=2, expected_length=len(units)
-            )
-
-            image_src_map = _inject_images_from_db(layout, book, page_no)
-            logger.debug(f"[DEBUG-TASK]img_map : {image_src_map}")
+                # Call LLM for new translation
+                translated_units, errs = llm.translate_text_units(
+                    sys_msg=sys_msg, user_msg_json=user_msg_json, max_retries=2, expected_length=len(units)
+                )
 
             # Save new result
             with transaction.atomic():
-                if translated_units and len(translated_units) == len(units):
+                if (units and translated_units and len(translated_units) == len(units)) or not units:
+                    image_src_map = _inject_images_from_db(layout, book, page_no)
+                    logger.debug(f"[DEBUG-TASK]img_map : {image_src_map}")
+
                     html_faithful = build_faithful_html(
                         layout, translated_units, idx_map, 
                         image_src_map=image_src_map, 
@@ -326,7 +312,7 @@ def retranslate_single_page(self, book_id: int, page_no: int, target_lang: str, 
                             "page_h": page.height,
                             "page_units": "px"
                         },
-                        "translated_units": translated_units
+                        "translated_units": translated_units or []
                     }
 
                     data_faithful = {**base_db_data, "html": html_faithful}

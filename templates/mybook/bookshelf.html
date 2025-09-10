@@ -5,83 +5,326 @@
 
 {% block content %}
 <div class="bg-gray-50 min-h-screen-minus-nav-footer">
-    <div class="max-w-7xl mx-auto py-12 px-4 sm:px-6 lg:px-8">
-        <div class="flex justify-between items-center mb-8">
-            <h1 class="text-3xl font-bold text-gray-900">{% trans "내 서재" %}</h1>
-            <a href="{% url 'mybook:upload_page' %}" class="inline-flex items-center px-4 py-2 border border-transparent text-sm font-medium rounded-md shadow-sm text-white bg-blue-600 hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500">
-                <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5 mr-2" viewBox="0 0 20 20" fill="currentColor">
-                    <path fill-rule="evenodd" d="M10 3a1 1 0 011 1v5h5a1 1 0 110 2h-5v5a1 1 0 11-2 0v-5H4a1 1 0 110-2h5V4a1 1 0 011-1z" clip-rule="evenodd" />
-                </svg>
-                {% trans "새 책 업로드" %}
-            </a>
-        </div>
-
-        <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-8">
-            {% for book in books %}
-            <div class="bg-white rounded-xl shadow-lg overflow-hidden transform hover:-translate-y-1 transition-transform duration-300">
-                <div class="p-6">
-                    <div class="flex justify-between items-start">
-                        <h2 class="text-xl font-semibold text-gray-800 truncate pr-4" title="{{ book.title }}">{{ book.title }}</h2>
-                        {% if book.status == 'completed' %}
-                            <span class="flex-shrink-0 inline-block px-2 py-1 text-xs font-semibold leading-tight text-green-700 bg-green-100 rounded-full">{% trans "완료" %}</span>
-                        {% elif book.status == 'processing' %}
-                            <span class="flex-shrink-0 inline-block px-2 py-1 text-xs font-semibold leading-tight text-yellow-700 bg-yellow-100 rounded-full">{% trans "번역 중" %}</span>
-                        {% elif book.status == 'uploaded' %}
-                            <span class="flex-shrink-0 inline-block px-2 py-1 text-xs font-semibold leading-tight text-blue-700 bg-blue-100 rounded-full">{% trans "번역 대기" %}</span>
-                        {% elif book.status == 'failed' %}
-                            <span class="flex-shrink-0 inline-block px-2 py-1 text-xs font-semibold leading-tight text-red-700 bg-red-100 rounded-full">{% trans "실패" %}</span>
-                        {% else %}
-                            <span class="flex-shrink-0 inline-block px-2 py-1 text-xs font-semibold leading-tight text-gray-700 bg-gray-100 rounded-full">{{ book.get_status_display }}</span>
-                        {% endif %}
-                    </div>
-                    <p class="text-sm text-gray-500 mt-2">{% trans "페이지" %}: {{ book.page_count }}</p>
-                    <p class="text-sm text-gray-500 mt-1">{% trans "업로드" %}: {{ book.created_at|date:"Y.m.d" }}</p>
-                    {% if book.target_lang %}
-                        <p class="text-sm text-gray-500 mt-1">{% trans "번역 언어" %}: <span class="font-medium text-gray-700">{{ book.target_lang|upper }}</span></p>
-                    {% endif %}
-
-                    <div class="mt-6">
-                        {% if book.status == 'uploaded' or book.status == 'failed' %}
-                            <a href="{% url 'mybook:book_prepare' book.id %}" class="w-full flex justify-center py-2 px-4 border border-transparent rounded-md shadow-sm text-sm font-medium text-white bg-blue-600 hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500">
-                                {% trans "번역 준비" %}
-                            </a>
-                        {% elif book.status == 'completed' %}
-                             <a href="{% url 'mybook:book_page' book.id 1 %}" class="w-full flex justify-center py-2 px-4 border border-transparent rounded-md shadow-sm text-sm font-medium text-white bg-gray-800 hover:bg-gray-900 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-gray-500">
-                                {% trans "책 보기" %}
-                            </a>
-                        {% elif book.status == 'processing' %}
-                            <a href="{% url 'mybook:book_page' book.id 1 %}" class="w-full flex justify-center py-2 px-4 border border-gray-300 rounded-md shadow-sm text-sm font-medium text-gray-700 bg-gray-100 cursor-not-allowed">
-                                <div class="flex justify-center items-center">
-                                    <div class="animate-spin rounded-full h-4 w-4 border-b-2 border-gray-600 mr-2"></div>
-                                    <span>{% trans "번역 진행 중..." %}</span>
-                                </div>
-                            </a>
-                        {% else %}
-                             <a href="{% url 'mybook:book_page' book.id 1 %}" class="w-full flex justify-center py-2 px-4 border border-transparent rounded-md shadow-sm text-sm font-medium text-white bg-gray-800 hover:bg-gray-900 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-gray-500">
-                                {% trans "책 보기" %}
-                            </a>
-                        {% endif %}
-                    </div>
-                </div>
-            </div>
-            {% empty %}
-            <div class="col-span-1 sm:col-span-2 lg:col-span-3">
-                <div class="text-center py-20 px-6 border-2 border-dashed border-gray-300 rounded-lg">
-                    <svg class="mx-auto h-12 w-12 text-gray-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" aria-hidden="true">
-                        <path vector-effect="non-scaling-stroke" stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 13h6m-3-3v6m-9 1V7a2 2 0 012-2h6l2 2h6a2 2 0 012 2v8a2 2 0 01-2 2H5a2 2 0 01-2-2z" />
-                    </svg>
-                    <h3 class="mt-2 text-sm font-medium text-gray-900">{% trans "아직 책이 없습니다." %}</h3>
-                    <p class="mt-1 text-sm text-gray-500">{% trans "첫 번째 책을 업로드하고 번역을 시작해 보세요." %}</p>
-                    <div class="mt-6">
-                        <a href="{% url 'mybook:upload_page' %}" class="inline-flex items-center px-4 py-2 border border-transparent text-sm font-medium rounded-md shadow-sm text-white bg-blue-600 hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500">
-                            {% trans "새 책 업로드하기" %}
-                        </a>
-                    </div>
-                </div>
-            </div>
-            {% endfor %}
-        </div>
+  <div class="max-w-7xl mx-auto py-10 px-4 sm:px-6 lg:px-8">
+    <!-- Top row: Title + default action -->
+    <div class="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between mb-6">
+      <div class="flex items-center gap-3">
+        <h1 class="text-3xl font-bold text-gray-900">{% trans "내 서재" %}</h1>
+        <span id="selectionBadge" class="hidden text-sm px-2 py-0.5 rounded-full bg-gray-100 text-gray-700"></span>
+      </div>
+      <div class="flex items-center gap-3">
+        <a href="{% url 'mybook:upload_page' %}" class="inline-flex items-center gap-2 px-4 py-2 rounded-lg text-white bg-blue-600 hover:bg-blue-700 shadow-sm">
+          <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" viewBox="0 0 20 20" fill="currentColor"><path fill-rule="evenodd" d="M10 3a1 1 0 011 1v5h5a1 1 0 110 2h-5v5a1 1 0 11-2 0v-5H4a1 1 0 110-2h5V4a1 1 0 011-1z" clip-rule="evenodd"/></svg>
+          {% trans "새 책 업로드" %}
+        </a>
+      </div>
     </div>
+
+    <!-- Selection toolbar (Google Photos style) -->
+    <div id="selectionToolbar" class="hidden sticky top-[72px] z-20 mb-4 border rounded-xl bg-white/90 backdrop-blur shadow-sm px-3 sm:px-4 py-2">
+      <div class="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+        <div class="flex items-center gap-2 text-sm text-gray-700">
+          <input id="selectAllCheckbox" type="checkbox" class="h-4 w-4 rounded border-gray-300">
+          <label for="selectAllCheckbox" class="select-none cursor-pointer">{% trans "모두 선택" %}</label>
+          <span class="hidden sm:inline text-gray-300">|</span>
+          <button id="clearSelectionBtn" type="button" class="text-gray-600 hover:text-gray-900 underline underline-offset-2">{% trans "선택 해제(Esc)" %}</button>
+        </div>
+        <div class="flex flex-wrap items-center gap-2">
+          <button id="btnPrepare" type="button" disabled class="inline-flex items-center gap-2 px-3 py-2 rounded-lg bg-gray-100 text-gray-400 cursor-not-allowed">
+            <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 20v-6m0 0l3 3m-3-3l-3 3M6 9V5a2 2 0 012-2h8a2 2 0 012 2v4"/></svg>
+            <span>{% trans "재번역 준비" %}</span>
+          </button>
+          <button id="btnPublish" type="button" disabled class="inline-flex items-center gap-2 px-3 py-2 rounded-lg bg-gray-100 text-gray-400 cursor-not-allowed">
+            <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 3v12m0 0l-3-3m3 3l3-3M4 21h16"/></svg>
+            <span>{% trans "다운로드" %}</span>
+          </button>
+          <button id="btnDelete" type="button" disabled class="inline-flex items-center gap-2 px-3 py-2 rounded-lg bg-gray-100 text-gray-400 cursor-not-allowed">
+            <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 6h18M8 6v12m8-12v12M5 6l1 14a2 2 0 002 2h8a2 2 0 002-2l1-14M9 6V4a2 2 0 012-2h2a2 2 0 012 2v2"/></svg>
+            <span>{% trans "삭제" %}</span>
+          </button>
+        </div>
+      </div>
+    </div>
+
+    <!-- Grid -->
+    <div id="booksGrid" class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-8">
+      {% for book in books %}
+      <div class="group relative bg-white rounded-xl shadow-md hover:shadow-lg transition-shadow overflow-hidden" data-book-id="{{ book.id }}" data-status="{{ book.status }}" data-target-lang="{{ book.target_lang|default_if_none:'' }}" data-prepare-url="{% url 'mybook:book_prepare' book.id %}" data-publish-url="{% url 'mybook:publish_book' book.id %}">
+        <!-- selection checkbox -->
+        <div class="absolute left-2 top-2 z-10">
+          <input type="checkbox" class="selection-checkbox h-5 w-5 rounded-md border-gray-300 text-blue-600 focus:ring-blue-500 opacity-0 group-[.selected]:opacity-100 group-hover:opacity-100 transition-opacity">
+        </div>
+
+        <!-- clickable area -->
+        <button type="button" class="w-full text-left" data-role="card-button">
+          <div class="p-6">
+            <div class="flex justify-between items-start">
+                <h2 class="text-xl font-semibold text-gray-800 truncate pr-4" title="{{ book.title }}">{{ book.title }}</h2>
+                {% if book.status == 'completed' %}
+                    <span class="flex-shrink-0 inline-block px-2 py-1 text-xs font-semibold leading-tight text-green-700 bg-green-100 rounded-full">{% trans "완료" %}</span>
+                {% elif book.status == 'processing' %}
+                    <span class="flex-shrink-0 inline-block px-2 py-1 text-xs font-semibold leading-tight text-yellow-700 bg-yellow-100 rounded-full">{% trans "번역 중" %}</span>
+                {% elif book.status == 'uploaded' %}
+                    <span class="flex-shrink-0 inline-block px-2 py-1 text-xs font-semibold leading-tight text-blue-700 bg-blue-100 rounded-full">{% trans "번역 대기" %}</span>
+                {% elif book.status == 'failed' %}
+                    <span class="flex-shrink-0 inline-block px-2 py-1 text-xs font-semibold leading-tight text-red-700 bg-red-100 rounded-full">{% trans "실패" %}</span>
+                {% else %}
+                    <span class="flex-shrink-0 inline-block px-2 py-1 text-xs font-semibold leading-tight text-gray-700 bg-gray-100 rounded-full">{{ book.get_status_display }}</span>
+                {% endif %}
+            </div>
+            <p class="text-sm text-gray-500 mt-2">{% trans "페이지" %}: {{ book.page_count }}</p>
+            <p class="text-sm text-gray-500 mt-1">{% trans "업로드" %}: {{ book.created_at|date:"Y.m.d" }}</p>
+            {% if book.target_lang %}
+                <p class="text-sm text-gray-500 mt-1">{% trans "번역 언어" %}: <span class="font-medium text-gray-700">{{ book.target_lang|upper }}</span></p>
+            {% endif %}
+            <div class="mt-4">
+              <!-- default CTA shown when not selecting -->
+              <div class="not-selecting:flex hidden gap-2">
+                {% if book.status == 'uploaded' or book.status == 'failed' %}
+                  <a href="{% url 'mybook:book_prepare' book.id %}" class="w-full flex justify-center py-2 px-4 border border-transparent rounded-md shadow-sm text-sm font-medium text-white bg-blue-600 hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500">
+                    {% trans "번역 준비" %}
+                  </a>
+                {% elif book.status == 'completed' %}
+                  <a href="{% url 'mybook:book_page' book.id 1 %}" class="w-full flex justify-center py-2 px-4 border border-transparent rounded-md shadow-sm text-sm font-medium text-white bg-gray-800 hover:bg-gray-900 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-gray-500">{% trans "책 읽기" %}</a>
+                {% elif book.status == 'processing' %}
+                  <a href="{% url 'mybook:book_page' book.id 1 %}" class="w-full flex justify-center py-2 px-4 border border-gray-300 rounded-md shadow-sm text-sm font-medium text-gray-700 bg-gray-100 cursor-not-allowed">
+                      <div class="flex justify-center items-center">
+                          <div class="animate-spin rounded-full h-4 w-4 border-b-2 border-gray-600 mr-2"></div>
+                          <span>{% trans "번역 진행 중..." %}</span>
+                      </div>
+                  </a>
+                {% else %}
+                  <a href="{% url 'mybook:book_page' book.id 1 %}" class="w-full flex justify-center py-2 px-4 border border-transparent rounded-md shadow-sm text-sm font-medium text-white bg-gray-800 hover:bg-gray-900 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-gray-500">
+                    {% trans "책 읽기" %}
+                </a>
+                {% endif %}
+              </div>
+            </div>
+          </div>
+        </button>
+
+        <!-- selection ring overlay -->
+        <div class="pointer-events-none absolute inset-0 rounded-xl ring-2 ring-blue-500/0 group-[.selected]:ring-blue-500/80 transition-[box-shadow,transform]"></div>
+      </div>
+      {% empty %}
+      <div class="col-span-1 sm:col-span-2 lg:col-span-3">
+        <div class="text-center py-20 px-6 border-2 border-dashed border-gray-300 rounded-lg bg-white">
+          <svg class="mx-auto h-12 w-12 text-gray-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" aria-hidden="true"><path vector-effect="non-scaling-stroke" stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 13h6m-3-3v6m-9 1V7a2 2 0 012-2h6l2 2h6a2 2 0 012 2v8a2 2 0 01-2 2H5a2 2 0 01-2-2z"/></svg>
+          <h3 class="mt-2 text-sm font-medium text-gray-900">{% trans "아직 책이 없습니다." %}</h3>
+          <p class="mt-1 text-sm text-gray-500">{% trans "첫 번째 책을 업로드하고 번역을 시작해 보세요." %}</p>
+          <div class="mt-6">
+            <a href="{% url 'mybook:upload_page' %}" class="inline-flex items-center px-4 py-2 rounded-md text-sm font-medium text-white bg-blue-600 hover:bg-blue-700 shadow-sm">{% trans "새 책 업로드하기" %}</a>
+          </div>
+        </div>
+      </div>
+      {% endfor %}
+    </div>
+  </div>
 </div>
 {% endblock %}
 
+{% block extra_js %}
+<script>
+(function() {
+  const grid = document.getElementById('booksGrid');
+  if (!grid) return;
+
+  // State
+  const selected = new Map(); // id -> {el, status}
+  const toolbar = document.getElementById('selectionToolbar');
+  const badge = document.getElementById('selectionBadge');
+  const selectAll = document.getElementById('selectAllCheckbox');
+  const clearBtn = document.getElementById('clearSelectionBtn');
+  const btnPrepare = document.getElementById('btnPrepare');
+  const btnPublish = document.getElementById('btnPublish');
+  const btnDelete = document.getElementById('btnDelete');
+
+  // CSRF
+  function getCookie(name){let v=null;if(document.cookie&&document.cookie!==''){const cs=document.cookie.split(';');for(let i=0;i<cs.length;i++){const c=cs[i].trim();if(c.startsWith(name+'=')){v=decodeURIComponent(c.substring(name.length+1));break;}}}return v;}
+  const csrftoken = getCookie('csrftoken');
+
+  // Helpers
+  function updateToolbarState(){
+    const count = selected.size;
+    // Toggle toolbar & default CTA visibility
+    if (count > 0) {
+      toolbar.classList.remove('hidden');
+      badge.classList.remove('hidden');
+      badge.textContent = `${count} {% trans "권 선택됨" %}`;
+      document.querySelectorAll('.not-selecting\\:flex').forEach(el => el.classList.add('hidden'));
+    } else {
+      toolbar.classList.add('hidden');
+      badge.classList.add('hidden');
+      badge.textContent = '';
+      document.querySelectorAll('.not-selecting\\:flex').forEach(el => el.classList.remove('hidden'));
+    }
+
+    // Enable/disable buttons
+    const isSingle = (count === 1);
+    const first = isSingle ? Array.from(selected.values())[0] : null;
+    const status = first?.status;
+
+    // 재번역 준비: 단일 선택만 (failed/completed 상태에서만 허용, legacy인 ready 도 허용)
+    setBtnState(btnPrepare, isSingle && (status === 'completed' || status === 'failed' || status === 'ready'));
+
+    // 출판하기: 단일 + completed 상태만
+    setBtnState(btnPublish, isSingle && status === 'completed');
+
+    // 삭제: 1개 이상
+    setBtnState(btnDelete, count >= 1);
+
+    // Select-all checkbox visual
+    const allCards = grid.querySelectorAll('[data-book-id]');
+    selectAll.checked = (count > 0 && count === allCards.length);
+    selectAll.indeterminate = (count > 0 && count < allCards.length);
+  }
+
+  function setBtnState(btn, enabled){
+    if (enabled){
+      btn.disabled = false;
+      btn.classList.remove('bg-gray-100','text-gray-400','cursor-not-allowed');
+      btn.classList.add('bg-gray-900','text-white','hover:bg-black');
+    } else {
+      btn.disabled = true;
+      btn.classList.add('bg-gray-100','text-gray-400','cursor-not-allowed');
+      btn.classList.remove('bg-gray-900','text-white','hover:bg-black');
+    }
+  }
+
+  function toggleCard(card){
+    const id = card.dataset.bookId;
+    const status = card.dataset.status;
+    const checkbox = card.querySelector('.selection-checkbox');
+    const selectedNow = selected.has(id);
+    if (selectedNow){
+      selected.delete(id);
+      card.classList.remove('selected');
+      if (checkbox) checkbox.checked = false;
+    } else {
+      selected.set(id, { el: card, status });
+      card.classList.add('selected');
+      if (checkbox) checkbox.checked = true;
+    }
+    updateToolbarState();
+  }
+
+  function clearSelection(){
+    selected.forEach(({el}) => {
+      el.classList.remove('selected');
+      const cb = el.querySelector('.selection-checkbox');
+      if (cb) cb.checked = false;
+    });
+    selected.clear();
+    updateToolbarState();
+  }
+
+  // Event: card click
+  grid.addEventListener('click', (e) => {
+    const btn = e.target.closest('[data-role="card-button"]');
+    const card = e.target.closest('[data-book-id]');
+    if (!card) return;
+
+    // If a text link inside default CTA is clicked while not in selection mode, let it pass
+    if (btn && selected.size === 0) {
+      // Not selecting -> default behavior (e.g., anchor inside)
+      return; 
+    }
+
+    // Toggle selection
+    e.preventDefault();
+    toggleCard(card);
+  });
+
+  // Event: explicit checkbox click (prevents bubbling issues)
+  grid.querySelectorAll('.selection-checkbox').forEach(cb => {
+    cb.addEventListener('click', (e) => {
+      e.stopPropagation();
+      const card = e.target.closest('[data-book-id]');
+      toggleCard(card);
+    });
+  });
+
+  // Select all
+  selectAll.addEventListener('change', () => {
+    const cards = grid.querySelectorAll('[data-book-id]');
+    if (selectAll.checked) {
+      cards.forEach(card => {
+        const id = card.dataset.bookId;
+        if (!selected.has(id)) {
+          selected.set(id, { el: card, status: card.dataset.status });
+          card.classList.add('selected');
+          const cb = card.querySelector('.selection-checkbox');
+          if (cb) cb.checked = true;
+        }
+      });
+    } else {
+      clearSelection();
+    }
+    updateToolbarState();
+  });
+
+  // Clear selection button & ESC key
+  clearBtn.addEventListener('click', clearSelection);
+  document.addEventListener('keydown', (e) => {
+    if (e.key === 'Escape') clearSelection();
+  });
+
+  // Actions
+  btnPrepare.addEventListener('click', () => {
+    if (selected.size !== 1) return;
+    const { el } = Array.from(selected.values())[0];
+    const url = el.dataset.prepareUrl;
+    if (url) window.location.href = url;
+  });
+
+  btnPublish.addEventListener('click', () => {
+    if (selected.size !== 1) return;
+    const { el } = Array.from(selected.values())[0];
+    const baseUrl = el.dataset.publishUrl;
+    const lang = el.dataset.targetLang;
+    const mode = 'faithful'; // 기본값으로 faithful 모드 사용
+
+    if (baseUrl) {
+      // URL 객체를 사용하여 안전하게 쿼리 파라미터를 구성합니다.
+      const url = new URL(baseUrl, window.location.origin);
+      if (lang) {
+        url.searchParams.set('lang', lang);
+      }
+      url.searchParams.set('mode', mode);
+      window.location.href = url.href;
+    }
+  });
+
+  btnDelete.addEventListener('click', async () => {
+    if (selected.size < 1) return;
+    const ids = Array.from(selected.keys());
+    if (!confirm(`{% trans "선택한 항목을 삭제할까요? 이 작업은 되돌릴 수 없습니다." %}`)) return;
+
+    try {
+      const resp = await fetch('{% url "mybook:bulk_delete_books" %}', {
+        method: 'POST',
+        headers: { 'X-CSRFToken': csrftoken, 'Content-Type': 'application/json' },
+        body: JSON.stringify({ ids }),
+      });
+      const data = await resp.json().catch(() => ({}));
+      if (resp.ok) {
+        // Remove cards from DOM
+        ids.forEach(id => {
+          const el = grid.querySelector(`[data-book-id="${id}"]`);
+          if (el) el.remove();
+        });
+        clearSelection();
+      } else {
+        alert((data && (data.detail || data.error)) || '{% trans "삭제 중 오류가 발생했습니다." %}');
+      }
+    } catch (err) {
+      console.error(err);
+      alert('{% trans "네트워크 오류가 발생했습니다." %}');
+    }
+  });
+
+  // Initial state
+  updateToolbarState();
+})();
+</script>
+{% endblock %}

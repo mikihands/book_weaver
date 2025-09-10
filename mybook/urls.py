@@ -20,7 +20,9 @@ from .views import (
     user_logout,
     BookshelfView,
     BookSearchAPIView,
-    ContactAPIView
+    ContactAPIView,
+    BulkDeleteBooksAPIView,
+    PublishBookAPIView,
 )
 
 app_name = 'mybook'
@@ -47,4 +49,6 @@ urlpatterns = [
     path('bookshelf/', BookshelfView.as_view(), name='bookshelf'),
     path("api/contact/", ContactAPIView.as_view(), name="api_contact"),
     path("contact/", TemplateView.as_view(template_name="contact_us.html"), name="contact"),
+    path("books/bulk-delete/", BulkDeleteBooksAPIView.as_view(), name="bulk_delete_books"),
+    path("books/<int:book_id>/publish/", PublishBookAPIView.as_view(), name="publish_book"),
 ]
