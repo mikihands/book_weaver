@@ -47,3 +47,17 @@ class ContactSerializer(serializers.Serializer):
     def validate(self, attrs):
         # 여기서는 유효성만 확인하고, 실제로는 view에서 is_bot 플래그로 처리
         return attrs
+    
+class BulkDeleteSerializer(serializers.Serializer):
+    ids = serializers.ListField(
+        child=serializers.IntegerField(min_value=1),
+        allow_empty=False
+    )
+
+class PublishRequestSerializer(serializers.Serializer):
+    # 기본은 faithful 모드 PDF
+    lang = serializers.CharField(max_length=10, required=False, allow_blank=True)
+    mode = serializers.ChoiceField(
+        choices=["faithful", "readable"],  # TranslatedPage.TRANSLATION_MODES
+        required=False, default="faithful"
+    )
