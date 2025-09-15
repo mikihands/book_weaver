@@ -20,14 +20,19 @@
         }
     </style>
     <style>
-        /* book_page_v2.html 템플릿의 <style> 태그 안에 추가 */
-        .edit-mode-active .page span {
+        .page.edit-mode-active [id^="span-"],
+        .page.edit-mode-active [id^="el-"] {
             cursor: pointer;
             transition: background-color 0.2s;
         }
-        .edit-mode-active .page span:hover {
+        .page.edit-mode-active [id^="el-"] {
+            position: relative;
+        }
+        .page.edit-mode-active [id^="span-"]:hover,
+        .page.edit-mode-active [id^="el-"]:hover {
             background-color: rgba(0, 123, 255, 0.2);
-            outline: 1px dashed rgba(0, 123, 255, 0.5);
+            outline: 1px dashed rgba(0, 123, 255, 0.7);
+            z-index: 10; /* 다른 요소 위에 보이도록 z-index를 높게 설정 */
         }
         .span-editor-popover {
             position: absolute;
@@ -56,6 +61,13 @@
         }
         .span-editor-popover input[type="text"] {
             width: 100%;
+        }
+        .span-editor-popover textarea {
+            width: 100%;
+            border: 1px solid #ddd;
+            border-radius: 4px;
+            padding: 4px 8px;
+            font-family: inherit;
         }
         .span-selected {
             outline: 2px solid #007bff;
@@ -533,11 +545,18 @@
             const editModeBtn = document.getElementById('edit-mode-btn');
             const saveChangesBtn = document.getElementById('save-changes-btn');
             const pageContainer = document.querySelector('.page');
+            const processingMode = "{{ book.processing_mode }}";
 
             let isInEditMode = false;
-            let changes = {}; // { spanId: { style, text } }
+            let changes = {}; // { elementId: { style, text } }
             let currentEditor = null;
-            let selectedSpan = null;
+            let selectedElement = null;
+
+            // 편집할 내용이 없으면 버튼 숨김
+            if (!pageContainer) {
+                if(editModeBtn) editModeBtn.style.display = 'none';
+                return;
+            }
 
             editModeBtn.addEventListener('click', toggleEditMode);
             saveChangesBtn.addEventListener('click', saveChanges);
@@ -545,91 +564,127 @@
             function toggleEditMode() {
                 isInEditMode = !isInEditMode;
                 pageContainer.classList.toggle('edit-mode-active', isInEditMode);
-                editModeBtn.textContent = isInEditMode ? '편집 모드 종료' : '편집 모드';
+                editModeBtn.textContent = isInEditMode ? '{% trans "편집 모드 종료" %}' : '{% trans "편집 모드" %}';
                 saveChangesBtn.style.display = isInEditMode ? 'inline-block' : 'none';
 
                 if (isInEditMode) {
-                    setupSpanListeners();
+                    setupEditableElementListeners();
                 } else {
-                    removeSpanListeners();
+                    removeEditableElementListeners();
                     removeEditor();
                 }
             }
 
-            function setupSpanListeners() {
-                pageContainer.querySelectorAll('span[id^="span-"]').forEach(span => {
-                    span.addEventListener('click', handleSpanClick);
+            function getEditableElementSelector() {
+                // born_digital은 span, ai_layout은 p, h1, li 등
+                return processingMode === 'born_digital' 
+                    ? 'span[id^="span-"]' 
+                    : '[id^="el-"]';
+            }
+
+            function setupEditableElementListeners() {
+                const selector = getEditableElementSelector();
+                pageContainer.querySelectorAll(selector).forEach(el => {
+                    el.addEventListener('click', handleElementClick);
                 });
             }
 
-            function removeSpanListeners() {
-                pageContainer.querySelectorAll('span[id^="span-"]').forEach(span => {
-                    span.removeEventListener('click', handleSpanClick);
+            function removeEditableElementListeners() {
+                const selector = getEditableElementSelector();
+                pageContainer.querySelectorAll(selector).forEach(el => {
+                    el.removeEventListener('click', handleElementClick);
                 });
             }
 
-            function handleSpanClick(event) {
+            function handleElementClick(event) {
                 if (!isInEditMode) return;
                 event.stopPropagation();
-                const span = event.currentTarget;
+                const element = event.currentTarget;
                 
-                if (selectedSpan) {
-                    selectedSpan.classList.remove('span-selected');
+                if (selectedElement) {
+                    selectedElement.classList.remove('span-selected');
                 }
-                selectedSpan = span;
-                selectedSpan.classList.add('span-selected');
+                selectedElement = element;
+                selectedElement.classList.add('span-selected');
 
-                showEditorForSpan(span);
+                showEditorForElement(element);
             }
 
-            function showEditorForSpan(span) {
+            function showEditorForElement(element) {
                 removeEditor();
 
-                const rect = span.getBoundingClientRect();
+                const rect = element.getBoundingClientRect();
                 const editor = document.createElement('div');
                 editor.className = 'span-editor-popover';
                 
-                const style = getComputedStyle(span);
-                const originalStyle = span.getAttribute('style');
+                if (processingMode === 'born_digital') {
+                    // --- born_digital용 UI (기존 로직 유지) ---
+                    const originalStyle = element.getAttribute('style') || '';
+                    const leftMatch = originalStyle.match(/left:\s*([^;]+);/);
+                    const fontSizeMatch = originalStyle.match(/font-size:\s*([^;]+);/);
+                    const letterSpacingMatch = originalStyle.match(/letter-spacing:\s*([^;]+);/);
 
-                // 정규식을 사용하여 left, font-size, letter-spacing 값 추출
-                const leftMatch = originalStyle.match(/left:\s*([^;]+);/);
-                const fontSizeMatch = originalStyle.match(/font-size:\s*([^;]+);/);
-                const letterSpacingMatch = originalStyle.match(/letter-spacing:\s*([^;]+);/);
+                    const currentLeft = leftMatch ? parseFloat(leftMatch[1]) : 0;
+                    const currentFontSize = fontSizeMatch ? parseFloat(fontSizeMatch[1]) : 0;
+                    const currentLetterSpacing = letterSpacingMatch ? parseFloat(letterSpacingMatch[1]) : 0;
 
-                const currentLeft = leftMatch ? parseFloat(leftMatch[1]) : 0;
-                const currentFontSize = fontSizeMatch ? parseFloat(fontSizeMatch[1]) : 0;
-                const currentLetterSpacing = letterSpacingMatch ? parseFloat(letterSpacingMatch[1]) : 0;
+                    editor.innerHTML = `
+                        
+                        <label>Left (px): <input type="number" step="0.1" value="${currentLeft}" data-style="left" data-unit="px"></label>
+                        <label>Font Size (px): <input type="number" step="0.1" value="${currentFontSize}" data-style="font-size" data-unit="px"></label>
+                        <label>Letter Spacing (px): <input type="number" step="0.1" value="${currentLetterSpacing}" data-style="letter-spacing" data-unit="px"></label>
+                        <label>Text: <input type="text" value="${element.textContent}"></label>
+                    `;
 
-                editor.innerHTML = `
-                    <label>Left (px): <input type="number" step="0.1" value="${currentLeft}" data-style="left" data-unit="px"></label>
-                    <label>Font Size (px): <input type="number" step="0.1" value="${currentFontSize}" data-style="font-size" data-unit="px"></label>
-                    <label>Letter Spacing (px): <input type="number" step="0.1" value="${currentLetterSpacing}" data-style="letter-spacing" data-unit="px"></label>
-                    <label>Text: <input type="text" value="${span.textContent}"></label>
-                `;
+                    editor.addEventListener('input', (e) => {
+                        const target = e.target;
+                        if (target.tagName === 'INPUT') {
+                            if (target.type === 'number') {
+                                const styleProp = target.dataset.style;
+                                const unit = target.dataset.unit;
+                                element.style[styleProp] = `${target.value}${unit}`;
+                            } else if (target.type === 'text') {
+                                element.textContent = target.value;
+                            }
+                            recordChange(element);
+                        }
+                    });
+                } else {
+                    // --- ai_layout용 UI ---
+                    const originalStyle = element.getAttribute('style') || '';
+                    editor.innerHTML = `
+                        
+                        <div>
+                            <label for="text-editor" class="block text-sm font-medium text-gray-700 mb-1">Text</label>
+                            <textarea id="text-editor" rows="3" class="w-full border border-gray-300 rounded-md p-2 text-sm">${element.textContent}</textarea>
+                        </div>
+                        <div>
+                            <label for="style-editor" class="block text-sm font-medium text-gray-700 mb-1">Style</label>
+                            <textarea id="style-editor" rows="4" class="w-full border border-gray-300 rounded-md p-2 text-sm font-mono">${originalStyle}</textarea>
+                        </div>
+                    `;
+
+                    editor.querySelector('#text-editor').addEventListener('input', (e) => {
+                        element.textContent = e.target.value;
+                        recordChange(element);
+                    });
+                    editor.querySelector('#style-editor').addEventListener('input', (e) => {
+                        element.setAttribute('style', e.target.value);
+                        recordChange(element);
+                    });
+                }
 
                 document.body.appendChild(editor);
                 editor.style.left = `${window.scrollX + rect.left}px`;
                 editor.style.top = `${window.scrollY + rect.bottom + 5}px`;
                 currentEditor = editor;
+            }
 
-                editor.addEventListener('input', (e) => {
-                    const target = e.target;
-                    if (target.tagName === 'INPUT') {
-                        if (target.type === 'number') {
-                            const styleProp = target.dataset.style;
-                            const unit = target.dataset.unit;
-                            span.style[styleProp] = `${target.value}${unit}`;
-                        } else if (target.type === 'text') {
-                            span.textContent = target.value;
-                        }
-                        // 변경사항 기록
-                        changes[span.id] = {
-                            style: span.getAttribute('style'),
-                            text: span.textContent
-                        };
-                    }
-                });
+            function recordChange(element) {
+                changes[element.id] = {
+                    style: element.getAttribute('style'),
+                    text: element.textContent
+                };
             }
 
             function removeEditor() {
@@ -637,30 +692,30 @@
                     currentEditor.remove();
                     currentEditor = null;
                 }
-                if (selectedSpan) {
-                    selectedSpan.classList.remove('span-selected');
-                    selectedSpan = null;
+                if (selectedElement) {
+                    selectedElement.classList.remove('span-selected');
+                    selectedElement = null;
                 }
             }
             
             // 편집기 외부 클릭 시 편집기 닫기
             document.addEventListener('click', (e) => {
-                if (isInEditMode && currentEditor && !currentEditor.contains(e.target) && !e.target.matches('.page span')) {
+                if (isInEditMode && currentEditor && !currentEditor.contains(e.target) && !e.target.closest(getEditableElementSelector())) {
                     removeEditor();
                 }
             });
 
             function saveChanges() {
                 if (Object.keys(changes).length === 0) {
-                    alert('변경된 내용이 없습니다.');
+                    alert('{% trans "변경된 내용이 없습니다." %}');
                     return;
                 }
 
                 const payload = {
                     lang: "{{ lang }}",
                     mode: "{{ mode }}",
-                    changes: Object.entries(changes).map(([span_id, data]) => ({
-                        span_id,
+                    changes: Object.entries(changes).map(([element_id, data]) => ({
+                        element_id, // born_digital과 ai_layout 모두 element_id 사용
                         style: data.style,
                         text: data.text
                     }))
@@ -670,14 +725,19 @@
                     method: 'POST',
                     headers: {
                         'Content-Type': 'application/json',
-                        'X-CSRFToken': '{{ csrf_token }}'
+                        'X-CSRFToken': '{{ csrftoken}}'
                     },
                     body: JSON.stringify(payload)
                 })
-                .then(response => response.json())
+                .then(response => {
+                    if (!response.ok) {
+                        return response.json().then(err => { throw new Error(err.error || 'Server error') });
+                    }
+                    return response.json();
+                })
                 .then(data => {
                     if (data.message) {
-                        alert('변경 사항이 성공적으로 저장되었습니다.');
+                        alert('{% trans "변경 사항이 성공적으로 저장되었습니다." %}');
                         changes = {}; // 변경사항 초기화
                         toggleEditMode(); // 편집 모드 종료
                     } else {
@@ -686,7 +746,7 @@
                 })
                 .catch(error => {
                     console.error('Error:', error);
-                    alert(`오류 발생: ${error.message}`);
+                    alert(`{% trans "오류" %}: ${error.message}`);
                 });
             }
         });
