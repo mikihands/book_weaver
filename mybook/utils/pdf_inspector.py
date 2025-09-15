@@ -113,8 +113,13 @@ def _page_quality(page: "fitz.Page", min_words: int = DEFAULT_MIN_WORDS) -> Page
 
     ascii_ratio = _calc_ascii_ratio([w[4] for w in words]) if words else 0.0
 
-    # 단순 스코어: 텍스트 레이어(+), 이미지 면적 비율(-), ascii 비율(+)
-    score = (1.0 if has_text_layer else 0.0) - 0.5 * img_area_ratio + 0.2 * ascii_ratio
+    # 스코어 계산: 텍스트 레이어 유무를 이진적으로 반영하는 대신, 단어 수에 비례한 점수를 부여하여 좀 더 유연하게 만듭니다.
+    # min_words에 도달하면 1.0이 되고, 그 이하여도 0이 아닌 점수를 가집니다.
+    # 이렇게 하면 단어 수가 적은 서식 파일 등이 잘못 분류되는 것을 방지할 수 있습니다.
+    text_presence_score = min(1.0, word_count / min_words)
+
+    # 최종 스코어: 텍스트 존재 점수(+), 이미지 면적 비율(-), ascii 비율(+)
+    score = text_presence_score - 0.5 * img_area_ratio + 0.2 * ascii_ratio
 
     return PageQuality(
         page_index=int(page.number), # type: ignore

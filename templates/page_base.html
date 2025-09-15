@@ -19,13 +19,54 @@
             background-color: #f0f2f5;
         }
     </style>
+    <style>
+        /* book_page_v2.html 템플릿의 <style> 태그 안에 추가 */
+        .edit-mode-active .page span {
+            cursor: pointer;
+            transition: background-color 0.2s;
+        }
+        .edit-mode-active .page span:hover {
+            background-color: rgba(0, 123, 255, 0.2);
+            outline: 1px dashed rgba(0, 123, 255, 0.5);
+        }
+        .span-editor-popover {
+            position: absolute;
+            background: white;
+            border: 1px solid #ccc;
+            border-radius: 8px;
+            box-shadow: 0 4px 12px rgba(0,0,0,0.15);
+            padding: 16px;
+            z-index: 1000;
+            display: flex;
+            flex-direction: column;
+            gap: 12px;
+            width: 280px;
+        }
+        .span-editor-popover label {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            font-size: 14px;
+        }
+        .span-editor-popover input {
+            border: 1px solid #ddd;
+            border-radius: 4px;
+            padding: 4px 8px;
+            width: 120px;
+        }
+        .span-editor-popover input[type="text"] {
+            width: 100%;
+        }
+        .span-selected {
+            outline: 2px solid #007bff;
+            background-color: rgba(0, 123, 255, 0.1);
+        }
+    </style>
     {% if not DEBUG_MODE %}
         {% tailwind_preload_css %}
     {% endif %}
     {% tailwind_css %}
 </head>
-
-
 
 <body>
     <nav class="bg-white shadow-sm">
@@ -102,18 +143,28 @@
         </div>
 
         <div class="group">
-        <label>{% trans "배경" %}:
-            <select id="bgMode">
-            <option value="auto" {% if bg_mode == "auto" %}selected{% endif %}>auto</option>
-            <option value="on"   {% if bg_mode == "on" %}selected{% endif %}>on</option>
-            <option value="off"  {% if bg_mode == "off" %}selected{% endif %}>off</option>
-            </select>
-        </label>
-        <button id="search-toggle-button" title="책 안에서 검색" class="p-2 rounded-md hover:bg-gray-100 ml-2">
-            <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5 text-gray-600" viewBox="0 0 20 20" fill="currentColor">
-              <path fill-rule="evenodd" d="M8 4a4 4 0 100 8 4 4 0 000-8zM2 8a6 6 0 1110.89 3.476l4.817 4.817a1 1 0 01-1.414 1.414l-4.816-4.816A6 6 0 012 8z" clip-rule="evenodd" />
-            </svg>
-        </button>
+            <label>{% trans "배경" %}:
+                <select id="bgMode">
+                <option value="auto" {% if bg_mode == "auto" %}selected{% endif %}>auto</option>
+                <option value="on"   {% if bg_mode == "on" %}selected{% endif %}>on</option>
+                <option value="off"  {% if bg_mode == "off" %}selected{% endif %}>off</option>
+                </select>
+            </label>
+            
+            <div class="flex items-center space-x-4 p-4">
+                <button id="edit-mode-btn" class="px-4 py-2 bg-blue-500 rounded hover:bg-blue-600">
+                    {% trans "편집 모드" %}
+                </button>
+                <button id="save-changes-btn" class="hidden px-4 py-2 bg-green-500 rounded hover:bg-green-600">
+                    {% trans "변경 사항 저장" %}
+                </button>
+            </div>
+
+            <button id="search-toggle-button" title="책 안에서 검색" class="p-2 rounded-md hover:bg-gray-100 ml-2">
+                <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5 text-gray-600" viewBox="0 0 20 20" fill="currentColor">
+                <path fill-rule="evenodd" d="M8 4a4 4 0 100 8 4 4 0 000-8zM2 8a6 6 0 1110.89 3.476l4.817 4.817a1 1 0 01-1.414 1.414l-4.816-4.816A6 6 0 012 8z" clip-rule="evenodd" />
+                </svg>
+            </button>
         </div>
     </div>
 
@@ -303,7 +354,7 @@
                 return new Promise(executePoll);
             };
 
-            const statusUrl = `/books/${bookId}/pages/${pageNo}/status/?mode={{ request.GET.mode|default:'faithful' }}`;
+            const statusUrl = `/books/${bookId}/pages/${pageNo}/status/?mode={{ request.GET.mode|default:'faithful' }}{% if lang %}&lang={{ lang }}{% endif %}`;
             
             poll(statusUrl, 3000, 40) // 3초마다, 최대 2분간 확인
                 .then(finalStatus => {
@@ -453,7 +504,7 @@
             submitBtn.disabled = true;
 
             try {
-                const response = await fetch('{% url "mybook:retranslate_page" book_id=book.id page_no=page_no %}', {
+                const response = await fetch('{% url "mybook:retranslate_page" book_id=book.id page_no=page_no %}{% if lang %}?lang={{ lang }}{% endif %}', {
                     method: 'POST',
                     headers: { 'X-CSRFToken': csrftoken, 'Content-Type': 'application/json' },
                     body: JSON.stringify({ feedback: feedback || "Retranslate this page." }) // 피드백이 없으면 기본 메시지
@@ -478,5 +529,170 @@
         });
     });
     </script>
+    <script>
+        // book_page_v2.html 템플릿의 <script> 태그 안에 추가
+
+        document.addEventListener('DOMContentLoaded', () => {
+            const editModeBtn = document.getElementById('edit-mode-btn');
+            const saveChangesBtn = document.getElementById('save-changes-btn');
+            const pageContainer = document.querySelector('.page');
+
+            let isInEditMode = false;
+            let changes = {}; // { spanId: { style, text } }
+            let currentEditor = null;
+            let selectedSpan = null;
+
+            editModeBtn.addEventListener('click', toggleEditMode);
+            saveChangesBtn.addEventListener('click', saveChanges);
+
+            function toggleEditMode() {
+                isInEditMode = !isInEditMode;
+                pageContainer.classList.toggle('edit-mode-active', isInEditMode);
+                editModeBtn.textContent = isInEditMode ? '편집 모드 종료' : '편집 모드';
+                saveChangesBtn.style.display = isInEditMode ? 'inline-block' : 'none';
+
+                if (isInEditMode) {
+                    setupSpanListeners();
+                } else {
+                    removeSpanListeners();
+                    removeEditor();
+                }
+            }
+
+            function setupSpanListeners() {
+                pageContainer.querySelectorAll('span[id^="span-"]').forEach(span => {
+                    span.addEventListener('click', handleSpanClick);
+                });
+            }
+
+            function removeSpanListeners() {
+                pageContainer.querySelectorAll('span[id^="span-"]').forEach(span => {
+                    span.removeEventListener('click', handleSpanClick);
+                });
+            }
+
+            function handleSpanClick(event) {
+                if (!isInEditMode) return;
+                event.stopPropagation();
+                const span = event.currentTarget;
+                
+                if (selectedSpan) {
+                    selectedSpan.classList.remove('span-selected');
+                }
+                selectedSpan = span;
+                selectedSpan.classList.add('span-selected');
+
+                showEditorForSpan(span);
+            }
+
+            function showEditorForSpan(span) {
+                removeEditor();
+
+                const rect = span.getBoundingClientRect();
+                const editor = document.createElement('div');
+                editor.className = 'span-editor-popover';
+                
+                const style = getComputedStyle(span);
+                const originalStyle = span.getAttribute('style');
+
+                // 정규식을 사용하여 left, font-size, letter-spacing 값 추출
+                const leftMatch = originalStyle.match(/left:\s*([^;]+);/);
+                const fontSizeMatch = originalStyle.match(/font-size:\s*([^;]+);/);
+                const letterSpacingMatch = originalStyle.match(/letter-spacing:\s*([^;]+);/);
+
+                const currentLeft = leftMatch ? parseFloat(leftMatch[1]) : 0;
+                const currentFontSize = fontSizeMatch ? parseFloat(fontSizeMatch[1]) : 0;
+                const currentLetterSpacing = letterSpacingMatch ? parseFloat(letterSpacingMatch[1]) : 0;
+
+                editor.innerHTML = `
+                    <label>Left (px): <input type="number" step="0.1" value="${currentLeft}" data-style="left" data-unit="px"></label>
+                    <label>Font Size (px): <input type="number" step="0.1" value="${currentFontSize}" data-style="font-size" data-unit="px"></label>
+                    <label>Letter Spacing (px): <input type="number" step="0.1" value="${currentLetterSpacing}" data-style="letter-spacing" data-unit="px"></label>
+                    <label>Text: <input type="text" value="${span.textContent}"></label>
+                `;
+
+                document.body.appendChild(editor);
+                editor.style.left = `${window.scrollX + rect.left}px`;
+                editor.style.top = `${window.scrollY + rect.bottom + 5}px`;
+                currentEditor = editor;
+
+                editor.addEventListener('input', (e) => {
+                    const target = e.target;
+                    if (target.tagName === 'INPUT') {
+                        if (target.type === 'number') {
+                            const styleProp = target.dataset.style;
+                            const unit = target.dataset.unit;
+                            span.style[styleProp] = `${target.value}${unit}`;
+                        } else if (target.type === 'text') {
+                            span.textContent = target.value;
+                        }
+                        // 변경사항 기록
+                        changes[span.id] = {
+                            style: span.getAttribute('style'),
+                            text: span.textContent
+                        };
+                    }
+                });
+            }
+
+            function removeEditor() {
+                if (currentEditor) {
+                    currentEditor.remove();
+                    currentEditor = null;
+                }
+                if (selectedSpan) {
+                    selectedSpan.classList.remove('span-selected');
+                    selectedSpan = null;
+                }
+            }
+            
+            // 편집기 외부 클릭 시 편집기 닫기
+            document.addEventListener('click', (e) => {
+                if (isInEditMode && currentEditor && !currentEditor.contains(e.target) && !e.target.matches('.page span')) {
+                    removeEditor();
+                }
+            });
+
+            function saveChanges() {
+                if (Object.keys(changes).length === 0) {
+                    alert('변경된 내용이 없습니다.');
+                    return;
+                }
+
+                const payload = {
+                    lang: "{{ lang }}",
+                    mode: "{{ mode }}",
+                    changes: Object.entries(changes).map(([span_id, data]) => ({
+                        span_id,
+                        style: data.style,
+                        text: data.text
+                    }))
+                };
+
+                fetch("{% url 'mybook:edit_book_page' book.id page_no %}", {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'X-CSRFToken': '{{ csrf_token }}'
+                    },
+                    body: JSON.stringify(payload)
+                })
+                .then(response => response.json())
+                .then(data => {
+                    if (data.message) {
+                        alert('변경 사항이 성공적으로 저장되었습니다.');
+                        changes = {}; // 변경사항 초기화
+                        toggleEditMode(); // 편집 모드 종료
+                    } else {
+                        throw new Error(data.error || '저장에 실패했습니다.');
+                    }
+                })
+                .catch(error => {
+                    console.error('Error:', error);
+                    alert(`오류 발생: ${error.message}`);
+                });
+            }
+        });
+        </script>
 </body>
 </html>

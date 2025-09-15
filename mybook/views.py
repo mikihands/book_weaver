@@ -18,13 +18,14 @@ from django.contrib.auth.models import User
 from django.core.files.storage import default_storage
 from django.shortcuts import get_object_or_404, render, redirect
 from django.utils.encoding import smart_str
+from django.utils.translation import gettext as _
 from django.urls import reverse
 from django.http import FileResponse
 
 from .serializers import (
     FileUploadSerializer, RegisterSerializer, LoginSerializer, 
     RetranslateRequestSerializer, StartTranslationSerializer, 
-    BookSettingsSerializer, ContactSerializer,
+    BookSettingsSerializer, ContactSerializer, PageEditSerializer,
     BulkDeleteSerializer, PublishRequestSerializer
 )
 from .models import Book, BookPage, PageImage, TranslatedPage, UserProfile
@@ -274,11 +275,16 @@ class BookPageView(APIView):
 
     def get(self, request, book_id: int, page_no: int, *args, **kwargs):
         mode = request.GET.get("mode", "faithful")
+        lang = request.GET.get("lang")
         bg_mode = request.GET.get("bg", "off")  # auto|on|off
 
         book = get_object_or_404(Book, id=book_id, owner=request.user)
         page = get_object_or_404(BookPage, book=book, page_no=page_no)
-        tp = TranslatedPage.objects.filter(book=book, page_no=page_no, mode=mode).first()
+
+        tp_query = TranslatedPage.objects.filter(book=book, page_no=page_no, mode=mode)
+        if lang:
+            tp_query = tp_query.filter(lang=lang)
+        tp = tp_query.first()
 
         # v2 JSON 기대: schema_version=weaver.page.v2, fields: page, html_stage, figures
         data = tp.data if tp else None
@@ -375,19 +381,26 @@ class BookPageView(APIView):
                 page_h = page_info["page_h"]
 
         # 4) prev/next
+        # Preserve query parameters like lang, mode, bg for navigation
         prev_url = next_url = None
+        query_string = request.GET.urlencode()
+
         try:
             if page_no > 1:
-                prev_url = reverse("mybook:book_page", kwargs={"book_id": book.id, "page_no": page_no - 1}) #type: ignore
+                base_url = reverse("mybook:book_page", kwargs={"book_id": book.id, "page_no": page_no - 1}) #type: ignore
+                prev_url = f"{base_url}?{query_string}" if query_string else base_url
             if book.page_count and page_no < book.page_count:
-                next_url = reverse("mybook:book_page", kwargs={"book_id": book.id, "page_no": page_no + 1}) #type: ignore
+                base_url = reverse("mybook:book_page", kwargs={"book_id": book.id, "page_no": page_no + 1}) #type: ignore
+                next_url = f"{base_url}?{query_string}" if query_string else base_url
         except Exception:
             from django.urls import NoReverseMatch
             try:
                 if page_no > 1:
-                    prev_url = reverse("book_page", kwargs={"book_id": book.id, "page_no": page_no - 1}) #type: ignore
+                    base_url = reverse("book_page", kwargs={"book_id": book.id, "page_no": page_no - 1}) #type: ignore
+                    prev_url = f"{base_url}?{query_string}" if query_string else base_url
                 if book.page_count and page_no < book.page_count:
-                    next_url = reverse("book_page", kwargs={"book_id": book.id, "page_no": page_no + 1}) #type: ignore
+                    base_url = reverse("book_page", kwargs={"book_id": book.id, "page_no": page_no + 1}) #type: ignore
+                    next_url = f"{base_url}?{query_string}" if query_string else base_url
             except NoReverseMatch:
                 prev_url = next_url = None
 
@@ -395,6 +408,7 @@ class BookPageView(APIView):
         ctx = {
             "book": book,
             "page_no": page_no,
+            "lang": lang,
             "status": status_flag,
             "page_w": int(page_w),
             "page_h": int(page_h),
@@ -403,6 +417,7 @@ class BookPageView(APIView):
             "base_font_scale": base_font_scale,
             "prev_url": prev_url,
             "next_url": next_url,
+            "mode": mode,
             "bg_mode": bg_mode,
         }
 
@@ -415,6 +430,52 @@ class BookPageView(APIView):
         para_like = soup.find_all(["p","li","blockquote","h1","h2","h3","h4","h5","h6"])
         text_len = len(soup.get_text(" ", strip=True))
         return text_len, max(1, len(para_like))
+
+class BookPageEditView(APIView):
+    """
+    번역된 페이지의 HTML 컨텐츠(span의 스타일, 텍스트)를 수정하고 저장합니다.
+    """
+    permission_classes = [IsAuthenticated, IsBookOwner]
+
+    def post(self, request, book_id: int, page_no: int, *args, **kwargs):
+        book = get_object_or_404(Book, id=book_id)
+        self.check_object_permissions(request, book) # 소유권 확인
+
+        serializer = PageEditSerializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+        validated_data = serializer.validated_data
+
+        mode = validated_data['mode'] # type:ignore
+        lang = validated_data['lang'] # type:ignore
+        changes = validated_data['changes'] # type:ignore
+
+        try:
+            tp = TranslatedPage.objects.get(book=book, page_no=page_no, lang=lang, mode=mode)
+        except TranslatedPage.DoesNotExist:
+            return Response({"error": _("해당 번역 페이지를 찾을 수 없습니다.")}, status=status.HTTP_404_NOT_FOUND)
+
+        if not tp.data or 'html' not in tp.data:
+            return Response({"error": _("수정할 HTML 컨텐츠가 없습니다.")}, status=status.HTTP_400_BAD_REQUEST)
+
+        original_html = tp.data['html']
+        soup = BeautifulSoup(original_html, 'html.parser')
+
+        for change in changes:
+            span_id = change['span_id']
+            span_to_edit = soup.find('span', id=span_id)
+
+            if span_to_edit:
+                if 'style' in change:
+                    span_to_edit['style'] = change['style'] # type:ignore
+                if 'text' in change:
+                    span_to_edit.string = change['text'] # type:ignore
+            else:
+                logger.warning(f"Span with id '{span_id}' not found in page {page_no} for book {book_id}.")
+
+        tp.data['html'] = str(soup)
+        tp.save(update_fields=['data'])
+
+        return Response({"message": _("페이지가 성공적으로 수정되었습니다.")}, status=status.HTTP_200_OK)
 
 class BookPrepareView(APIView):
     permission_classes = [IsAuthenticated]
@@ -444,7 +505,7 @@ class UpdateBookSettingsView(generics.UpdateAPIView):
         
         super().update(request, *args, **kwargs)
         
-        return Response({"message": "설정이 성공적으로 저장되었습니다."}, status=status.HTTP_200_OK)
+        return Response({"message": _("설정이 성공적으로 저장되었습니다.")}, status=status.HTTP_200_OK)
 
 class StartTranslationView(generics.GenericAPIView):
     """
@@ -497,15 +558,26 @@ class RetranslatePageView(generics.GenericAPIView):
         serializer.is_valid(raise_exception=True)
         feedback = serializer.validated_data.get('feedback', '') # type: ignore
 
-        # Get target language from the first available translated page
-        first_tp = TranslatedPage.objects.filter(book=book).first()
-        if not first_tp:
-            return Response({"error": "No translated pages found for this book."}, status=status.HTTP_400_BAD_REQUEST)
-        target_lang = first_tp.lang
+        # Get target language from the query parameter
+        target_lang = request.query_params.get('lang')
+
+        if not target_lang:
+            # If lang is not provided in the query, try to infer it.
+            # This is a fallback and it's better for the client to provide it.
+            distinct_langs = list(TranslatedPage.objects.filter(book=book).values_list('lang', flat=True).distinct())
+            if len(distinct_langs) == 1:
+                target_lang = distinct_langs[0]
+            elif len(distinct_langs) == 0:
+                 return Response({"error": "No translated pages found for this book. Cannot determine language."}, status=status.HTTP_400_BAD_REQUEST)
+            else:
+                return Response(
+                    {"error": f"Multiple translations exist ({', '.join(distinct_langs)}). Please specify which language to retranslate using the 'lang' query parameter."},
+                    status=status.HTTP_400_BAD_REQUEST
+                )
 
         # Set the specific page status to 'pending' to indicate re-translation.
-        # For 'born_digital' books, both 'faithful' and 'readable' modes must be updated.
         if book.processing_mode == 'born_digital':
+            # For 'born_digital' books, both 'faithful' and 'readable' modes must be updated.
             TranslatedPage.objects.filter(
                 book=book, page_no=page_no, lang=target_lang, mode__in=['faithful', 'readable']
             ).update(status='pending')
@@ -516,7 +588,7 @@ class RetranslatePageView(generics.GenericAPIView):
 
         retranslate_single_page.delay(book.id, page_no, target_lang, feedback) # type: ignore
 
-        return Response({"message": f"Retranslation for page {page_no} has been queued."}, status=status.HTTP_202_ACCEPTED)
+        return Response({"message": f"Retranslation for page {page_no} ({target_lang.upper()}) has been queued."}, status=status.HTTP_202_ACCEPTED)
 
 
 class RetryTranslationView(generics.GenericAPIView):
@@ -569,12 +641,16 @@ class TranslatedPageStatusView(APIView):
         self.check_object_permissions(request, book) # IsBookOwner 권한 검사
 
         mode = request.GET.get("mode", "faithful")
+        lang = request.GET.get("lang")
         
-        tp_status = TranslatedPage.objects.filter(
+        tp_query = TranslatedPage.objects.filter(
             book=book, 
             page_no=page_no, 
             mode=mode
-        ).values_list('status', flat=True).first()
+        )
+        if lang:
+            tp_query = tp_query.filter(lang=lang)
+        tp_status = tp_query.values_list('status', flat=True).first()
 
         # TranslatedPage 객체가 아직 생성되지 않았다면 'pending'으로 간주
         current_status = tp_status if tp_status else "pending"
@@ -691,17 +767,38 @@ class BookshelfView(APIView):
     permission_classes = [IsAuthenticated]
 
     def get(self, request, *args, **kwargs):
-        # 1페이지의 번역 언어(lang)를 서브쿼리로 가져와서 각 Book 객체에 추가합니다.
-        # 이렇게 하면 템플릿에서 N+1 쿼리 문제를 방지할 수 있습니다.
-        first_page_lang = TranslatedPage.objects.filter(
-            book=models.OuterRef('pk'),
-            page_no=1
-        ).values('lang')[:1]
+        # 사용자가 소유한 모든 책을 가져옵니다.
+        # Book 모델을 기준으로 LEFT JOIN하여 각 책에 연결된 모든 번역 언어 정보를 가져옵니다.
+        # 이로 인해 한 책이 여러 언어로 번역된 경우 (Book, lang1), (Book, lang2)처럼 여러 행으로 나타나고,
+        # 번역이 아직 없는 책은 lang이 null인 한 개의 행으로 나타납니다.
+        books_with_langs = Book.objects.filter(
+            owner=request.user
+        ).values(
+            'id',
+            'title',
+            'created_at',
+            'status',
+            'page_count',
+            'translated_pages__lang'  # This performs the LEFT JOIN
+        ).distinct().order_by('-created_at', 'translated_pages__lang')
 
-        books = Book.objects.filter(owner=request.user).annotate(
-            target_lang=models.Subquery(first_page_lang)
-        ).order_by('-created_at')
-        return render(request, 'mybook/bookshelf.html', {'books': books})
+        # Book.status의 display 값을 미리 준비합니다.
+        status_display_map = dict(Book.PROCESSING_STATUS)
+
+        # 템플릿에서 사용하기 편한 형태로 데이터를 재구성합니다.
+        books_for_template = []
+        for item in books_with_langs:
+            books_for_template.append({
+                'id': item['id'],
+                'title': item['title'],
+                'created_at': item['created_at'],
+                'status': item['status'],
+                'get_status_display': status_display_map.get(item['status'], item['status']),
+                'page_count': item['page_count'],
+                'target_lang': item['translated_pages__lang'], # 템플릿 변수명에 맞춤
+            })
+
+        return render(request, 'mybook/bookshelf.html', {'books': books_for_template})
 
 
 def user_logout(request):

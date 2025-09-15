@@ -61,3 +61,17 @@ class PublishRequestSerializer(serializers.Serializer):
         choices=["faithful", "readable"],  # TranslatedPage.TRANSLATION_MODES
         required=False, default="faithful"
     )
+
+
+class PageEditChangeSerializer(serializers.Serializer):
+    span_id = serializers.CharField(max_length=100)
+    style = serializers.CharField(allow_blank=True, required=False)
+    text = serializers.CharField(allow_blank=True, required=False)
+
+
+class PageEditSerializer(serializers.Serializer):
+    mode = serializers.ChoiceField(choices=["faithful", "readable"])
+    lang = serializers.CharField(max_length=10)
+    changes = serializers.ListField(
+        child=PageEditChangeSerializer()
+    )

@@ -22,6 +22,7 @@ You are an expert translator. Your task is to translate a list of JSON strings f
 - The input is a JSON object containing a list of strings to translate.
 - Your output MUST be a JSON array of strings with the exact same number of elements as the input list.
 - Each string in the output array must be the translation of the corresponding string in the input list.
+- Sometimes a single sentence is split into two or more array elements. In such cases, you must maintain the number of array elements while ensuring the translated sentence flows naturally.
 - Your output must conform to the provided JSON schema, which expects a simple array of strings.
 - Do not add any extra text, explanations, or code fences around the JSON output. Return ONLY the JSON array.
 """.strip()
