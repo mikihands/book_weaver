@@ -93,7 +93,7 @@ class PdfDebuggingAnalysisTest(TestCase):
                     # PyMuPDF가 반환하는 객체 중 직렬화 불가능한 객체(e.g., fitz.Rect)를 처리
                     def default_serializer(o):
                         if isinstance(o, (fitz.Rect, fitz.Point)):
-                            return list(o)
+                            return list(o) # type:ignore
                         if isinstance(o, bytes):
                             return o.decode('utf-8', 'replace')
                         raise TypeError(f"Object of type {o.__class__.__name__} is not JSON serializable")

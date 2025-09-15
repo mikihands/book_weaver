@@ -37,11 +37,11 @@ msgstr "Next"
 
 #: templates/mybook/book_page.html:67
 msgid "맞춤(가로)"
-msgstr "Fit (Landscape)"
+msgstr "Fit Width"
 
 #: templates/mybook/book_page.html:68
 msgid "맞춤(세로)"
-msgstr "Custom Portrait"
+msgstr "Fit Height"
 
 #: templates/mybook/book_page.html:75
 msgid "배경"

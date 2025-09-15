@@ -39,6 +39,7 @@ logs/
 logs/*.json
 logs/.pdf
 
+
 # Unit test / coverage reports
 htmlcov/
 .tox/

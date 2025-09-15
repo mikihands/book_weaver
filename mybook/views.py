@@ -433,46 +433,55 @@ class BookPageView(APIView):
 
 class BookPageEditView(APIView):
     """
-    번역된 페이지의 HTML 컨텐츠(span의 스타일, 텍스트)를 수정하고 저장합니다.
+    번역된 페이지의 HTML 컨텐츠(요소의 스타일, 텍스트)를 수정하고 저장합니다.
+    'born_digital' 모드에서는 span, 'ai_layout' 모드에서는 p, h1 등 블록 요소가 대상입니다.
     """
     permission_classes = [IsAuthenticated, IsBookOwner]
 
     def post(self, request, book_id: int, page_no: int, *args, **kwargs):
         book = get_object_or_404(Book, id=book_id)
-        self.check_object_permissions(request, book) # 소유권 확인
+        self.check_object_permissions(request, book)  # 소유권 확인
 
         serializer = PageEditSerializer(data=request.data)
         serializer.is_valid(raise_exception=True)
         validated_data = serializer.validated_data
 
-        mode = validated_data['mode'] # type:ignore
-        lang = validated_data['lang'] # type:ignore
-        changes = validated_data['changes'] # type:ignore
+        mode = validated_data['mode']  # type:ignore
+        lang = validated_data['lang']  # type:ignore
+        changes = validated_data['changes']  # type:ignore
 
         try:
             tp = TranslatedPage.objects.get(book=book, page_no=page_no, lang=lang, mode=mode)
         except TranslatedPage.DoesNotExist:
             return Response({"error": _("해당 번역 페이지를 찾을 수 없습니다.")}, status=status.HTTP_404_NOT_FOUND)
 
-        if not tp.data or 'html' not in tp.data:
+        if not tp.data:
+            return Response({"error": _("수정할 컨텐츠가 없습니다.")}, status=status.HTTP_400_BAD_REQUEST)
+
+        # 'ai_layout' 모드는 'html_stage', 'born_digital' 모드는 'html' 키를 사용합니다.
+        html_key = 'html_stage' if book.processing_mode != 'born_digital' else 'html'
+
+        if html_key not in tp.data:
             return Response({"error": _("수정할 HTML 컨텐츠가 없습니다.")}, status=status.HTTP_400_BAD_REQUEST)
 
-        original_html = tp.data['html']
+        original_html = tp.data[html_key]
         soup = BeautifulSoup(original_html, 'html.parser')
 
         for change in changes:
-            span_id = change['span_id']
-            span_to_edit = soup.find('span', id=span_id)
+            element_id = change.get('element_id')
+            if not element_id:
+                continue
+            element_to_edit = soup.find(id=element_id)
 
-            if span_to_edit:
+            if element_to_edit:
                 if 'style' in change:
-                    span_to_edit['style'] = change['style'] # type:ignore
+                    element_to_edit['style'] = change['style']  # type:ignore
                 if 'text' in change:
-                    span_to_edit.string = change['text'] # type:ignore
+                    element_to_edit.string = change['text']  # type:ignore
             else:
-                logger.warning(f"Span with id '{span_id}' not found in page {page_no} for book {book_id}.")
+                logger.warning(f"Element with id '{element_id}' not found in page {page_no} for book {book_id}.")
 
-        tp.data['html'] = str(soup)
+        tp.data[html_key] = str(soup)
         tp.save(update_fields=['data'])
 
         return Response({"message": _("페이지가 성공적으로 수정되었습니다.")}, status=status.HTTP_200_OK)
@@ -825,21 +834,27 @@ class BookSearchAPIView(APIView):
         if not query or len(query) < 2:
             return Response({"error": "검색어는 2글자 이상 입력해주세요."}, status=status.HTTP_400_BAD_REQUEST)
 
+        if book.processing_mode == 'born_digital':
+            search_key = 'html'
+        else:
+            search_key = 'html_stage'
+
         # PostgreSQL의 JSONB 필드에 대한 icontains 쿼리 활용
+        filter_kwargs = {
+            'book': book,
+            'status': 'ready',
+            f'data__{search_key}__icontains': query
+        }
         matching_pages = TranslatedPage.objects.filter(
-            book=book,
-            status='ready',
-            data__html_stage__icontains=query
+            **filter_kwargs
         ).order_by('page_no')
 
         results = []
         processed_pages = set()
 
         for page in matching_pages:
-            if page.page_no in processed_pages:
-                continue
-
-            html_content = page.data.get('html_stage', '')
+            if page.page_no in processed_pages: continue
+            html_content = page.data.get(search_key, '')
             soup = BeautifulSoup(html_content, 'html.parser')
             text = soup.get_text(" ", strip=True)
 

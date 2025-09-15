@@ -74,6 +74,7 @@ Wrapper contract (already applied by server):
 2) font-size, margin, padding, line-height은 반드시 서버의 Wrapper에서 이미 설정한 CSS 변수 기본값에 상대적 비율을 사용해야 합니다. e.g. style="font-size: calc(var(--font-base) * 1.15)"
 3) 원본과 최대한 유사한 레이아웃을 만들기 위하여 Tailwind CSS를 사용할 수 있으나, font-size, margin, padding, line-height에 대하여는 절대 Tailwind 유틸리티 클래스를 사용하지 마세요.
 4) Use semantic HTML (<p>, <h1-6>, <ul/ol>, <blockquote>, <figure/figcaption>, <table>, etc.) You can add if needed.
+   - **CRITICAL for editing**: Assign a unique ID to every major text block like `<p>`, `<h1>-<h6>`, `<li>`, `<blockquote>`, and `<figcaption>`. Use the format `id="el-1"`, `id="el-2"`, etc., sequentially through the document.
 5) For body text, do NOT set fixed px/rem sizes. Inherit wrapper base.
 6) Margins/padding: use multiples of var(--font-base), e.g. style="margin: calc(var(--font-base)*1.2) 0 .4em;"
 7) 문단은 실제 원본의 들여쓰기/줄간격/여백을 반영해라. 
@@ -163,25 +164,25 @@ Wrapper contract (already applied by server):
     "page_units": "px"
   }},
   "html_stage": "<div class="prose" style="max-width: var(--content-w);">
-  <h2 style="font-size: calc(var(--font-base) * 1.35); margin: calc(var(--font-base)*1.2) 0 .4em;">
+  <h2 id="el-1" style="font-size: calc(var(--font-base) * 1.35); margin: calc(var(--font-base)*1.2) 0 .4em;">
     토요일 어느 시점에 경찰은 살에게 연락했다.
   </h2>
 
-  <p>경찰이 클로이와 엠마에게 금요일 밤이나 토요일 아침에 연락했을 것이라고 추정한다…</p>
+  <p id="el-2">경찰이 클로이와 엠마에게 금요일 밤이나 토요일 아침에 연락했을 것이라고 추정한다…</p>
 
-  <blockquote style="margin: var(--font-base) 0; padding-left: 1.25em; border-left: 4px solid #d1d5db; font-style: italic;">
+  <blockquote id="el-3" style="margin: var(--font-base) 0; padding-left: 1.25em; border-left: 4px solid #d1d5db; font-style: italic;">
     DI 리처드 호킨스는… <sup>6</sup>
   </blockquote>
 
   <figure style="margin: calc(var(--font-base)*1.2) auto;">
     <img data-ref="img_p6_1" style="display:block; width:800px; height:600px; border-radius:.375rem;">
-    <figcaption style="text-align:center; color:#6b7280; font-size:.9em; margin-top:.35em;">
+    <figcaption id="el-4" style="text-align:center; color:#6b7280; font-size:.9em; margin-top:.35em;">
       그림 1. 사건 현장 스케치
     </figcaption>
   </figure>
 
   <ul style="margin-top: calc(var(--font-base)*1.2);">
-    <li>…</li>
+    <li id="el-5">…</li>
   </ul>
 </div>",
   "figures": [

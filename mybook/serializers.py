@@ -64,7 +64,7 @@ class PublishRequestSerializer(serializers.Serializer):
 
 
 class PageEditChangeSerializer(serializers.Serializer):
-    span_id = serializers.CharField(max_length=100)
+    element_id = serializers.CharField(max_length=100)
     style = serializers.CharField(allow_blank=True, required=False)
     text = serializers.CharField(allow_blank=True, required=False)
 

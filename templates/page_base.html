@@ -74,7 +74,6 @@
             <div class="flex justify-between h-16">
                 <div class="flex">
                     <a href="{% url 'mybook:upload_page' %}" class="flex-shrink-0 flex items-center font-bold text-xl gap-2">
-                        {% comment %} 📚 BookWeaver {% endcomment %}
                         <span class="inline-flex h-8 w-8 items-center justify-center rounded-lg bg-slate-900 text-white">W</span>
                         <span class="text-slate-900">BookWeaver</span>
                     </a>
@@ -128,7 +127,7 @@
         <form id="page-jump-form" class="flex items-center ml-2">
             <input type="number" id="page-jump-input" value="{{ page_no }}" min="1" max="{{ book.page_count }}" 
                    class="w-16 text-center border border-gray-300 rounded-md shadow-sm text-sm focus:ring-blue-500 focus:border-blue-500 py-1"
-                   aria-label="페이지 번호 입력">
+                   aria-label="{% trans '페이지 번호 입력' %}">
             <span class="mx-2 text-gray-500 text-sm">/ {{ book.page_count }}</span>
         </form>
         {% endif %}
@@ -160,7 +159,7 @@
                 </button>
             </div>
 
-            <button id="search-toggle-button" title="책 안에서 검색" class="p-2 rounded-md hover:bg-gray-100 ml-2">
+            <button id="search-toggle-button" title="{% trans "책 안에서 검색" %}" class="p-2 rounded-md hover:bg-gray-100 ml-2">
                 <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5 text-gray-600" viewBox="0 0 20 20" fill="currentColor">
                 <path fill-rule="evenodd" d="M8 4a4 4 0 100 8 4 4 0 000-8zM2 8a6 6 0 1110.89 3.476l4.817 4.817a1 1 0 01-1.414 1.414l-4.816-4.816A6 6 0 012 8z" clip-rule="evenodd" />
                 </svg>
@@ -530,8 +529,6 @@
     });
     </script>
     <script>
-        // book_page_v2.html 템플릿의 <script> 태그 안에 추가
-
         document.addEventListener('DOMContentLoaded', () => {
             const editModeBtn = document.getElementById('edit-mode-btn');
             const saveChangesBtn = document.getElementById('save-changes-btn');
@@ -693,6 +690,6 @@
                 });
             }
         });
-        </script>
+    </script>
 </body>
 </html>

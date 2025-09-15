@@ -16,8 +16,24 @@
     font:inherit;padding:6px 10px;border:1px solid #e5e7eb;border-radius:8px;background:#fff;cursor:pointer}
   .toolbar button:hover{background:#f3f4f6}
 
-  .stage{position:relative;overflow:auto;background:white;border:1px solid #e5e7eb;border-radius:12px;
-         padding:12px;box-shadow:0 8px 24px rgba(0,0,0,.06); max-height: calc(100vh - 140px);}
+  .stage{
+    position:relative;
+    overflow:auto;
+    max-height: calc(100vh - 140px);
+    display: flex;
+    justify-content: center;
+    align-items: flex-start; /* 페이지를 상단에 정렬 */
+    padding: 20px 0; /* 뷰어의 상하 여백 */
+  }
+  .page-viewport {
+    background: white;
+    border: 1px solid #e5e7eb;
+    border-radius: 12px;
+    box-shadow: 0 8px 24px rgba(0,0,0,.06);
+    padding: 12px;
+    box-sizing: border-box; /* padding을 너비/높이에 포함 */
+    flex-shrink: 0; /* flex 아이템이 줄어들지 않도록 설정 */
+  }
 
   .page{
     position:relative;
@@ -91,27 +107,42 @@
     location.search = p.toString();
   });
 
-  let scale = 1;
+  let scale = 1.0;
+  let zoomMode = 'fitWidth'; // 'fitWidth', 'fitHeight', 'custom' 중 하나를 저장
   const clamp = (v,min,max)=>Math.max(min,Math.min(max,v));
+  const ZOOM_STATE_KEY = 'weaver_zoom_state'; // localStorage에 저장될 키
 
-  function applyScale(s){
-    scale = clamp(s, 0.2, 3);
+  // 현재 확대/축소 상태(비율과 모드)를 저장하는 함수
+  function saveZoomState() {
+    const state = { scale: scale, mode: zoomMode };
+    localStorage.setItem(ZOOM_STATE_KEY, JSON.stringify(state));
+  }
+
+  function applyScale(newScale) {
+    scale = clamp(newScale, 0.2, 3);
     page.style.transform = `scale(${scale})`;
     zoomLabel.textContent = Math.round(scale*100) + '%';
-    // minHeight 대신 height를 갱신해 "고정 높이" 느낌 제거
-    const scaledH = (pageH*scale);
-    stage.style.height = (scaledH + 24) + 'px';
-    vp.style.width  = (pageW * scale) + 'px';
-    vp.style.height = (pageH * scale) + 'px';
 
+    const viewportPadding = 24;
+    const scaledW = pageW * scale;
+    const scaledH = pageH * scale;
+
+    vp.style.width  = (scaledW + viewportPadding) + 'px';
+    vp.style.height = (scaledH + viewportPadding) + 'px';
+    stage.style.height = (scaledH + viewportPadding) + 'px';
+
+    // 스케일이 적용될 때마다 상태를 저장합니다.
+    saveZoomState();
   }
   
   function fitWidth(){
-    const pad = 24*2;
-    const avail = stage.clientWidth - pad;
-    applyScale(avail / pageW);
+    zoomMode = 'fitWidth';
+    const viewportPadding = 24;
+    const availableWidth = stage.clientWidth;
+    applyScale((availableWidth - viewportPadding) / pageW);
   }
   function fitHeight(){
+    zoomMode = 'fitHeight';
     const pad = 24*2;
     const avail = (window.innerHeight - stage.getBoundingClientRect().top - 40) - pad;
     applyScale(avail / pageH);
@@ -119,12 +150,41 @@
 
   fitWBtn.addEventListener('click', fitWidth);
   fitHBtn.addEventListener('click', fitHeight);
-  zoomIn.addEventListener('click', ()=>applyScale(scale*1.1));
-  zoomOut.addEventListener('click',()=>applyScale(scale/1.1));
-  window.addEventListener('resize', ()=>fitWidth());
+  zoomIn.addEventListener('click', () => {
+    zoomMode = 'custom'; // 사용자가 직접 조절했음을 표시
+    applyScale(scale * 1.1);
+  });
+  zoomOut.addEventListener('click', () => {
+    zoomMode = 'custom'; // 사용자가 직접 조절했음을 표시
+    applyScale(scale / 1.1);
+  });
+  window.addEventListener('resize', () => {
+    // '가로 맞춤' 상태일 때만 창 크기 변경에 따라 너비를 다시 맞춥니다.
+    if (zoomMode === 'fitWidth') {
+      fitWidth();
+    }
+  });
 
-  // 초기 가로 맞춤
-  fitWidth();
+  // 초기 뷰 설정: 저장된 확대/축소 상태가 있으면 복원합니다.
+  (function initializeView() {
+    try {
+      const savedStateJSON = localStorage.getItem(ZOOM_STATE_KEY);
+      if (savedStateJSON) {
+          const savedState = JSON.parse(savedStateJSON);
+          if (savedState && savedState.mode) {
+              zoomMode = savedState.mode;
+              if (zoomMode === 'fitWidth') { fitWidth(); return; }
+              if (zoomMode === 'fitHeight') { fitHeight(); return; }
+              if (zoomMode === 'custom' && typeof savedState.scale === 'number') { applyScale(savedState.scale); return; }
+          }
+      }
+    } catch (e) {
+      console.error("Failed to restore zoom state, using default.", e);
+      localStorage.removeItem(ZOOM_STATE_KEY); // 손상된 데이터 제거
+    }
+    // 저장된 상태가 없거나 유효하지 않으면 기본값으로 시작합니다.
+    fitWidth();
+  })();
 })();
 </script>
 {% endblock %}
