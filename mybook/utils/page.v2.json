@@ -4,7 +4,7 @@
   "title": "Weaver Page (LLM layout, v2)",
   "type": "object",
   "additionalProperties": false,
-  "required": ["schema_version","page","html_stage","figures"],
+  "required": ["schema_version","page","html_stage","has_figures"],
   "properties": {
     "schema_version": { "type": "string", "const": "weaver.page.v2" },
 
@@ -22,30 +22,14 @@
 
     "html_stage": { "type": "string", "minLength": 1 },
 
-    "figures": {
+    "has_figures": {
+      "type": "boolean",
+      "description": "True if there are any significant images, charts, or diagrams on the page that need to be extracted."
+    },
+    "figure_labels": {
       "type": "array",
-      "items": {
-        "type": "object",
-        "additionalProperties": false,
-        "required": [
-          "ref",
-          "bbox_x",
-          "bbox_y",
-          "bbox_w",
-          "bbox_h"
-        ],
-        "properties": {
-          "ref": { "type": "string", "minLength": 1 },
-          "bbox_x": { "type": "number" },
-          "bbox_y": { "type": "number" },
-          "bbox_w": { "type": "number" },
-          "bbox_h": { "type": "number" },
-          "alt": { "type": "string" },
-          "caption": { "type": "string" },
-          "width": { "type": "number", "minimum": 1 },
-          "height": { "type": "number", "minimum": 1 }
-        }
-      }
+      "description": "A list of descriptive labels for each figure found on the page. This is used as a hint for a secondary detection step.",
+      "items": { "type": "string" }
     }
   }
 }

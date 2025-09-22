@@ -2,111 +2,92 @@
 import pymupdf as fitz
 from pathlib import Path
 from typing import List, Dict, Any
-import os
-from PIL import Image
+import os, hashlib, re
+from bs4 import BeautifulSoup
+import base64
+from io import BytesIO
+from PIL import Image, ImageOps
 from dataclasses import dataclass
 from typing import Tuple
 import logging
 
 logger = logging.getLogger(__name__)
 
-# def _rect_to_xywh(rect) -> List[float]:
-#     # rect: fitz.Rect (x0,y0,x1,y1) in pt
-#     x, y, x2, y2 = rect
-#     return [float(x), float(y), float(x2 - x), float(y2 - y)]
+def _svg_path_from_items(items):
+    """Converts PyMuPDF drawing 'items' into an SVG path data string, ending with 'Z'."""
+    parts = []
+    current_pos = None
 
-# def extract_images_and_bboxes(
-#     pdf_path: str,
-#     out_dir: str,
-#     dpi: int = 144,   # 원하는 출력 DPI (px 변환용)
-#     *,
-#     media_root: str
-# ) -> List[Dict[str, Any]]:
-#     """
-#     returns: [
-#       {
-#         "page_no": 1,
-#         "size": {"w": <px>, "h": <px>},
-#         "images": [
-#           {"ref": "img_p1_1", "path": ".../img_p1_1.png", "bbox": [x,y,w,h], "xref": int}
-#         ]
-#       }, ...
-#     ]
-#     """
-#     doc = fitz.open(pdf_path)
-#     Path(out_dir).mkdir(parents=True, exist_ok=True)
+    for it in items or []:
+        op = it[0]
+        if op == "m":  # move to
+            if len(it) < 2: continue
+            p = it[1]
+            parts.append(f"M {p[0]} {p[1]}")
+            current_pos = p
+        elif op == "l":  # line to
+            if len(it) < 3: continue
+            p1, p2 = it[1], it[2]
+            # If the path is not continuous, start a new subpath with moveto.
+            if current_pos is None or (current_pos[0] != p1[0] or current_pos[1] != p1[1]):
+                parts.append(f"M {p1[0]} {p1[1]}")
+            parts.append(f"L {p2[0]} {p2[1]}")
+            current_pos = p2
+        elif op == "re":  # rectangle
+            if len(it) < 2: continue
+            x0, y0, x1, y1 = it[1]
+            # Start a new subpath for the rectangle
+            parts.append(f"M {x0} {y0} L {x1} {y0} L {x1} {y1} L {x0} {y1} Z")
+            current_pos = None  # A closed path resets the current position
+        elif op == "c":  # bezier curve
+            if len(it) < 5: continue
+            p_start, p_c1, p_c2, p_end = it[1], it[2], it[3], it[4]
+            # If path is not continuous, start a new subpath with moveto.
+            if current_pos is None or (current_pos[0] != p_start[0] or current_pos[1] != p_start[1]):
+                parts.append(f"M {p_start[0]} {p_start[1]}")
+            parts.append(f"C {p_c1[0]} {p_c1[1]} {p_c2[0]} {p_c2[1]} {p_end[0]} {p_end[1]}")
+            current_pos = p_end
+    path_data = " ".join(parts)
 
-#     scale = dpi / 72.0  # pt -> px 변환 스케일
-#     results = []
+    # Per user request, ensure the path string for this clip object ends with a 'Z'.
+    # This will be used as a delimiter for splitting into multiple <path> tags later.
+    if path_data and not path_data.strip().endswith('Z'):
+        path_data += " Z"
 
-#     for pno in range(len(doc)):
-#         page = doc[pno]
-#         # 페이지 크기(pt) -> px 변환
-#         pw_pt, ph_pt = page.rect.width, page.rect.height
-#         pw_px, ph_px = pw_pt * scale, ph_pt * scale
+    return path_data
 
-#         page_info = {
-#             "page_no": pno + 1,
-#             "size": {"w": pw_px, "h": ph_px},
-#             "images": []
-#         }
+def _scale_svg_path(path_data: str, scale: float) -> str:
+    """
+    SVG 경로 데이터 문자열의 모든 숫자 값을 스케일링합니다.
+    과학적 표기법을 올바르게 처리하고 매우 작은 값은 0으로 처리합니다.
+    """
+    if not path_data:
+        return ""
 
-#         # 1) 이미지 메타(xref 리스트)
-#         # get_images(full=True) -> [(xref, smask, width, height, bpc, colorspace, alt, name, ...), ...]
-#         xref_seen = set()
-#         for (xref, *_rest) in page.get_images(full=True): # type: ignore
-#             if xref in xref_seen:
-#                 continue
-#             xref_seen.add(xref)
+    # PyMuPDF가 생성할 수 있는 '1.23e-12.0'과 같은 잘못된 과학 표기법을 '1.23e-12'로 수정합니다.
+    path_data = re.sub(r'([eE][-+]?\d+)\.0+\b', r'\1', path_data)
 
-#             # 2) 이 이미지가 배치된 모든 위치의 Rect 얻기
-#             rects = page.get_image_rects(xref)  # [Rect(...), ...] # type: ignore
-#             if not rects:
-#                 continue  # 혹시라도 배치 정보가 없으면 스킵
+    def scale_match(m):
+        val = float(m.group(0))
+        scaled_val = val * scale
+        # 0.1 미만의 매우 작은 값은 0으로 처리하여 불필요한 정밀도를 제거합니다.
+        if abs(scaled_val) < 0.1:
+            return "0"
+        # 소수점 둘째 자리까지 반올림하여 문자열로 반환합니다.
+        return f"{scaled_val:.2f}"
 
-#             # 3) 이미지 파일 추출 (한 번만 저장, 여러 rect가 같은 파일을 참조)
-#             img = doc.extract_image(xref)
-#             ext = img.get("ext", "png")
-#             ref_base = f"img_p{pno+1}_{xref}"
-#             img_path = Path(out_dir) / f"{ref_base}.{ext}"
-#             with open(img_path, "wb") as f:
-#                 f.write(img["image"])
-
-#             # ★ MEDIA_ROOT 상대경로 계산
-#             rel_path = os.path.relpath(str(img_path), media_root).replace("\\", "/")
-
-#             # 4) 배치된 각 위치마다 bbox 레코드 생성
-#             for idx, rect in enumerate(rects, start=1):
-#                 xywh_pt = _rect_to_xywh(rect)               # pt 좌표
-#                 # pt -> px 스케일 적용
-#                 x_px = xywh_pt[0] * scale
-#                 y_px = xywh_pt[1] * scale
-#                 w_px = xywh_pt[2] * scale
-#                 h_px = xywh_pt[3] * scale
-
-#                 ref = f"{ref_base}_{idx}" if len(rects) > 1 else ref_base
-#                 page_info["images"].append({
-#                     "ref": ref,
-#                     "path": rel_path, # 상대경로 저장
-#                     "bbox": [x_px, y_px, w_px, h_px],
-#                     "xref": int(xref)  # 디버깅/추적용(옵션)
-#                 })
-
-#         results.append(page_info)
-
-#     return results
+    # 정수, 부동소수점, 과학 표기법을 포함한 모든 숫자를 찾는 정규식입니다.
+    number_regex = r'[-+]?\d*\.?\d+(?:[eE][-+]?\d+)?'
+    return re.sub(number_regex, scale_match, path_data)
 
 # --------------------------------------------------------------
-### (A) 클립 수집: collect_clips() + clip_items_to_path_and_bbox()
-# The function `clip_items_to_path_and_bbox` was too restrictive, only handling
-# simple rectangular clip paths. It has been removed. The `scissor` rectangle
-# provided by PyMuPDF for any clip operation is sufficient and more robust.
+### (A) 클립 수집: collect_clips()
 
 def collect_clips(page: fitz.Page):
     """
-    extended=True로 드로잉을 받아 'clip' 노드만 뽑아냄.
-    The 'scissor' rect is the bounding box of the clip path, which is what we need.
-    return: list[{"index":int, "level":int, "scissor":Rect, "bbox_xywh_pt":[x,y,w,h] or None}]
+    extended=True로 드로잉을 받아 'clip' 노드만 뽑아냅니다.
+    'scissor'는 클리핑 경로의 바운딩 박스이며, 비사각형 클립을 위해 원본 경로 데이터도 추출합니다.
+    return: list[{"index":int, "level":int, "scissor":Rect, "bbox_xywh_pt":[x,y,w,h] or None, "path_data_pt": str or None}]
     """
     out = []
     draws = page.get_drawings(extended=True)
@@ -118,58 +99,22 @@ def collect_clips(page: fitz.Page):
             if scissor_rect and scissor_rect.is_valid and not scissor_rect.is_empty:
                 bbox_xywh = [scissor_rect.x0, scissor_rect.y0, scissor_rect.width, scissor_rect.height]
 
+            # 비정형 클립을 위해 실제 경로 데이터 추출
+            path_data_pt = None
+            items = d.get("items")
+            if items:
+                path_data_pt = _svg_path_from_items(items)
+
             out.append({
                 "index": idx,
                 "level": d.get("level", 0),
                 "scissor": scissor_rect,
                 "bbox_xywh_pt": bbox_xywh,
+                "path_data_pt": path_data_pt,
             })
     return out
 
-### (B) 이미지 수집: collect_images()
-
-def collect_images(page: fitz.Page, doc: fitz.Document, out_dir: str, media_root: str):
-    infos = page.get_image_info(xrefs=True) # type:ignore
-    occ = []
-    saved = {}
-    for order, info in enumerate(infos):
-        xref = info.get("xref")
-        if not xref:
-            continue
-        tr = info.get("transform") or [1,0,0,1,0,0]
-        bbox = info.get("bbox")     # [x0,y0,x1,y1] (pt)
-        origin_image_w = int(info["width"])  # original image width (int)
-        origin_image_h = int(info["height"]) # original image height (int)
-
-        # xref 파일 저장(한 번만)
-        if xref not in saved:
-            raw = doc.extract_image(xref)
-            ext = raw.get("ext","png")
-            p = Path(out_dir) / f"xref_{xref}.{ext}"
-            if not p.exists():
-                p.write_bytes(raw["image"])
-            rel = os.path.relpath(str(p), media_root).replace("\\","/")
-            saved[xref] = {
-                "path": rel,
-                "img_w": int(raw.get("width") or 1), #서버에 저장된 이미지의 해상도 px
-                "img_h": int(raw.get("height") or 1),
-            }
-
-        meta = saved[xref]
-        occ.append({
-            "order": order,
-            "xref": int(xref),
-            "transform_pt": list(tr), # pt
-            "bbox_pt": [bbox[0], bbox[1], bbox[2], bbox[3]],  # xyxy (pt)
-            "path": meta["path"],
-            "img_w": meta["img_w"], #px
-            "img_h": meta["img_h"], #px
-            "origin_w": origin_image_w, #px
-            "origin_h": origin_image_h, #px
-        })
-    return occ
-
-### (C) 매칭: iou_xyxy() + match_clips_to_images()
+### (B) 매칭: iou_xyxy() + match_clips_to_images()
 
 def iou_xyxy(a, b):
     ax0, ay0, ax1, ay1 = a
@@ -184,38 +129,372 @@ def iou_xyxy(a, b):
 
 def match_clips_to_images(clips, images):
     """
-    clips: collect_clips()
-    images: collect_images()
-    return: dict[xref] -> {"clip_bbox_pt":[x,y,w,h] or None}
-    (간단화: 사각형 clip만 지원)
+    Associates images with their corresponding clipping paths.
+    An image can be associated with multiple clips. This function finds all clips
+    that have a significant overlap (IoU >= 0.1) with the image's bounding box.
+    It then aggregates these clips into a single definition by:
+    1. Concatenating all SVG path data into one string.
+    2. Calculating the union of all clip bounding boxes to form a single container bbox.
+
+    clips: list of clip dicts from collect_clips()
+    images: list of image dicts from an extractor (e.g., AdvancedImageExtractor)
+    return: dict mapping image xref to a dict with aggregated clip info:
+            {"clip_bbox_pt":[x,y,w,h] or None, "clip_path_data_pt": str or None}
     """
     # clip 외접 박스(xyxy)
     clip_rects = []
     for c in clips:
         r = c.get("scissor")
-        if not r: 
+        if not r or not r.is_valid or r.is_empty:
             continue
         clip_rects.append({
             "index": c["index"],
             "xyxy": [r.x0, r.y0, r.x1, r.y1],
             "bbox_xywh_pt": c.get("bbox_xywh_pt"),  # 사각형이면 존재
+            "path_data_pt": c.get("path_data_pt"),
         })
 
     out = {}
     for im in images:
         ibox = im["bbox_pt"]  # xyxy
-        best = None; best_iou = 0.0
+        matching_clips = []
         for c in clip_rects:
-            # Find the clip with the highest IoU with the image's bounding box.
-            # The original ordering heuristic was flawed as it compared indices from two different lists.
             i = iou_xyxy(ibox, c["xyxy"])
-            if i > best_iou:
-                best_iou, best = i, c
-        if best and best_iou >= 0.10:
-            out[im["xref"]] = {"clip_bbox_pt": best.get("bbox_xywh_pt")}
+            if i >= 0.10:  # Collect all clips with IoU above threshold
+                matching_clips.append(c)
+
+        if matching_clips:
+            # Aggregate all matching clips into a single clip definition.
+            all_paths = [mc.get("path_data_pt") for mc in matching_clips if mc.get("path_data_pt")]
+            final_path = " ".join(all_paths) if all_paths else None
+
+            all_bboxes = [mc.get("bbox_xywh_pt") for mc in matching_clips if mc.get("bbox_xywh_pt")]
+            final_bbox = None
+            if all_bboxes:
+                min_x = min(b[0] for b in all_bboxes)
+                min_y = min(b[1] for b in all_bboxes)
+                max_x2 = max(b[0] + b[2] for b in all_bboxes)
+                max_y2 = max(b[1] + b[3] for b in all_bboxes)
+                final_bbox = [min_x, min_y, max_x2 - min_x, max_y2 - min_y]
+
+            out[im["xref"]] = {
+                "clip_bbox_pt": final_bbox,
+                "clip_path_data_pt": final_path
+            }
         else:
-            out[im["xref"]] = {"clip_bbox_pt": None}
+            out[im["xref"]] = {"clip_bbox_pt": None, "clip_path_data_pt": None}
     return out
+
+### (C) 새로운 이미지 추출 클래스 (New Image Extraction Classes)
+class AdvancedImageExtractor:
+    """
+    get_image_info()와 get_text("html")의 순서가 일치한다는 규칙을 기반으로,
+    표준 이미지는 직접 추출(※ SMask 결합 포함)하고,
+    인라인 이미지는 HTML에서 데이터를 가져와 매핑하는 최종 추출기.
+    """
+    def __init__(self, page: fitz.Page, doc: fitz.Document, pno: int, out_dir: str, media_root: str):
+        self.page = page
+        self.doc = doc
+        self.pno = pno
+        self.out_dir = Path(out_dir)
+        self.media_root = media_root
+        self.saved_files = {}  # {unique_key: {"path": ..., "img_w": ..., "img_h": ...}}
+
+    def _save_image(self, key: Any, image_bytes: bytes, ext: str) -> Dict[str, Any]:
+        """바이트를 파일로 저장하고 {path,img_w,img_h} 메타를 캐시."""
+        if key in self.saved_files:
+            return self.saved_files[key]
+
+        filename_key = f"p{self.pno}_{key}"
+        p = self.out_dir / f"img_{filename_key}.{ext}"
+        p.write_bytes(image_bytes)
+        
+        rel_path = os.path.relpath(str(p), self.media_root).replace("\\", "/")
+        img_size = Image.open(BytesIO(image_bytes)).size
+        
+        self.saved_files[key] = {
+            "path": rel_path,
+            "img_w": img_size[0],
+            "img_h": img_size[1],
+        }
+        return self.saved_files[key]
+    
+    def _pixmap_to_png_bytes(self, pix: fitz.Pixmap) -> bytes:
+        """Pixmap → PNG 바이트 (버전별 호환 처리)"""
+        try:
+            return pix.tobytes("png")
+        except Exception as e:
+            raise RuntimeError(f"Pixmap → PNG 직렬화 실패: {e}")
+
+    def _build_smask_map(self) -> Dict[int, int]:
+        """
+        page.get_images(full=True)에서 (image xref → smask xref) 매핑 생성.
+        smask 없으면 0.
+        """
+        smask_map: Dict[int, int] = {}
+        for tpl in self.page.get_images(full=True):
+            # (xref, smask, width, height, bpc, colorspace, alt_cs, name, filter, referencer)
+            xref, smask_xref = tpl[0], tpl[1]
+            smask_map[xref] = smask_xref or 0
+        return smask_map
+
+    def _extract_standard_image(self, info: Dict[str, Any], smask_map: Dict[int, int]) -> Dict[str, Any] | None:
+        """
+        표준 이미지(xref>0) 하나를 추출.
+        - has-mask=True & smask_xref>0 → Pixmap 결합 후 PNG로 저장
+        - 그 외 → 기존 extract_image(xref) 그대로 저장
+        """
+        xref = int(info["xref"])
+        number = int(info["number"])
+        has_mask = bool(info.get("has-mask"))
+        smask_xref = int(smask_map.get(xref, 0))
+        transform = info.get("transform", [1, 0, 0, 1, 0, 0])
+        bbox = info.get("bbox", [0, 0, 0, 0])
+
+        try:
+            if has_mask and smask_xref > 0:
+                # ---- SMask 결합 경로: PNG(alpha)로 저장 ----
+                base_pix = fitz.Pixmap(self.doc, xref)
+                mask_pix = fitz.Pixmap(self.doc, smask_xref)
+                combined = fitz.Pixmap(base_pix, mask_pix)  # 알파 합성
+                image_bytes = self._pixmap_to_png_bytes(combined)
+                saved_meta = self._save_image(f"{xref}_smask", image_bytes, "png")
+                logger.debug(f"[SMASK] xref={xref}, smask={smask_xref} PNG(alpha) 저장")
+
+                return {
+                    "xref": xref,
+                    "number": number,
+                    "transform_pt": transform,
+                    "bbox_pt": bbox,
+                    **saved_meta,
+                    "origin_w": int(info.get("width", 0)),
+                    "origin_h": int(info.get("height", 0)),
+                }
+
+            # ---- 기본 경로: 원본 바이트 추출 ----
+            raw = self.doc.extract_image(xref)
+            if not raw or not raw.get("image"):
+                return None
+            ext = raw.get("ext", "png")
+            saved_meta = self._save_image(xref, raw["image"], ext)
+
+            return {
+                "xref": xref,
+                "number": number,
+                "transform_pt": transform,
+                "bbox_pt": bbox,
+                **saved_meta,
+                "origin_w": int(info.get("width", 0)),
+                "origin_h": int(info.get("height", 0)),
+            }
+
+        except Exception as e:
+            logger.warning(f"표준 이미지 xref {xref} 처리 중 오류: {e}")
+            return None
+
+    # ------------ 메인 ---------------
+
+    def extract(self) -> List[Dict[str, Any]]:
+        logger.debug(f"---------------[AdvancedImageExtractor p.{self.pno}]호출됨--------------")
+        
+        # 1. 메타데이터의 기준점: get_image_info()
+        info_list = self.page.get_image_info(xrefs=True) #type:ignore
+        if not info_list:
+            return []
+
+        extracted_images: List[Dict[str, Any]] = []
+        num_images_to_process = len(info_list)
+
+        # smask 맵을 미리 계산 (표준 이미지에만 사용)
+        smask_map = self._build_smask_map()
+        # 인라인 이미지 매핑을 위해 HTML은 '필요할 때' 최초 1회만 파싱하기위해 for 외부에 변수설정해둠
+        html_soup = None
+        html_img_tags: List[Any] = []
+
+        # 4. 순서(index)를 기준으로 매핑하여 이미지 추출
+        for i in range(num_images_to_process):
+            info = info_list[i]
+            xref = int(info["xref"])
+            number = int(info["number"])
+
+            if xref > 0:
+                # ---- 표준 이미지: SMask 우선 결합, 아니면 기존 추출 ----
+                meta = self._extract_standard_image(info, smask_map)
+                if meta:
+                    extracted_images.append(meta)
+                continue
+
+            # ---- 인라인 이미지 (xref == 0): 기존 매핑 유지 ----
+            if html_soup is None:
+                html_content = self.page.get_text("html")
+                html_soup = BeautifulSoup(html_content, "html.parser")
+                html_img_tags = html_soup.find_all("img")
+
+                if len(info_list) != len(html_img_tags):
+                    logger.warning(
+                        f"Page {self.pno}: Mismatch get_image_info({len(info_list)}) vs HTML img tags({len(html_img_tags)})"
+                    )
+
+            if i >= len(html_img_tags):
+                logger.warning(f"인라인 이미지 매핑 실패: index {i} / img_tags {len(html_img_tags)}")
+                continue
+
+            img_tag = html_img_tags[i]
+            src = img_tag.get("src", "")
+
+            if src and src.startswith("data:image"):
+                try:
+                    b64data = src.split(",", 1)[1]
+                    image_bytes = base64.b64decode(b64data)
+
+                    file_key = f"inline_{number}"
+                    saved_meta = self._save_image(file_key, image_bytes, "png")
+                    unique_xref = 10000 * self.pno + number  # 내부 고유키
+
+                    extracted_images.append({
+                        "xref": unique_xref,
+                        "number": number,
+                        "transform_pt": info.get("transform", [1, 0, 0, 1, 0, 0]),
+                        "bbox_pt": info.get("bbox", [0, 0, 0, 0]),
+                        **saved_meta,
+                        "origin_w": int(info.get("width", 0)),
+                        "origin_h": int(info.get("height", 0)),
+                    })
+                except Exception as e:
+                    logger.warning(f"인라인 이미지 base64 처리 실패(index={i}): {e}")
+            else:
+                logger.warning("img 태그는 있으나 src가 없거나 data URI 형식이 아닙니다.")
+
+        return extracted_images
+
+class TextDictImageExtractorV2:
+    """
+    page.get_text("dict")의 image block을 보강 수집.
+    - image + mask → RGBA로 합성하여 PNG로 저장
+    - collect_images()가 만드는 스키마와 동일하게 반환
+      (transform_pt, bbox_pt(xyxy, pt), path, img_w/h, origin_w/h)
+    """
+    def __init__(self, page: fitz.Page, pno: int, out_dir: str, media_root: str):
+        self.page = page
+        self.pno = pno  # 1-based
+        self.out_dir = Path(out_dir)
+        self.media_root = media_root
+        self.saved_hashes: set[str] = set()
+        self.order_base = 1000
+
+    # --- utils ---
+    @staticmethod
+    def _ensure_bytes(blob):
+        if blob is None:
+            return None
+        if isinstance(blob, bytes):
+            return blob
+        if isinstance(blob, str):
+            return blob.encode("latin-1", errors="ignore")
+        raise TypeError(f"Unsupported blob type: {type(blob)}")
+
+    @staticmethod
+    def _stable_hash(b: bytes) -> str:
+        return hashlib.sha1(b).hexdigest()
+
+    @staticmethod
+    def _open_img(b: bytes) -> Image.Image:
+        return Image.open(BytesIO(b))
+
+    @staticmethod
+    def _normalize_mask(mask_img: Image.Image) -> Image.Image:
+        if mask_img.mode not in ("1", "L"):
+            mask_img = mask_img.convert("L")
+        hist = mask_img.histogram()
+        if hist:
+            black_ratio = hist[0] / max(1, sum(hist))
+            if black_ratio > 0.8:
+                mask_img = ImageOps.invert(mask_img)
+        return mask_img
+
+    def _compose_rgba(self, image_bytes: bytes, mask_bytes: bytes | None) -> Image.Image:
+        base = self._open_img(image_bytes).convert("RGBA")
+        if mask_bytes:
+            m = self._open_img(mask_bytes)
+            m = self._normalize_mask(m)
+            if m.size != base.size:
+                m = m.resize(base.size, Image.Resampling.NEAREST)
+            base.putalpha(m)
+        return base
+
+    def _save_png(self, img: Image.Image, name: str) -> str:
+        p = self.out_dir / f"{name}.png"
+        os.makedirs(p.parent, exist_ok=True)
+        img.save(str(p), "PNG")
+        return os.path.relpath(str(p), self.media_root).replace("\\", "/")
+
+    # --- main ---
+    def extract(self) -> List[Dict[str, Any]]:
+        logger.debug("---------------[TextDictImageExtractorV2]호출됨--------------")
+        out_images: List[Dict[str, Any]] = []
+        text_dict = self.page.get_text("dict", flags = fitz.TEXTFLAGS_DICT | fitz.TEXT_PRESERVE_IMAGES)  #type:ignore
+        logger.debug(f"[textdict] : {len(text_dict)}")
+        logger.debug(f"[textdict.blocks 갯수] : {len(text_dict.get("blocks"))}")
+        
+        text_dict_images = [ td_image for td_image in text_dict.get("blocks", []) if td_image.get("type") == 1 ]
+        logger.debug(f"[textdict 이미지 갯수] : {len(text_dict_images)}")
+        current_order = self.order_base
+        for block in text_dict_images:
+            if block.get("type") != 1:
+                continue
+
+            img_b = self._ensure_bytes(block.get("image"))
+            if not img_b:
+                logger.debug(f"[textdict 이미지 없음]")
+                continue
+            mask_b = self._ensure_bytes(block.get("mask"))
+            if not mask_b:
+                logger.debug(f"[textdict 마스크 없음]")
+
+            # 중복 방지
+            sig = self._stable_hash(img_b + (mask_b or b""))
+            if sig in self.saved_hashes:
+                continue
+            self.saved_hashes.add(sig)
+
+            # 합성
+            composed = self._compose_rgba(img_b, mask_b)
+            if not composed:
+                logger.debug(f"[textdict 이미지 합성 실패]")
+
+            # 파일명: textdict_p{pno}_{blockNo}
+            base_name = f"textdict_p{self.pno}_{block['number']}"
+            rel_path = self._save_png(composed, base_name)
+            logger.debug(f"[textdict이미지 저장 상대경로] : {rel_path}")
+
+            # 메인 스키마에 맞춰 반환
+            # - bbox_pt: xyxy (points)
+            # - transform_pt: [a,b,c,d,e,f] (points)
+            x0, y0, x1, y1 = block["bbox"]
+            tf = block.get("transform", [1,0,0,1,0,0])
+            logger.debug(f"[textdict 이미지 tf] : {tf}")
+
+            # img_w/h: 저장된 이미지 픽셀 크기
+            img_w, img_h = composed.width, composed.height
+            origin_w = int(block.get("width") or img_w)
+            origin_h = int(block.get("height") or img_h)
+
+            out_images.append({
+                "order": current_order,
+                "xref": - (100000 * self.pno + block["number"]),  # 음수 xref로 충돌 회피
+                "number": block['number'],
+                "transform_pt": list(tf),
+                "bbox_pt": [x0, y0, x1, y1],
+                "path": rel_path,           # MEDIA_ROOT 상대경로
+                "img_w": img_w,            # px
+                "img_h": img_h,            # px
+                "origin_w": origin_w,      # px
+                "origin_h": origin_h,      # px
+            })
+            current_order += 1
+
+        return out_images
+
 
 ### (D) 최종 추출기: extract_images_and_bboxes()
 
@@ -233,6 +512,7 @@ def extract_images_and_bboxes(
 
     for pno in range(len(doc)):
         page = doc[pno]
+        page_no = pno + 1
         pw_pt, ph_pt = page.rect.width, page.rect.height
         page_info = {
             "page_no": pno + 1,
@@ -241,25 +521,47 @@ def extract_images_and_bboxes(
             "images": []
         }
 
-        # 1) 수집
+        # --- MODIFIED: 'number' 기반의 새로운 병합 로직 ---
+        merged_images_by_key = {}
+
+        # 1. AdvancedExtractor 결과를 먼저 추가
+        adv_extractor = AdvancedImageExtractor(page, doc, page_no, out_dir, media_root)
+        for img in adv_extractor.extract():
+            key = (page_no, img['number'])
+            merged_images_by_key[key] = img
+
+        # 2. TextDictExtractor 결과로 덮어쓰기 (우선적용)
+        textdict_extractor = TextDictImageExtractorV2(page, page_no, out_dir, media_root)
+        for img in textdict_extractor.extract():
+            key = (page_no, img['number'])
+            merged_images_by_key[key] = img
+        
+        all_images = list(merged_images_by_key.values())
+        # --- End of MODIFIED section ---
+
+        # --- 수집된 이미지 후처리 ---
         clips   = collect_clips(page)
-        logger.debug(f"[EXTRACT-IMG-Clips] : {clips}")
-        images  = collect_images(page, doc, out_dir, media_root)  # transform_pt, bbox_pt, path, img_w/h
-        logger.debug(f"[EXTRACT-IMG-Images] : {images}")
-        matches = match_clips_to_images(clips, images)
-        logger.debug(f"[EXTRACT-IMG-Matches] : {matches}")
+        matches = match_clips_to_images(clips, all_images)
+        logger.debug(f"Page {page_no} [Total images found]: {len(all_images)}")
 
         # 2) 페이지 이미지 기록으로 변환 (px 좌표로 저장)
-        for im in images:
+        for im in all_images:
             x0,y0,x1,y1 = im["bbox_pt"]
             logger.debug(f"[EXTRACT-IMG-Bbox-pt] : {x0,y0,x1,y1}")
             bbox_px = [x0*scale, y0*scale, (x1-x0)*scale, (y1-y0)*scale]  # xywh(px)
             logger.debug(f"[EXTRACT-IMG-Bbox-px] : {bbox_px}")
+
             m = matches.get(im["xref"], {})
             cb_pt = m.get("clip_bbox_pt")  # [x,y,w,h] (pt) or None
             logger.debug(f"[EXTRACT-IMG-Clip] : {cb_pt}")
             clip_bbox_px = [cb_pt[0]*scale, cb_pt[1]*scale, cb_pt[2]*scale, cb_pt[3]*scale] if cb_pt else None
             logger.debug(f"[EXTRACT-IMG-Clip-px] : {clip_bbox_px}")
+
+            clip_path_data_pt = m.get("clip_path_data_pt")
+            logger.debug(f"[EXTRACT-IMG-Clip-Path] : {clip_path_data_pt}")
+            clip_path_data_px = _scale_svg_path(clip_path_data_pt, scale) if clip_path_data_pt else None
+            logger.debug(f"[EXTRACT-IMG-Clip-Path-px] : {clip_path_data_px}")
+
             tf_pt = im.get("transform_pt")
             logger.debug(f"[EXTRACT-IMG-Transform] : {tf_pt}")
             transform_px = [tf_pt[0]*scale, tf_pt[1]*scale, tf_pt[2]*scale, tf_pt[3]*scale, tf_pt[4]*scale, tf_pt[5]*scale]  # pt -> px
@@ -275,6 +577,7 @@ def extract_images_and_bboxes(
                 "img_w": im["img_w"],                       # collect_images에서 이미 px
                 "img_h": im["img_h"],                       # collect_images에서 이미 px
                 "clip_bbox": clip_bbox_px,                  # [x,y,w,h] px or None
+                "clip_path_data_px": clip_path_data_px,     # pt 단위의 SVG 경로 데이터를 px로 변환
                 "origin_w": im["origin_w"],                 # collect_images에서 이미 px
                 "origin_h": im["origin_h"],                 # collect_images에서 이미 px
             })
@@ -377,9 +680,10 @@ class ImageExtractor:
         output_path: str,
         fmt: str = "PNG",
         quality: int = 90
-    ) -> bool:
+    ) -> Image.Image | None:
         """
         bbox: {"x":..,"y":..,"w":..,"h":..} 또는 [x,y,w,h]
+        Returns the cropped PIL Image on success, otherwise None.
         """
         try:
             # 페이지 렌더(캐시)
@@ -408,10 +712,10 @@ class ImageExtractor:
                 crop.save(output_path, "WEBP", quality=quality, method=6)
             else:
                 crop.save(output_path)  # 포맷 추정
-            return True
+            return crop
         except Exception as e:
             print(f"[ImageExtractor] Error extracting p{page_no} bbox={bbox}: {e}")
-            return False
+            return None
 
     def extract_many(
         self,
@@ -420,20 +724,107 @@ class ImageExtractor:
         output_dir: str,
         prefix: str = "fig",
         ext: str = "png"
-    ) -> Dict[str, str]:
+    ) -> Dict[str, Dict[str, Any]]:
         """
-        figures: [{"ref":"img_pN_1", "bbox":[x,y,w,h], ... }, ...]
-        return: { ref: absolute_path }
+        figures: [{"ref":"img_pN_1", "bbox":[x,y,w,h], ... }, ...].
+        The 'bbox' is expected to be in page pixel coordinates, as prepared by normalize_bboxes_1000.
+        return: { ref: {"path": absolute_path, "width": int, "height": int} }
         """
         os.makedirs(output_dir, exist_ok=True)
-        out: Dict[str,str] = {}
+        out: Dict[str, Dict[str, Any]] = {}
         for i, f in enumerate(figures, 1):
-            ref = f.get("ref") or f"img_p{page_no}_{i}"
-            bbox = f.get("bbox") or [f.get("bbox_x"), f.get("bbox_y"), f.get("bbox_w"), f.get("bbox_h")]
-            if not bbox or len(bbox) != 4:
-                raise ValueError(f"Invalid bbox for figure {ref}: {bbox}")
+            ref = f.get("ref") or f.get("label") or f"img_p{page_no}_{i}"
+            bbox = f.get("bbox")  # This should be present after normalization
+            # The 'bbox' must be present and valid after the normalization step.
+            if not isinstance(bbox, (list, tuple)) or len(bbox) != 4 or any(v is None for v in bbox):
+                logger.warning(f"Skipping figure {ref} in page {page_no} due to missing or invalid 'bbox'. Figure data: {f}")
+                continue
             out_path = os.path.join(output_dir, f"{prefix}_p{page_no}_{i}.{ext}")
-            ok = self.extract_figure(page_no, bbox, out_path, fmt=ext.upper()) #type:ignore
-            if ok:
-                out[ref] = out_path
+            cropped_image = self.extract_figure(page_no, bbox, out_path, fmt=ext.upper())  # type:ignore
+            if cropped_image:
+                out[ref] = {
+                    "path": out_path,
+                    "width": cropped_image.width,
+                    "height": cropped_image.height,
+                }
+        return out
+    
+    @staticmethod
+    def normalize_bboxes_1000(figures: List[Dict], page_w: int, page_h: int, expand_px: int = 3) -> List[Dict]:
+        """
+        Gemini는 무조건 주어진 이미지의 bbox를 가로 & 세로 0~1000의 좌표계에서 추론하여 반환하므로,
+        반환값을 실제 이미지에 적용할 수 있도록 페이지 좌표계(px)로 변환합니다.
+        - 입력: Gemini가 준 bbox_x, bbox_y, bbox_w, bbox_h (0-1000 grid)
+        - 출력: 페이지 px(top-left) 기준의 xywh 정수 bbox로 변환 + 여유 expand + 경계 클램프
+        """
+        if not figures:
+            return []
+
+        sx = page_w / 1000.0
+        sy = page_h / 1000.0
+
+        out = []
+        for fg in figures:
+            # Gemini가 반환하는 1000단위 좌표계의 bbox 값들을 가져옵니다.
+            x_1000 = fg.get("bbox_x",0)
+            y_1000 = fg.get("bbox_y",0)
+            w_1000 = fg.get("bbox_w",0)
+            h_1000 = fg.get("bbox_h",0)
+
+            if any(v is None for v in [x_1000, y_1000, w_1000, h_1000]):
+                # 필요한 키가 없으면 원본을 그대로 추가하고 건너뜁니다.
+                out.append(fg)
+                continue
+
+            # 1000 그리드 좌표를 실제 페이지 픽셀 좌표로 변환합니다.
+            x_px = x_1000 * sx
+            y_px = y_1000 * sy
+            w_px = w_1000 * sx
+            h_px = h_1000 * sy
+
+            # 이미지 경계에 약간의 여유(padding)를 줍니다.
+            x = x_px - expand_px
+            y = y_px - expand_px
+            w = w_px + 2 * expand_px
+            h = h_px + 2 * expand_px
+
+            # 페이지 경계를 벗어나지 않도록 bbox를 조정(clamp)합니다.
+            clamped_bbox = ImageExtractor._clamp_bbox(int(x), int(y), int(w), int(h), page_w, page_h)
+
+            # 변환된 bbox를 'bbox' 키에 저장하여 figure 딕셔너리를 업데이트합니다.
+            out.append({**fg, "bbox": list(clamped_bbox)})
+        return out
+
+    @staticmethod
+    def normalize_bboxes_from_gemini(bounding_boxes: List[Dict], page_w: int, page_h: int, expand_px: int = 3) -> List[Dict]:
+        """
+        Converts bounding boxes from Gemini's normalized 0-1000 format to page pixel coordinates.
+        - Input: `bounding_boxes` from Gemini, e.g., [{'label': '...', 'box_2d': [ymin, xmin, ymax, xmax]}]
+        - Output: A list of figure dicts, e.g., [{'label': '...', 'bbox': [x, y, w, h]}] in page pixels.
+        """
+        out = []
+        for box_data in bounding_boxes:
+            box_2d = box_data.get("box_2d")
+            if not box_2d or len(box_2d) != 4:
+                continue
+
+            ymin, xmin, ymax, xmax = box_2d
+            
+            # Convert 0-1000 grid to absolute pixel coordinates
+            abs_y1 = int(ymin / 1000 * page_h)
+            abs_x1 = int(xmin / 1000 * page_w)
+            abs_y2 = int(ymax / 1000 * page_h)
+            abs_x2 = int(xmax / 1000 * page_w)
+
+            # Add padding and convert to xywh format
+            x = abs_x1 - expand_px
+            y = abs_y1 - expand_px
+            w = (abs_x2 - abs_x1) + 2 * expand_px
+            h = (abs_y2 - abs_y1) + 2 * expand_px
+
+            clamped_bbox = ImageExtractor._clamp_bbox(int(x), int(y), int(w), int(h), page_w, page_h)
+            
+            new_data = {key: val for key, val in box_data.items() if key != 'box_2d'}
+            new_data['bbox'] = list(clamped_bbox)
+            out.append(new_data)
         return out

@@ -200,6 +200,7 @@ class BookUploadView(APIView):
                                 img_w=im.get("img_w"),
                                 img_h=im.get("img_h"),
                                 clip_bbox=im.get("clip_bbox"),
+                                clip_path=im.get("clip_path_data_px"),
                                 origin_w=im.get("origin_w"),
                                 origin_h=im.get("origin_h"),
                             )
@@ -346,8 +347,9 @@ class BookPageView(APIView):
 
             # src 주입
             html_stage = data.get("html_stage", "")
-            #html_stage = bleach.clean(html_stage, tags=ALLOW_TAGS, attributes=ALLOW_ATTRS, strip=True) #type:ignore
-            html_stage_final = inject_sources(data["html_stage"], data.get("image_src_map", {}))
+            image_src_map = data.get("image_src_map", {})
+            image_details_map = data.get("image_details_map", {})
+            html_stage_final = inject_sources(html_stage, image_src_map, image_details_map)
 
 
             text_len, para_count = self._measure_html(html_stage_final)

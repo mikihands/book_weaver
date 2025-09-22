@@ -29,9 +29,11 @@ containing an HTML stage snippet plus a figures manifest.
 {genre_principles}
 
 ### Coordinate Space (IMPORTANT)
-- Origin: top-left (0,0)
-- Page size (pixels): width={W}, height={H}
-- All bounding boxes must be within this page rectangle.
+- Origin: top-left (0,0).
+- **You MUST use a normalized 1000x1000 coordinate system for all bounding boxes.**
+- The coordinate space for `bbox_x, bbox_y, bbox_w, bbox_h` is a 1000x1000 grid, regardless of the actual page dimensions.
+- All bounding box values must be integers within this `(0,0)` to `(1000,1000)` grid.
+- The actual page size is `width={W}px`, `height={H}px`. The server will automatically scale your coordinates.
 
 ### Output Contract (NO SCHEMA PROVIDED; FOLLOW EXACT KEYS)
 Return **only** one JSON object with the following fields and shapes (no extra text, no code fences):
@@ -44,21 +46,11 @@ Return **only** one JSON object with the following fields and shapes (no extra t
     "page_h": <int>,          // must be {H}
     "page_units": "px"
   }},
-  "html_stage": "<div>...</div>",   // stage-only HTML. NO <html>, <head>, or <body>
-  "figures": [
-    {{
-      "ref": "<string>",      // image reference id
-      "bbox_x": <int>,        // x in pixels within page
-      "bbox_y": <int>,        // y in pixels within page
-      "bbox_w": <int>,        // width in pixels
-      "bbox_h": <int>,        // height in pixels
-      "alt": "<string, optional>",
-      "caption": "<string, optional>",
-      "width": <int, optional>,    // rendered width hint
-      "height": <int, optional>    // rendered height hint
-    }},
-    ...
-  ]
+  "html_stage": "<div>...</div>",
+  "has_figures": <boolean>, // true if there are any significant images, charts, or diagrams.
+  "figure_labels": [
+    "<string>" // A list of descriptive labels for each figure found. e.g., ["A bar chart showing sales data", "A photo of the main character"]
+  ] // This array should be empty if has_figures is false.
 }}
 
 ### HTML Rules
@@ -78,21 +70,14 @@ Wrapper contract (already applied by server):
 5) For body text, do NOT set fixed px/rem sizes. Inherit wrapper base.
 6) Margins/padding: use multiples of var(--font-base), e.g. style="margin: calc(var(--font-base)*1.2) 0 .4em;"
 7) 문단은 실제 원본의 들여쓰기/줄간격/여백을 반영해라. 
-8) paragraph의 첫줄을 들여써야 할 경우 text-indent 사용.(Do NOT use margin)
+8) paragraph의 첫줄을 들여써야 할 경우 text-indent 사용.(Do NOT use margin or spacebar)
 9) For each figure:
-  - In HTML, insert an <img> placeholder with **data-ref="<ref>"** and width,height attributes. (do not set src).
-  - The server will set the actual src using your "figures" manifest.
-  - figure는 이미지 크기를 원본 비율에 맞춰 지정하고, 캡션이 있는 경우 원본에 충실히 재현, .
+  - In HTML, insert an <img> placeholder with a **data-ref="<label>"** attribute, where the label is one of the strings from your `figure_labels` output.
+  - **Do NOT set `src`, `width`, or `height` attributes.** The server will handle this.
+  - If a figure has a caption, reproduce it faithfully using `<figcaption>`.
 10) Never output <html>, <head>, or <body>. Stage-only snippet.
 11) 리스트/각주/출처는 본문보다 작은 글자와 더 촘촘한 줄간격으로 한다.
 12) 절대 위치 지정은 금지. 대신 여백/들여쓰기/정렬로 원본 레이아웃을 “느낌”으로 재현.
-
-### Figures Policy
-- A list of known figures (by "ref" and bbox) may be provided by the user message.
-- If you see additional figures not listed, you **may** infer them and:
-  1) add an <img data-ref="..." width="..." height="..." /> placeholder in HTML,
-  2) add a matching entry to "figures" with an **estimated** bbox that fits inside the page.
-- Do NOT place any bbox outside the page bounds. Round all numbers to integers.
 
 ### Typography & Translation
 - Translate all textual content into the target language. Do not translate numbers, file names, or code syntax.
@@ -118,7 +103,7 @@ Wrapper contract (already applied by server):
         "total_pages": total_pages,
         "target_lang": target_lang,
         "schema_version": "weaver.page.v2",
-        "coordinate_space": {"width": W, "height": H, "units": "px", "origin": "top-left"},
+        "coordinate_space": {"width": "[0,1000]", "height": "[0,1000]", "origin": "top-left"},
         "target_page": page_ctx["page_no"],
         # 서버가 이미 알고 있는 이미지 자원(정규화된 bbox)을 힌트로 제공
         "figures_available": page_ctx.get("images", []),
@@ -128,11 +113,9 @@ Wrapper contract (already applied by server):
             "CRITICAL: Refer to 'previous_page_context' to ensure consistent translation tone and style (e.g., formal/informal speech) with the preceding page.",
             f"The book's title is '{book_title}' and its genre is '{book_genre}'. Use this context to inform the tone and vocabulary of the translation.",
             f"Translate all text into {target_lang}. Do not translate numbers, symbols, or code syntax.",
-            f"You are processing page {page_ctx['page_no']} out of {total_pages}. Output must contain ONLY content visible on page {page_ctx['page_no']}.",
+            f"You are processing page {page_ctx['page_no']} out of {total_pages}. Output must contain ONLY content visible on this page.",
             "Maintain a visually similar layout to the original, but ensure readability with proper headings, spacing, and lists.",
-            "For each figure: add <img data-ref='...' width='...' height='...' /> (no src) in HTML and a corresponding entry in 'figures'.",
-            "If you infer a figure not listed in 'figures_available', add both placeholder and manifest with an estimated bbox.",
-            "Ensure all bbox values are integers and strictly inside the page rectangle.",
+            "For each figure, add an <img data-ref='...'> placeholder in the HTML and a matching label in `figure_labels`.",
             "Your output must be a single JSON object. DO NOT add any extra text or explanations."
         ]
     }
@@ -175,7 +158,7 @@ Wrapper contract (already applied by server):
   </blockquote>
 
   <figure style="margin: calc(var(--font-base)*1.2) auto;">
-    <img data-ref="img_p6_1" style="display:block; width:800px; height:600px; border-radius:.375rem;">
+    <img data-ref="Scene sketch" style="display:block; border-radius:.375rem;">
     <figcaption id="el-4" style="text-align:center; color:#6b7280; font-size:.9em; margin-top:.35em;">
       그림 1. 사건 현장 스케치
     </figcaption>
@@ -185,16 +168,9 @@ Wrapper contract (already applied by server):
     <li id="el-5">…</li>
   </ul>
 </div>",
-  "figures": [
-    {{
-      "ref": "img_p{int(page_ctx['page_no'])}_1",
-      "bbox_x": 140,
-      "bbox_y": 320,
-      "bbox_w": 800,
-      "bbox_h": 600,
-      "alt": "…",
-      "caption": "…"
-    }}
+  "has_figures": true,
+  "figure_labels": [
+    "Scene sketch"
   ]
 }}
 """.strip()

@@ -1,5 +1,6 @@
 # mybook/tasks.py
 import json, logging, os
+from bs4 import BeautifulSoup
 from pathlib import Path
 from django.conf import settings
 from celery import shared_task
@@ -12,9 +13,11 @@ from .utils.gemini_helper import GeminiHelper
 from .utils.gemini_file_ref import GeminiFileRefManager
 from .utils.extract_image import split_images_for_prompt, ImageExtractor
 from .utils.schema_loader import load_weaver_schema
+from .utils.paragraphs import UnitsBuilder
 from .utils.born_digital import (
-    collect_page_layout, spans_to_units, build_faithful_html, build_readable_html
+    collect_page_layout, build_faithful_html, build_readable_html
 )
+from PIL import Image
 
 from urllib.parse import urljoin
 
@@ -40,7 +43,7 @@ def _inject_images_from_db(layout: dict, book: Book, page_no: int) -> dict:
     pis = list(
         PageImage.objects
         .filter(book=book, page_no=page_no)
-        .values("xref","path","bbox","clip_bbox","img_w","img_h","origin_w","origin_h","transform")
+        .values("xref","path","bbox","clip_bbox","clip_path","img_w","img_h","origin_w","origin_h","transform")
     )
     images = []
     for pi in pis:
@@ -49,6 +52,7 @@ def _inject_images_from_db(layout: dict, book: Book, page_no: int) -> dict:
             "path": pi["path"],
             "bbox": pi.get("bbox"),             # px, xywh
             "clip_bbox": pi.get("clip_bbox"),   # px, xywh or None
+            "clip_path_data_px": pi.get("clip_path"),
             "img_w": pi.get("img_w"),
             "img_h": pi.get("img_h"),
             "origin_w": pi.get("origin_w"),
@@ -112,20 +116,59 @@ def translate_book_pages(self, book_id: int, target_lang: str, page_numbers_to_p
 
             if data:
                 # 4. 이미지 추출 로직 유지
-                page_no_from_data = data["page"]["page_no"]
-                norm_w, norm_h = data["page"]["page_w"], data["page"]["page_h"]
-                pdf_path = book.original_file.path
-                fig_dir = os.path.join(settings.MEDIA_ROOT, "figures", f"book_{book.id}", f"page_{page_no_from_data}") # type: ignore
-                os.makedirs(fig_dir, exist_ok=True)
+                if data.get("has_figures"):
+                    page_no_from_data = data["page"]["page_no"]
+                    norm_w, norm_h = data["page"]["page_w"], data["page"]["page_h"]
+                    pdf_path = book.original_file.path
 
-                iex = ImageExtractor(pdf_path, norm_w, norm_h)
-                ref_to_path = iex.extract_many(page_no_from_data, data.get("figures", []), output_dir=fig_dir, prefix="fig", ext="png")
-                iex.close()
+                    # 1. HTML에서 실제 data-ref를 추출하고, 설명 레이블과 매핑합니다.
+                    soup = BeautifulSoup(data.get("html_stage", ""), "html.parser")
+                    html_refs = [img.get("data-ref") for img in soup.find_all("img") if img.get("data-ref")]
 
-                for ref, abs_path in ref_to_path.items():
-                    rel = abs_path.replace(settings.MEDIA_ROOT, "").lstrip("/\\")
-                    url = settings.MEDIA_URL.rstrip("/") + "/" + rel
-                    data.setdefault("image_src_map", {})[ref] = url
+                    # 페이지 렌더링을 위한 ImageExtractor 인스턴스
+                    iex = ImageExtractor(pdf_path, norm_w, norm_h)
+                    page_image_for_detect = iex._render_page_raster(page_no_from_data)
+                    
+                    # 2단계: Bbox 탐지 API 호출
+                    detected_boxes, detect_errs = llm.detect_figures(
+                        image=page_image_for_detect,
+                        # labels 인자는 생성된 슬러그가 객체 탐지에 방해가 될 수 있으므로 제거합니다.
+                        labels=data.get("figure_labels")
+                    )
+
+                    if detected_boxes:
+                        fig_dir = os.path.join(settings.MEDIA_ROOT, "figures", f"book_{book.id}", f"page_{page_no_from_data}") # type: ignore
+                        os.makedirs(fig_dir, exist_ok=True)
+
+                        normalized_figures = ImageExtractor.normalize_bboxes_from_gemini(detected_boxes, norm_w, norm_h, expand_px=3)
+                        # 2. HTML에 있는 data-ref의 순서와 탐지된 객체의 순서가 일치한다고 가정하고 ref를 할당합니다.
+                        if len(normalized_figures) == len(html_refs):
+                            for i, fig in enumerate(normalized_figures):
+                                fig['ref'] = html_refs[i]
+                        else:
+                            logger.warning(f"Mismatch between detected figures ({len(normalized_figures)}) and HTML refs ({len(html_refs)}) for book {book.id} page {pno}. Falling back to label-based refs.")
+                            for i, fig in enumerate(normalized_figures):
+                                fig['ref'] = fig.get('label') or f"fig_p{page_no_from_data}_{i+1}"
+
+                        # 이미지 잘라내고 상세 정보(경로, 너비, 높이) 받기
+                        ref_to_details = iex.extract_many(page_no_from_data, normalized_figures, output_dir=fig_dir, prefix="fig", ext="png")
+
+                        # URL 생성 및 데이터 주입
+                        image_src_map = {}
+                        for ref, details in ref_to_details.items():
+                            rel = details['path'].replace(settings.MEDIA_ROOT, "").lstrip("/\\")
+                            url = settings.MEDIA_URL.rstrip("/") + "/" + rel
+                            image_src_map[ref] = url
+                            details['url'] = url
+
+                        data["image_details_map"] = ref_to_details
+                        data["image_src_map"] = image_src_map
+                    
+                    elif detect_errs:
+                        logger.warning(f"Figure detection failed for book {book.id} page {pno}: {detect_errs}") #type:ignore
+
+                    iex.close()
+
 
             with transaction.atomic():
                 if data:
@@ -179,7 +222,8 @@ def translate_book_pages_born_digital(self, book_id: int, target_lang: str, page
             self.update_state(state="PROGRESS", meta={"current": i, "total": total_job_pages})
             
             layout = collect_page_layout(pdf_path, pno)
-            units, idx_map = spans_to_units(layout.get("spans", []))
+            ub = UnitsBuilder(use_paragraphs=True)
+            units, idx_map = ub.build_units(layout.get("spans", []))
 
             translated_units, errs = [], None
             if units:
@@ -266,7 +310,8 @@ def retranslate_single_page(self, book_id: int, page_no: int, target_lang: str, 
 
             # Get original text units from PDF
             layout = collect_page_layout(pdf_path, page_no)
-            units, idx_map = spans_to_units(layout.get("spans", []))
+            ub = UnitsBuilder(use_paragraphs=True)
+            units, idx_map = ub.build_units(layout.get("spans", []))
 
             translated_units, errs = [], None
             if units:
@@ -376,18 +421,52 @@ def retranslate_single_page(self, book_id: int, page_no: int, target_lang: str, 
         )
 
         if data:
-            norm_w, norm_h = data["page"]["page_w"], data["page"]["page_h"]
-            pdf_path = book.original_file.path
-            fig_dir = os.path.join(settings.MEDIA_ROOT, "figures", f"book_{book.id}", f"page_{page_no}") # type: ignore
-            os.makedirs(fig_dir, exist_ok=True)
+            if data.get("has_figures"):
+                page_no_from_data = data["page"]["page_no"]
+                norm_w, norm_h = data["page"]["page_w"], data["page"]["page_h"]
+                pdf_path = book.original_file.path
 
-            iex = ImageExtractor(pdf_path, norm_w, norm_h)
-            ref_to_path = iex.extract_many(page_no, data.get("figures", []), output_dir=fig_dir, prefix="fig", ext="png")
-            iex.close()
-            for ref, abs_path in ref_to_path.items():
-                rel = abs_path.replace(settings.MEDIA_ROOT, "").lstrip("/\\")
-                url = settings.MEDIA_URL.rstrip("/") + "/" + rel
-                data.setdefault("image_src_map", {})[ref] = url
+                # 1. HTML에서 실제 data-ref를 추출하고, 설명 레이블과 매핑합니다.
+                soup = BeautifulSoup(data.get("html_stage", ""), "html.parser")
+                html_refs = [img.get("data-ref") for img in soup.find_all("img") if img.get("data-ref")]
+
+                iex = ImageExtractor(pdf_path, norm_w, norm_h)
+                page_image_for_detect = iex._render_page_raster(page_no_from_data)
+
+                detected_boxes, detect_errs = llm.detect_figures(
+                    image=page_image_for_detect,
+                    labels=data.get("figure_labels")
+                )
+
+                if detected_boxes:
+                    fig_dir = os.path.join(settings.MEDIA_ROOT, "figures", f"book_{book.id}", f"page_{page_no_from_data}") # type: ignore
+                    os.makedirs(fig_dir, exist_ok=True)
+
+                    normalized_figures = ImageExtractor.normalize_bboxes_from_gemini(detected_boxes, norm_w, norm_h, expand_px=3)
+                    if len(normalized_figures) == len(html_refs):
+                        for i, fig in enumerate(normalized_figures):
+                            fig['ref'] = html_refs[i]
+                    else:
+                        logger.warning(f"Mismatch during re-translate for book {book.id} page {page_no}: detected figures ({len(normalized_figures)}) vs HTML refs ({len(html_refs)}).") #type:ignore
+                        for i, fig in enumerate(normalized_figures):
+                            fig['ref'] = fig.get('label') or f"fig_p{page_no_from_data}_{i+1}"
+                            
+                    ref_to_details = iex.extract_many(page_no_from_data, normalized_figures, output_dir=fig_dir, prefix="fig", ext="png")
+
+                    image_src_map = {}
+                    for ref, details in ref_to_details.items():
+                        rel = details['path'].replace(settings.MEDIA_ROOT, "").lstrip("/\\")
+                        url = settings.MEDIA_URL.rstrip("/") + "/" + rel
+                        image_src_map[ref] = url
+                        details['url'] = url
+
+                    data["image_details_map"] = ref_to_details
+                    data["image_src_map"] = image_src_map
+                
+                elif detect_errs:
+                    logger.warning(f"Figure re-detection failed for book {book.id} page {page_no}: {detect_errs}")
+
+                iex.close()
 
         if data:
             TranslatedPage.objects.update_or_create(

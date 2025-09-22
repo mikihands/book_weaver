@@ -1,7 +1,7 @@
 # mybook/utils/layout_norm.py
 from copy import deepcopy
 from typing import List, Dict, Any
-import logging
+import logging, re
 
 logger = logging.getLogger(__name__)
 
@@ -55,7 +55,29 @@ def normalize_page_json(data: dict, base_width: int = 1200) -> dict:
 
     return out
 
+def _scale_svg_path(path_data: str, scale: float) -> str:
+    """
+    SVG 경로 데이터 문자열의 모든 숫자 값을 스케일링합니다.
+    과학적 표기법을 올바르게 처리하고 매우 작은 값은 0으로 처리합니다.
+    """
+    if not path_data:
+        return ""
 
+    # PyMuPDF가 생성할 수 있는 '1.23e-12.0'과 같은 잘못된 과학 표기법을 '1.23e-12'로 수정합니다.
+    path_data = re.sub(r'([eE][-+]?\d+)\.0+\b', r'\1', path_data)
+
+    def scale_match(m):
+        val = float(m.group(0))
+        scaled_val = val * scale
+        # 0.1 미만의 매우 작은 값은 0으로 처리하여 불필요한 정밀도를 제거합니다.
+        if abs(scaled_val) < 0.1:
+            return "0"
+        # 소수점 둘째 자리까지 반올림하여 문자열로 반환합니다.
+        return f"{scaled_val:.2f}"
+
+    # 정수, 부동소수점, 과학 표기법을 포함한 모든 숫자를 찾는 정규식입니다.
+    number_regex = r'[-+]?\d*\.?\d+(?:[eE][-+]?\d+)?'
+    return re.sub(number_regex, scale_match, path_data)
 
 def normalize_pages_layout(pages: List[Dict[str, Any]], base_width: int = 1200) -> List[Dict[str, Any]]:
     """
@@ -64,6 +86,7 @@ def normalize_pages_layout(pages: List[Dict[str, Any]], base_width: int = 1200) 
       - size.w,h : px (extract에서 이미 dpi/72 적용됨)
       - images[*].bbox : [x,y,w,h] (px)
       - images[*].clip_bbox : [x,y,w,h] (px) | None
+      - images[*].clip_path_data_pt: str (px) | None
       - images[*].transform : [a,b,c,d,e,f] (px)
       - images[*].img_w, img_h : 서버에 저장된 이미지 픽셀  ← 스케일 금지!
       - images[*].origin_h : 원본의 원래 이미지 높이 px  ← 스케일 금지! (html build시 이미지 transform 보정에 사용)
@@ -83,6 +106,7 @@ def normalize_pages_layout(pages: List[Dict[str, Any]], base_width: int = 1200) 
         },
         "images": {
             ...
+            "clip_path_data_px": str (px) | None
         }
       }, ...]
     """
@@ -112,6 +136,7 @@ def normalize_pages_layout(pages: List[Dict[str, Any]], base_width: int = 1200) 
             x, y, w, h = im["bbox"]               # px
             cb = im.get("clip_bbox")              # [x,y,w,h] px | None
             tf = im.get("transform")              # [a,b,c,d,e,f] px
+            cp = im.get("clip_path_data_px")   # px 단위 경로 데이터
 
             # bbox/clip_bbox 정규화 스케일 적용
             nb = [round(x*s, 2), round(y*s, 2), round(w*s, 2), round(h*s, 2)]
@@ -123,9 +148,13 @@ def normalize_pages_layout(pages: List[Dict[str, Any]], base_width: int = 1200) 
             # transform정규화
             ntf = [round(tf[0]*s, 2), round(tf[1]*s, 2), round(tf[2]*s, 2), round(tf[3]*s, 2), round(tf[4]*s, 2), round(tf[5]*s, 2)] if tf else [1,0,0,1,0,0]
 
+            # 클리핑 경로 데이터 정규화 px로 고치기
+            ncp = _scale_svg_path(cp, s) if cp else None
+
             logger.debug(f"[노멀라이즈] bbox : {nb}")
             logger.debug(f"[노멀라이즈] clip_bbox : {ncb}")
             logger.debug(f"[노멀라이즈] transform : {ntf}")
+            logger.debug(f"[노멀라이즈] clip_path_px : {ncp}")
 
             new_page["images"].append({
                 "ref": im["ref"],
@@ -133,6 +162,7 @@ def normalize_pages_layout(pages: List[Dict[str, Any]], base_width: int = 1200) 
                 "xref": im.get("xref"),
                 "bbox": [round(v,2) for v in nb],   # px (정규화됨)
                 "clip_bbox": [round(v,2) for v in ncb] if ncb else None,   # px (정규화됨) 또는 None
+                "clip_path_data_px": ncp,        # px (정규화됨)
                 "transform": ntf,         # px (정규화됨)
                 "img_w": im.get("img_w"),           # 원본 픽셀 유지
                 "img_h": im.get("img_h"),

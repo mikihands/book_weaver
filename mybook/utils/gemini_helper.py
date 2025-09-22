@@ -8,6 +8,7 @@ from django.conf import settings
 from google import genai
 from google.genai import types
 from jsonschema import Draft202012Validator
+from PIL import Image
 
 logger = logging.getLogger(__name__)
 
@@ -93,10 +94,6 @@ class GeminiHelper:
 
             errs = self._validate(data)
             if not errs:
-                # figures 보정
-                W = data["page"]["page_w"]; H = data["page"]["page_h"]
-                for f in data.get("figures", []):
-                    f["bbox"] = clamp_bbox([f["bbox_x"], f["bbox_y"], f["bbox_w"], f["bbox_h"]], W, H)
                 return data, None
             
             _dump_debug({"errors": errs}, "schema_errors", attempt)
@@ -154,6 +151,54 @@ class GeminiHelper:
                 contents.append(f"Error: {e}. Please ensure the output is a valid JSON array of strings matching the schema.")
                 continue
         return None, last_errs
+
+    def detect_figures(self, image: Image.Image, labels: Optional[List[str]] = None) -> Tuple[Optional[List[Dict]], Optional[List[str]]]:
+        """
+        Detects prominent items in an image and returns their bounding boxes.
+        This method is specialized for object detection.
+        """
+        prompt = """
+        Detect all prominent items in the image. Do not include text.
+
+        - **CRITICAL RULE**: If one detected item is completely inside another (e.g., an icon inside a map), you MUST only return the bounding box for the larger, containing item. Do not return nested items.
+        - The response must be a JSON array where each object has a 'label' and a 'box_2d'.
+        - The 'box_2d' must be `[ymin, xmin, ymax, xmax]` normalized to 0-1000.
+        """
+        if labels:
+            prompt += f"\n- Focus on detecting these specific items if possible: {', '.join(labels)}"
+
+        config = types.GenerateContentConfig(
+            response_mime_type="application/json",
+            thinking_config=types.ThinkingConfig(thinking_budget=0)
+            )
+
+        try:
+            response = self.client.models.generate_content(
+                model=MODEL_NAME,
+                contents=[image, prompt],
+                config=config
+            )
+            raw_text = response.text
+            
+            # Robust JSON extraction from markdown code fences
+            json_start = raw_text.find('[')
+            if json_start == -1:
+                json_start = raw_text.find('{')
+            json_end = raw_text.rfind(']')
+            if json_end == -1:
+                json_end = raw_text.rfind('}')
+            
+            if json_start != -1 and json_end != -1:
+                json_str = raw_text[json_start:json_end+1]
+                bounding_boxes = json.loads(json_str)
+                if isinstance(bounding_boxes, dict): # Handle single object case
+                    bounding_boxes = [bounding_boxes]
+                logger.debug(f"[Gemini-helper-detect_figures]bbox: {bounding_boxes}")
+                return bounding_boxes, None
+            else:
+                return None, [f"Could not find valid JSON in response: {raw_text}"]
+        except Exception as e:
+            return None, [f"Gemini figure detection API call failed: {e}"]
 
 def clamp_bbox(b, W, H):
     x,y,w,h = b

@@ -148,6 +148,7 @@ class PageImage(models.Model):
     transform = models.JSONField(null=True, blank=True,
         help_text="PDF CTM matrix [a,b,c,d,e,f] for positioning/cropping")
     clip_bbox = models.JSONField(null=True, blank=True, help_text="페이지내 이미지가 crop되었을때 클리핑마스크 bbox")
+    clip_path = models.CharField(null=True, blank=True, help_text="페이지내 이미지가 crop되었을때 클리핑마스크 경로")
     img_w = models.IntegerField(null=True, blank=True, help_text="서버에 저장된 이미지 너비")
     img_h = models.IntegerField(null=True, blank=True, help_text="서버에 저장된 이미지 높이")
     origin_w = models.IntegerField(null=True, blank=True, help_text="원본 이미지 너비")

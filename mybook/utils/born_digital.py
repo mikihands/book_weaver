@@ -2,6 +2,7 @@
 import logging
 import fitz 
 from .html_inject import escape_html
+from .pick_best_path import pick_final_clip
 from typing import Dict, Any, List, Tuple
 
 logger = logging.getLogger(__name__)
@@ -51,6 +52,7 @@ def _collect_spans_from(mode_dict, page_no):
                         "color": sp.get("color", 0),  # dict일 땐 0일 수도
                         "dir": sp.get("dir", None),
                         "block": bi, "line": li, "span": si,
+                        "origin": sp.get("origin", []),
                     })
     return spans
 
@@ -177,38 +179,6 @@ def collect_page_layout(pdf_path: str, page_no: int) -> Dict[str, Any]:
 
     return {"page_no": page_no, "size_pt": {"w": w, "h": h}, "spans": spans, "images": images, "drawings": drawings, "links": link_rects,}
 
-
-def spans_to_units(spans: List[Dict[str, Any]]) -> Tuple[List[str], List[List[int]]]:
-    """
-    스팬 → 번역 단위(문장 또는 라인 단위)로 묶고, 역매핑 인덱스(idx_map)를 유지.
-    단순 버전: 같은 line의 스팬을 합쳐 1개 유닛으로.
-    반환:
-      units: ["...", "...", ...]
-      idx_map: [[span_idx, ...], ...]  # unit i가 어떤 스팬들로 구성되는지
-    """
-    units, idx_map = [], []
-    if not spans:
-        return units, idx_map
-
-    # 라인 번호 기준 그룹핑
-    from itertools import groupby
-    # The original implementation with `spans.index(s)` is inefficient and can be incorrect
-    # if there are duplicate span dictionaries in the list.
-    # A more robust and efficient approach is to enumerate the spans first to preserve their original index.
-    keyfn = lambda item: (item[1]["block"], item[1]["line"])
-
-    # Sort (index, span_dict) tuples by block and line number.
-    sorted_indexed_spans = sorted(enumerate(spans), key=keyfn)
-
-    for _, group in groupby(sorted_indexed_spans, key=keyfn):
-        g = list(group)
-        text = "".join(item[1]["text"] for item in g).strip()
-        if text:
-            units.append(text)
-            idx_map.append([item[0] for item in g])  # Append original indices
-    logger.debug(f"[DEBUG-UTILS-SPANS]units : {units}")
-    logger.debug(f"[DEBUG-UTILS-SPANS]idx_map : {idx_map}")
-    return units, idx_map
 
 # 도우미: PyMuPDF color(int) → #RRGGBB
 def _int_color_to_hex(c: int) -> str:
@@ -612,7 +582,9 @@ def build_faithful_html(
     size = layout.get("size") or {}
     page_w_px = int(round(float(size.get("w", 0))))
     page_h_px = int(round(float(size.get("h", 0))))
-    html: List[str] = [f'<div class="page" style="position:relative;width:{page_w_px}px;height:{page_h_px}px;">']
+
+    image_html_parts: List[str] = []
+    svg_defs: List[str] = []
 
     # 2) PT→PX 스케일(m): 텍스트/드로잉용
     meta = layout.get("meta") or {}
@@ -627,7 +599,8 @@ def build_faithful_html(
         if not src:
             continue
 
-        # 1) 컨테이너는 clip_px 있으면 그걸, 없으면 bbox_px
+        # 컨테이너는 clip_bbox가 있으면 그걸 쓰고, 없으면 bbox를 씁니다.
+        # 복잡한 클립의 경우, 컨테이너는 클립 경로의 바운딩 박스여야 합니다.
         box = im.get("clip_bbox") or im.get("bbox")
         cx, cy, cw, ch = box
         
@@ -637,6 +610,29 @@ def build_faithful_html(
             f'position:absolute;left:{cx:.2f}px;top:{cy:.2f}px;'
             f'width:{cw:.2f}px;height:{ch:.2f}px;overflow:hidden;'
         )
+
+        # 비정형 클리핑 경로 처리
+        clip_path_data_px : str = im.get("clip_path_data_px")
+        if clip_path_data_px:
+            clip_id = f"clip-path-for-img-{im.get('xref', 'unknown')}"
+
+            # 여러 클립 경로가 합쳐져 있을 경우, 가장 적합한 경로 하나를 선택합니다.
+            final_clip_path = pick_final_clip(clip_path_data_px)
+
+            if final_clip_path:
+                # 선택된 단일 경로로 clipPath를 생성합니다.
+                clip_path_element = f'<path transform="translate({-cx:.2f}, {-cy:.2f})" d="{final_clip_path}" />'
+
+                svg_defs.append(
+                    f'<clipPath id="{clip_id}">{clip_path_element}</clipPath>'
+                )
+                container_style = f'position:absolute;left:{cx:.2f}px;top:{cy:.2f}px;width:{cw:.2f}px;height:{ch:.2f}px;clip-path:url(#{clip_id});'
+
+        # get_text("dict")로 추출된 이미지(xref < 0)는 벡터 드로잉에 가려질 수 있으므로
+        # z-index를 높여서 항상 위에 오도록 보장합니다.
+        xref = im.get("xref")
+        if xref is not None and xref < 0:
+            container_style += "z-index:1;"
 
         # 이미지 자체의 스타일 (transform)
         a,b,c,d,e,f = im.get("matrix_page")
@@ -660,11 +656,21 @@ def build_faithful_html(
             f'transform:{matrix_css};transform-origin:0 0;max-width:none;max-height:none;'
         )
 
-        html.append(
+        image_html_parts.append(
             f'<div style="{container_style}">'
             f'  <img src="{escape_html(src)}" style="{img_style}" alt="">'
             f'</div>'
         )
+
+    # --- 모든 HTML 조각들을 조립 ---
+    html: List[str] = [f'<div class="page" style="position:relative;width:{page_w_px}px;height:{page_h_px}px;overflow:hidden;">']
+
+    # 생성된 클립 경로가 있다면 SVG <defs> 블록을 추가합니다.
+    if svg_defs:
+        html.append(f'<svg width="0" height="0" style="position:absolute;pointer-events:none;"><defs>{"".join(svg_defs)}</defs></svg>')
+
+    # 이미지 div들을 추가합니다.
+    html.extend(image_html_parts)
 
     # 4) 드로잉(SVG) — 헤더 배경/수평선/세로 컬러바가 여기서 렌더됨
     spans = layout.get("spans", []) # 5) 텍스트에서도 활용됨. _should_draw()를 판정하기 위해서 미리 가져옴.
@@ -703,7 +709,7 @@ def build_faithful_html(
             f"font-size:{font_size:.2f}px;"
             f"color:{color_css};"
             f"font-family:{family};"
-            f"white-space:pre;line-height:1.1;"
+            f"white-space:pre;line-height:1.1;text-align:justify;"
         )
         if bold:   style += "font-weight:700;"
         if italic: style += "font-style:italic;"

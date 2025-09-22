@@ -1,0 +1,80 @@
+# utils/pick_best_path.bak
+from typing import Tuple, List
+import logging
+import re
+
+logger = logging.getLogger(__name__)
+
+try:
+    from svgpathtools import parse_path, Path as SvgPath
+    _HAS_SVGTOOLS = True
+except Exception as e:  # pragma: no cover
+    _HAS_SVGTOOLS = False
+    logger.warning("svgpathtools 미설치: %s", e)
+# svgpathtools 설치 (svgwrite, numpy, scipy 부속설치됨)
+
+def _bbox_contains(a: Tuple[float,float,float,float],
+                   b: Tuple[float,float,float,float],
+                   eps: float = 1e-6) -> bool:
+    # a가 b를 포함?
+    ax1, ay1, ax2, ay2 = a
+    bx1, by1, bx2, by2 = b
+    return (ax1 - eps <= bx1) and (ay1 - eps <= by1) and (ax2 + eps >= bx2) and (ay2 + eps >= by2)
+
+
+def _split_by_M(d: str) -> List[str]:
+    """
+    d 문자열을 '새 서브패스의 시작인 M/m' 기준으로 분리.
+    - 첫 번째 M/m부터 다음 M/m 직전까지를 하나의 서브패스로 본다.
+    - 사이에 있는 Z/z는 그대로 포함되어 반환된다(원문 보존).
+    """
+    s = d.strip()
+    # 모든 M/m의 시작 인덱스 수집
+    starts = [m.start() for m in re.finditer(r'[Mm]', s)]
+    if not starts:
+        return [s] if s else []
+    parts = []
+    for i, st in enumerate(starts):
+        en = starts[i+1] if i+1 < len(starts) else len(s)
+        sub = s[st:en].strip()
+        if sub:
+            parts.append(sub)
+    return parts
+
+def pick_final_clip(d: str) -> str:
+    """
+    여러 클립 path가 한 d에 붙어 있을 때,
+    - 다른 모든 bbox에 '포함'되는 가장 제한적 서브패스를 우선 선택
+    - 없으면 bbox 면적이 가장 작은 서브패스를 선택
+    반환: 단일 서브패스의 '원문 d-조각'(Z 포함, 형식 보존)
+    """
+    if not d or not _HAS_SVGTOOLS:
+        return ""
+
+    sub_ds: List[str] = _split_by_M(d)            # ❶ 문자열 기준 확실 분리(연속성 대신 '명령' 기준)
+    if not sub_ds:
+        return ""
+
+    items: List[tuple[str, SvgPath, Tuple[float,float,float,float]]] = []
+    for sd in sub_ds:
+        try:
+            p: SvgPath = parse_path(sd)
+            xmin, xmax, ymin, ymax = p.bbox()   # svgpathtools는 (xmin, xmax, ymin, ymax)
+            bb = (float(xmin), float(ymin), float(xmax), float(ymax))  # (minx,miny,maxx,maxy)
+            items.append((sd, p, bb))
+        except Exception as e:
+            logger.debug("서브패스 파싱 실패, 건너뜀: %r (%s)", sd[:80], e)
+
+    if not items:
+        return ""
+
+    # ❷ 포함관계 우선
+    for i, (_, _, bbi) in enumerate(items):
+        if all(_bbox_contains(other_bb, bbi) for j, (_, _, other_bb) in enumerate(items) if i != j):
+            return items[i][0]  # 원문 sd 반환 → Z/포맷 보존
+
+    # ❸ 없으면 bbox 면적 최소 선택
+    def area(bb): 
+        return max(0.0, (bb[2] - bb[0])) * max(0.0, (bb[3] - bb[1]))
+    idx = min(range(len(items)), key=lambda k: area(items[k][2]))
+    return items[idx][0]                # 역시 원문 sd 반환
