@@ -1,6 +1,6 @@
 #mybook/utils/faithful_prompt.py
 
-def build_prompt_faithful(page_ctx: dict, target_lang: str, total_pages: int, book_title: str | None = None, book_genre: str | None = None, prev_page_html: str | None = None, user_feedback: str | None = None, current_translation_html: str | None = None, glossary: str | None = None) -> tuple[str, dict, str]:
+def build_prompt_faithful(page_ctx: dict, target_lang: str, total_pages: int, book_title: str | None = None, book_genre: str | None = None, prev_page_html: str | None = None, user_feedback: str | None = None, current_translation_html: str | None = None, glossary: str | None = None, next_page_context_available: bool = False) -> tuple[str, dict, str]:
     """
     page_ctx = {
       "page_no": 12,
@@ -13,6 +13,7 @@ def build_prompt_faithful(page_ctx: dict, target_lang: str, total_pages: int, bo
     user_feedback: Specific feedback from the user for re-translation.
     current_translation_html: The current (flawed) translated HTML for this page.
     glossary: User-provided glossary for consistent translation.
+    next_page_context_available: A boolean indicating if the next page is provided in the document.
     """
     W = int(page_ctx["size"]["w"])
     H = int(page_ctx["size"]["h"])
@@ -91,34 +92,43 @@ Wrapper contract (already applied by server):
 
     # --- USER: 작업 지시 + 좌표계/리소스 컨텍스트 ---
     user = {
-        "task": "Translate and structure this page",
+        "task": f"You are processing page number {page_ctx['page_no']} of a book. Translate and structure the FIRST page of the attached document. The document may contain a second page, which is provided ONLY for context to understand sentence endings. Your output must ONLY contain content from the first page.",
         "book_context": {
             "title": book_title or "Unknown",
             "genre": book_genre or "Unknown"
         },
-        "previous_page_context": {
-            "note": "This is the translated HTML from the previous page (page N-1). Use it as a reference to maintain consistency in tone, style, and terminology. **Crucially, if page N-1 ended mid-sentence, your translation for the current page (page N) must seamlessly continue that sentence.**",
-            "html_content": prev_page_html or "This is the first page, so no previous context is available."
-        },
-        "total_pages": total_pages,
         "target_lang": target_lang,
         "schema_version": "weaver.page.v2",
         "coordinate_space": {"width": "[0,1000]", "height": "[0,1000]", "origin": "top-left"},
-        "target_page": page_ctx["page_no"],
-        # 서버가 이미 알고 있는 이미지 자원(정규화된 bbox)을 힌트로 제공
-        "figures_available": page_ctx.get("images", []),
         "instructions": [
-            "**Sentence Continuation (Page Start):** The previous page may have ended mid-sentence. Examine `previous_page_context.html_content` and the start of the current page image. If the current page begins with a sentence fragment, your translation must seamlessly continue the sentence from the previous page.",
-            "**Sentence Ending (Page End):** Similarly, examine the last sentence on the current page image. If it seems incomplete and continues to the next page (page N+1), you MUST look ahead at the next page in the document. End the translation for the current page (N) at a natural breaking point. DO NOT artificially complete the sentence; leave it open to be continued on the next page.",
             "CRITICAL: Refer to 'previous_page_context' to ensure consistent translation tone and style (e.g., formal/informal speech) with the preceding page.",
             f"The book's title is '{book_title}' and its genre is '{book_genre}'. Use this context to inform the tone and vocabulary of the translation.",
             f"Translate all text into {target_lang}. Do not translate numbers, symbols, or code syntax.",
-            f"You are processing page {page_ctx['page_no']} out of {total_pages}. Output must contain ONLY content visible on this page.",
             "Maintain a visually similar layout to the original, but ensure readability with proper headings, spacing, and lists.",
-            "For each figure, add an <img data-ref='...'> placeholder in the HTML and a matching label in `figure_labels`.",
+            "If document has any figures, for each figure, add an <img data-ref='...'> placeholder in the HTML and a matching label in `figure_labels`.",
             "Your output must be a single JSON object. DO NOT add any extra text or explanations."
         ]
     }
+
+    # 이전 페이지 컨텍스트가 있을 때만 관련 정보를 동적으로 추가합니다.
+    if prev_page_html:
+        user["previous_page_context"] = {
+            "note": "This is the translated HTML from the previous page (page N-1). Use it as a reference to maintain consistency in tone, style, and terminology. **Crucially, if page N-1 ended mid-sentence, your translation for the current page (page N) must seamlessly continue that sentence.**",
+            "html_content": prev_page_html
+        }
+        user['instructions'].insert(0, "**Sentence Continuation (Page Start):** The previous page may have ended mid-sentence. Examine `previous_page_context.html_content` and the start of the current page image. If the current page begins with a sentence fragment, your translation must seamlessly continue the sentence from the previous page.")
+
+    # 문맥 연결 관련 지시사항을 동적으로 추가
+    if next_page_context_available:
+        user['instructions'].insert(0, "**IMPORTANT CONTEXT**: The provided document contains two pages. The first page is the target page for translation. The second page is for context only, to help with sentences that cross page boundaries.")
+        user['instructions'].append("**Sentence Ending (Page End):** The next page (N+1) is provided as the second page in the document for your reference. Examine the last sentence on the current page image. If it seems incomplete and continues to the next page, end the translation for the current page (N) at a natural breaking point. DO NOT artificially complete the sentence; leave it open to be continued on the next page.")
+    else:
+        user['instructions'].append("**Sentence Ending (Page End):** This is the last page of the book. Ensure all sentences are properly completed. Do not leave any sentence fragments.")
+
+    # 서버가 알고 있는 이미지가 있을 경우에 한하여, figures_available 이미지 자원(정규화된 bbox)을 힌트로 제공
+    if page_ctx.get("images"):
+        user['figures_available'] =  page_ctx.get("images")
+        user['instructions'].insert(0, "**Figures Available:** The document contains images or figures. Use the `figures_available` data to identify their locations. For each significant figure, add an `<img data-ref='...'>` placeholder in the HTML and a matching label in `figure_labels`.")
 
     if user_feedback:
         user['retranslation_feedback'] = {

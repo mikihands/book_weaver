@@ -90,12 +90,6 @@ class Book(models.Model):
         help_text="페이지 내 텍스트 커버리지 비율(0.0~1.0). OCR 여부 추정 근거"
     )
 
-    # Gemini File API 메타(20~50MB 구간에서 사용)
-    gemini_file_name = models.CharField(max_length=255, null=True, blank=True, db_index=True)
-    gemini_file_uri = models.CharField(max_length=512, null=True, blank=True)
-    gemini_file_uploaded_at = models.DateTimeField(null=True, blank=True)
-    gemini_file_expires_at = models.DateTimeField(null=True, blank=True)
-
     # === inspector 결과 저장 및 처리 모드 ===
     processing_mode = models.CharField(
         max_length=32, null=True, blank=True,
@@ -193,8 +187,8 @@ class ApiUsageLog(models.Model):
     book = models.ForeignKey(Book, on_delete=models.SET_NULL, null=True, blank=True, related_name="api_usage_logs", help_text="관련된 책 (선택 사항)")
     request_type = models.CharField(max_length=50, help_text="API 요청의 종류 (e.g., 'translate_page', 'retranslate_page')")
     model_name = models.CharField(max_length=100, help_text="사용된 LLM 모델 이름")
-    prompt_tokens = models.IntegerField(default=0, help_text="요청에 사용된 프롬프트 토큰 수")
-    completion_tokens = models.IntegerField(default=0, help_text="응답으로 받은 생성 토큰 수")
+    prompt_tokens = models.IntegerField(default=0, null=True, blank=True, help_text="요청에 사용된 프롬프트 토큰 수")
+    completion_tokens = models.IntegerField(default=0, null=True, blank=True, help_text="응답으로 받은 생성 토큰 수")
     cached_tokens = models.IntegerField(default=0, null=True, blank=True, help_text="프롬프트에서 재사용된 캐시 토큰 수")
     thinking_tokens = models.IntegerField(default=0, null=True, blank=True, help_text="모델의 내부 추론(CoT)에 사용된 토큰 수")
     total_tokens = models.IntegerField(default=0, help_text="사용한 총 토큰 수")

@@ -549,8 +549,15 @@ class StartTranslationView(generics.GenericAPIView):
         book.status = 'processing'
         book.save(update_fields=['title', 'genre', 'glossary', 'status'])
 
-        # 4) 번역 작업 시작
+        # 4) [NEW] 기존 번역이 있다면, 상태를 'pending'으로 변경하여 재번역 중임을 명시
         target_lang = validated_data['target_language']
+        existing_translations = TranslatedPage.objects.filter(book=book, lang=target_lang)
+        if existing_translations.exists():
+            logger.info(f"Resetting status to 'pending' for {existing_translations.count()} existing translated pages for book {book.id}, lang {target_lang}.")
+            # 'born_digital'은 faithful/readable 모두, 'ai_layout'은 faithful만 업데이트
+            existing_translations.update(status='pending')
+
+        # 4) 번역 작업 시작
         model_type = validated_data.get('model_type', 'standard')
         thinking_level = validated_data.get('thinking_level', 'medium')
 
@@ -577,6 +584,8 @@ class RetranslatePageView(generics.GenericAPIView):
         serializer = self.get_serializer(data=request.data)
         serializer.is_valid(raise_exception=True)
         feedback = serializer.validated_data.get('feedback', '') # type: ignore
+        model_type = serializer.validated_data.get('model_type', 'standard') # type: ignore
+        thinking_level = serializer.validated_data.get('thinking_level', 'medium') # type: ignore
 
         # Get target language from the query parameter
         target_lang = request.query_params.get('lang')
@@ -606,7 +615,7 @@ class RetranslatePageView(generics.GenericAPIView):
                 book=book, page_no=page_no, lang=target_lang, mode='faithful'
             ).update(status='pending')
 
-        retranslate_single_page.delay(book.id, page_no, target_lang, feedback) # type: ignore
+        retranslate_single_page.delay(book.id, page_no, target_lang, feedback, model_type=model_type, thinking_level=thinking_level) # type: ignore
 
         return Response({"message": f"Retranslation for page {page_no} ({target_lang.upper()}) has been queued."}, status=status.HTTP_202_ACCEPTED)
 

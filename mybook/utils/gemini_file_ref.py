@@ -1,77 +1,67 @@
 # mybook/utils/gemini_file_ref.py
-import os, logging
-from datetime import timedelta
-from django.utils import timezone
+import logging
+import io
 from django.conf import settings
 from google import genai
 from google.genai import types
+import pymupdf as fitz
+from typing import List
 
 logger = logging.getLogger(__name__)
-
-MAX_INLINE = 20 * 1024 * 1024      # 20MB
-MAX_FILEAPI = 50 * 1024 * 1024     # 50MB
+"""
+과거 코드: 20~50MB 구간에서 Gemini File API를 사용하여 PDF를 업로드하고
+페이지 단위로 참조하는 기능을 담당.
+현재는 inline Part 방식을 사용하여, 페이지 단위로 PDF를 추출하고
+바이트 스트림으로 Gemini API에 전달하는 방식으로 변경됨.
+"""
 MIME_PDF = "application/pdf"
 
 class GeminiFileRefManager:
     def __init__(self):
         self.client = genai.Client(api_key=settings.GEMINI_API_KEY)
 
-    def _inline_part(self, file_path: str):
-        with open(file_path, "rb") as f:
-            data = f.read()
-        return types.Part.from_bytes(data=data, mime_type=MIME_PDF)
+    def _create_pdf_part_from_pages(self, original_pdf_path: str, page_numbers: List[int]) -> types.Part:
+        """
+        Extracts specific pages from a PDF, creates a new in-memory PDF,
+        and returns it as a Gemini `Part` object.
+        """
+        if not page_numbers:
+            raise ValueError("Page numbers list cannot be empty.")
 
-    def _upload_once(self, book, file_path: str):
-        """20~50MB: 최초 1회 업로드하고 Book에 메타 보관."""
-        with open(file_path, "rb") as f:
-            uploaded = self.client.files.upload(file=f, config=dict(mime_type=MIME_PDF)) # type: ignore
-            logger.debug(f"File uploaded: {uploaded}")
-        # 업로드 확인(선택) - files.get으로 메타 체크
         try:
-            info = self.client.files.get(name=uploaded.name) # type: ignore
-            logger.debug(f"File uploaded check: {info}")
-            uri = getattr(info, "uri", None) or getattr(uploaded, "uri", None)
-        except Exception:
-            uri = getattr(uploaded, "uri", None)
+            source_doc = fitz.open(original_pdf_path)
+            new_doc = fitz.open()  # Create a new, empty PDF in memory
 
-        now = timezone.now()
-        book.gemini_file_name = uploaded.name
-        book.gemini_file_uri = uri
-        book.gemini_file_uploaded_at = now
-        # 48시간 보관 → 여유 있게 47시간 캐시
-        book.gemini_file_expires_at = now + timedelta(hours=47)
-        book.save(update_fields=[
-            "gemini_file_name", "gemini_file_uri",
-            "gemini_file_uploaded_at", "gemini_file_expires_at"
-        ])
-        return uploaded
+            for page_num in page_numbers:
+                # page_num is 1-based, PyMuPDF is 0-based
+                if 0 <= page_num - 1 < source_doc.page_count:
+                    new_doc.insert_pdf(source_doc, from_page=page_num - 1, to_page=page_num - 1)
+            
+            if new_doc.page_count == 0:
+                raise ValueError(f"Could not extract any of the requested pages {page_numbers} from the source PDF.")
 
-    def ensure_file_part(self, book):
+            # Save the new PDF to a byte stream
+            pdf_bytes = new_doc.write()
+            new_doc.close()
+            source_doc.close()
+
+            return types.Part.from_bytes(data=pdf_bytes, mime_type=MIME_PDF)
+
+        except Exception as e:
+            logger.error(f"Failed to create PDF part for pages {page_numbers} from {original_pdf_path}: {e}")
+            raise
+
+    def get_page_part(self, book, page_no: int) -> types.Part:
         """
-        반환값: 'generate_content(contents=[<<<이걸 첫 파트로>>> , ...])' 에 넣을 수 있는 객체
-        - <20MB: inline Part
-        - 20~50MB: File API 업로드 파일 객체(1회 업로드 후 재사용)
-        - >50MB: 예외(현재는 미지원)
+        Extracts a single page from the book's PDF and returns it as a `Part`.
         """
-        file_path = book.original_file.path
-        size = book.source_size or os.path.getsize(file_path)
-        book.source_size = size
-        book.source_mime = MIME_PDF
-        book.save(update_fields=["source_size", "source_mime"])
+        logger.debug(f"Creating inline Part for book {book.id}, page {page_no}")
+        return self._create_pdf_part_from_pages(book.original_file.path, [page_no])
 
-        if size < MAX_INLINE:
-            return self._inline_part(file_path)
-
-        if size > MAX_FILEAPI:
-            raise ValueError("PDF가 50MB를 초과합니다. (현재: %.2f MB)" % (size / (1024*1024)))
-
-        # 20~50MB: 기존 업로드가 유효하면 재사용
-        if book.gemini_file_name and book.gemini_file_expires_at and book.gemini_file_expires_at > timezone.now():
-            try:
-                # 재확인 후 그 객체를 contents에 사용
-                return self.client.files.get(name=book.gemini_file_name)
-            except Exception as e:
-                logger.warning(f"files.get 실패. 재업로드 시도: {e}")
-
-        # 없거나 만료/오류 → 새로 업로드
-        return self._upload_once(book, file_path)
+    def get_page_parts(self, book, page_nos: List[int]) -> types.Part:
+        """
+        Extracts multiple pages from the book's PDF, combines them into a
+        single new PDF, and returns it as a `Part`.
+        """
+        logger.debug(f"Creating combined inline Part for book {book.id}, pages {page_nos}")
+        return self._create_pdf_part_from_pages(book.original_file.path, page_nos)

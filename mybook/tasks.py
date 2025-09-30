@@ -117,9 +117,8 @@ def _inject_images_from_db(layout: dict, book: Book, page_no: int) -> dict:
 def translate_book_pages(self, book_id: int, target_lang: str, page_numbers_to_process: list[int] | None = None, model_type: str = 'standard', thinking_level: str = 'medium'):
     book = Book.objects.get(id=book_id)
     try:
-        schema = load_weaver_schema(SCHEMA_PATH)
-        file_part = GeminiFileRefManager().ensure_file_part(book)
-        llm = GeminiHelper(schema=schema, model_type=model_type, thinking_level=thinking_level)
+        file_manager = GeminiFileRefManager()
+        llm = GeminiHelper(schema=load_weaver_schema(SCHEMA_PATH), model_type=model_type, thinking_level=thinking_level)
 
         # 1. 처리 대상 페이지 쿼리
         if page_numbers_to_process:
@@ -140,6 +139,13 @@ def translate_book_pages(self, book_id: int, target_lang: str, page_numbers_to_p
 
             pno = p["page_no"]
 
+            # ai_layout은 다음 페이지 컨텍스트를 위해 다음 페이지도 함께 전달합니다.
+            pages_to_send = [pno]
+            if pno < total_book_pages:
+                pages_to_send.append(pno + 1)
+            
+            page_part = file_manager.get_page_parts(book, pages_to_send)
+            
             images = list(PageImage.objects.filter(book=book, page_no=pno).values("ref", "bbox"))
             _, figures = split_images_for_prompt(images, p["width"], p["height"])
 
@@ -150,11 +156,11 @@ def translate_book_pages(self, book_id: int, target_lang: str, page_numbers_to_p
             }
 
             # 3. build_prompt_faithful에는 항상 '전체' 페이지 수를 전달
-            sys_msg, user_msg, example_json = build_prompt_faithful(page_ctx, target_lang, total_book_pages, book_title=book.title, book_genre=book.genre, prev_page_html=prev_page_html_context, glossary=book.glossary)
+            sys_msg, user_msg, example_json = build_prompt_faithful(page_ctx, target_lang, total_book_pages, book_title=book.title, book_genre=book.genre, prev_page_html=prev_page_html_context, glossary=book.glossary, next_page_context_available=(pno < total_book_pages))
             logger.debug(f"[DEBUG-TASK]user_msg : {user_msg}")
 
             data, errs, usage_metadata = llm.generate_page_json( # type: ignore
-                file_part=file_part, sys_msg=sys_msg, user_msg=user_msg, example_json=example_json, max_retries=2
+                file_parts=page_part, sys_msg=sys_msg, user_msg=user_msg, example_json=example_json, max_retries=2
             )
 
             _log_api_usage(book_id, 'translate_book_page', usage_metadata, llm.model_name)
@@ -267,9 +273,8 @@ def _dump_gemini_response_for_debug(book_id, page_no, attempt, response_content,
 def translate_book_pages_born_digital(self, book_id: int, target_lang: str, page_numbers_to_process: list[int] | None = None, model_type: str = 'standard', thinking_level: str = 'medium'):
     book = Book.objects.get(id=book_id)
     try:
-        schema = load_weaver_schema(BORN_DIGITAL_LAYOUT_TRANSLATION_SCHEMA_PATH)
-        llm = GeminiHelper(schema=schema, model_type=model_type, thinking_level=thinking_level)
-        file_part = GeminiFileRefManager().ensure_file_part(book)
+        file_manager = GeminiFileRefManager()
+        llm = GeminiHelper(schema=load_weaver_schema(BORN_DIGITAL_LAYOUT_TRANSLATION_SCHEMA_PATH), model_type=model_type, thinking_level=thinking_level)
 
         if page_numbers_to_process:
             pages_qs = BookPage.objects.filter(book=book, page_no__in=page_numbers_to_process)
@@ -290,6 +295,9 @@ def translate_book_pages_born_digital(self, book_id: int, target_lang: str, page
         for i, page in enumerate(pages, start=1):
             pno = page.page_no
             self.update_state(state="PROGRESS", meta={"current": i, "total": total_job_pages})
+            
+            # 각 페이지에 해당하는 Part만 가져옵니다.
+            page_part = file_manager.get_page_part(book, pno)
             
             # 1. Gemini에 전달할 원본 스팬 데이터 수집
             raw_layout_data = raw_layouts.get(pno, {})
@@ -372,7 +380,7 @@ def translate_book_pages_born_digital(self, book_id: int, target_lang: str, page
             
             # --- Modified for Debugging ---
             raw_text, data, errs, usage_metadata = llm.generate_page_json_with_raw_response(
-                file_part=file_part, sys_msg=sys_msg, user_msg={"prompt": user_msg_json}, max_retries=2,
+                file_parts=page_part, sys_msg=sys_msg, user_msg={"prompt": user_msg_json}, max_retries=2,
                 debug_callback=lambda attempt, content, is_json: _dump_gemini_response_for_debug(book_id, pno, attempt, content, is_json)
             )
             layout_and_translation_data = data
@@ -458,9 +466,8 @@ def retranslate_single_page(self, book_id: int, page_no: int, target_lang: str, 
         if book.processing_mode == 'born_digital':
             # --- BORN DIGITAL RETRANSLATION ---
             # The re-translation schema expects a simple array of strings.
-            schema = load_weaver_schema(RETRANSLATE_SCHEMA_PATH)
-            llm = GeminiHelper(schema=schema, model_type=model_type, thinking_level=thinking_level)
-            pdf_path = book.original_file.path
+            llm = GeminiHelper(schema=load_weaver_schema(RETRANSLATE_SCHEMA_PATH), model_type=model_type, thinking_level=thinking_level)
+            file_manager = GeminiFileRefManager()
 
             # 1. Get the existing layout and translation data
             current_tp = TranslatedPage.objects.filter(book=book, page_no=page_no, lang=target_lang, mode='faithful').first()
@@ -499,7 +506,7 @@ def retranslate_single_page(self, book_id: int, page_no: int, target_lang: str, 
                     para['translated_text'] = newly_translated_texts[i]
                 
                 # Re-build HTML with the new translations
-                raw_layout_data = collect_page_layout(pdf_path, page_no)
+                raw_layout_data = collect_page_layout(book.original_file.path, page_no)
                 image_src_map = _inject_images_from_db(raw_layout_data, book, page_no)
                 html_faithful = build_faithful_html(raw_layout_data, paragraphs, image_src_map=image_src_map)
                 html_readable = build_readable_html(paragraphs)
@@ -562,17 +569,23 @@ def retranslate_single_page(self, book_id: int, page_no: int, target_lang: str, 
         }
 
         sys_msg, user_msg, example_json = build_prompt_faithful(
-            page_ctx, target_lang, book.page_count, book_title=book.title, book_genre=book.genre, 
+            page_ctx, target_lang, book.page_count, book_title=book.title, book_genre=book.genre,
             prev_page_html=prev_page_html_context, user_feedback=feedback, current_translation_html=current_issued_html, glossary=book.glossary
+            , next_page_context_available=(page_no < book.page_count)
         )
         logger.debug(f"[DEBUG-RETRANSLATE-TASK] user_msg: {user_msg}")
 
-        schema = load_weaver_schema(SCHEMA_PATH)
-        llm = GeminiHelper(schema=schema, model_type=model_type, thinking_level=thinking_level)
-        file_part = GeminiFileRefManager().ensure_file_part(book)
+        file_manager = GeminiFileRefManager()
+        llm = GeminiHelper(schema=load_weaver_schema(SCHEMA_PATH), model_type=model_type, thinking_level=thinking_level)
+        
+        # ai_layout 재번역 시에도 다음 페이지 컨텍스트를 함께 전달합니다.
+        pages_to_send = [page_no]
+        if page_no < book.page_count:
+            pages_to_send.append(page_no + 1)
+        page_part = file_manager.get_page_parts(book, pages_to_send)
         
         data, errs, usage_metadata = llm.generate_page_json( # type: ignore
-            file_part=file_part, sys_msg=sys_msg, user_msg=user_msg, example_json=example_json, max_retries=2
+            file_parts=page_part, sys_msg=sys_msg, user_msg=user_msg, example_json=example_json, max_retries=2
         )
 
         _log_api_usage(book_id, 'retranslate_ai_layout', usage_metadata, llm.model_name)

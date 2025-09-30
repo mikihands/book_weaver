@@ -166,14 +166,19 @@ class GeminiHelper:
 
     def generate_page_json_with_raw_response(
         self,
-        file_part,
+        file_parts: types.Part | List[types.Part],
         sys_msg: str,
         user_msg: Dict[str, Any],
         example_json: Optional[str] = None,
         max_retries: int = 2,
         debug_callback: Optional[callable] = None,
     ) -> Tuple[str, Optional[Dict[str, Any]], Optional[List[str]], Optional[types.UsageMetadata]]:
-        contents = [file_part, json.dumps(user_msg, ensure_ascii=False)]
+        
+        if isinstance(file_parts, types.Part):
+            contents = [file_parts]
+        else: # List[types.Part]
+            contents = file_parts
+        contents.append(json.dumps(user_msg, ensure_ascii=False))
         if example_json:
             contents.append("Valid example (do not copy values):\n" + example_json)
 
@@ -185,7 +190,12 @@ class GeminiHelper:
             try:
                 # Set thinking budget based on selected model_type and thinking_level
                 thinking_budget = self._THINKING_BUDGETS[self.model_type][self.thinking_level]
-                config_params = {"system_instruction": sys_msg, "response_mime_type": "application/json", "thinking_config": types.ThinkingConfig(thinking_budget=thinking_budget)}
+                config_params = {
+                    "system_instruction": sys_msg,
+                    "response_mime_type": "application/json",
+                    "response_json_schema": self.schema, 
+                    "thinking_config": types.ThinkingConfig(thinking_budget=thinking_budget)
+                }
 
                 resp = self.client.models.generate_content(
                     model=self.model_name,
@@ -196,6 +206,7 @@ class GeminiHelper:
                 usage_metadata = resp.usage_metadata
                 logger.debug(f"GeminiHelper: Attempt {attempt + 1} - Raw response received.")
                 if debug_callback: debug_callback(attempt, raw_text, False)
+                _dump_debug(raw_text, "gemini_resp_text", attempt)
 
                 raw_json_str = self._extract_json(raw_text)
                 data = json.loads(raw_json_str)
@@ -224,14 +235,14 @@ class GeminiHelper:
 
     def generate_page_json(
         self,
-        file_part,                      # ✅ inline Part 또는 files.upload/get 반환 객체
+        file_parts: types.Part | List[types.Part],
         sys_msg: str,
         user_msg: Dict[str, Any],
         example_json: Optional[str] = None,
         max_retries: int = 2,
     ) -> Tuple[Optional[Dict[str, Any]], Optional[List[str]], Optional[types.UsageMetadata]]:
         _raw_text, data, errors, usage_metadata = self.generate_page_json_with_raw_response(
-            file_part, sys_msg, user_msg, example_json, max_retries
+            file_parts, sys_msg, user_msg, example_json, max_retries
         )
         return data, errors, usage_metadata
 

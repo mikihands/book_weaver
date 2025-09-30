@@ -11,6 +11,8 @@ class FileUploadSerializer(serializers.Serializer):
 
 class RetranslateRequestSerializer(serializers.Serializer):
     feedback = serializers.CharField(max_length=1000, help_text="User feedback for re-translation", required=False, allow_blank=True)
+    model_type = serializers.CharField(max_length=16, required=False, default="standard")
+    thinking_level = serializers.CharField(max_length=16, required=False, default="medium")
 
 
 class BookSettingsSerializer(serializers.ModelSerializer):
