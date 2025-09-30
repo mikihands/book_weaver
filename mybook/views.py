@@ -287,6 +287,10 @@ class BookPageView(APIView):
             tp_query = tp_query.filter(lang=lang)
         tp = tp_query.first()
 
+        # [FIX] URL에 lang 파라미터가 없을 때, DB에서 찾은 객체의 lang 값을 사용하도록 보정합니다.
+        if tp and not lang:
+            lang = tp.lang
+
         # v2 JSON 기대: schema_version=weaver.page.v2, fields: page, html_stage, figures
         data = tp.data if tp else None
         status_flag = tp.status if tp else "pending"
@@ -538,19 +542,24 @@ class StartTranslationView(generics.GenericAPIView):
         serializer.is_valid(raise_exception=True)
         validated_data = serializer.validated_data
         # 3) 책 정보 업데이트
-        book.title = validated_data.get('title', book.title) # type: ignore
-        book.genre = validated_data.get('genre', book.genre) # type: ignore
-        book.glossary = validated_data.get('glossary', book.glossary) # type: ignore
+        book.title = validated_data.get('title', book.title)
+        book.genre = validated_data.get('genre', book.genre)
+        book.glossary = validated_data.get('glossary', book.glossary)
+
         book.status = 'processing'
         book.save(update_fields=['title', 'genre', 'glossary', 'status'])
+
         # 4) 번역 작업 시작
-        target_lang = validated_data['target_language'] # type: ignore
+        target_lang = validated_data['target_language']
+        model_type = validated_data.get('model_type', 'standard')
+        thinking_level = validated_data.get('thinking_level', 'medium')
+
         if book.processing_mode == 'born_digital':
             logger.debug(f"Starting born-digital translation for book {book.id} to {target_lang}")
-            translate_book_pages_born_digital.delay(book.id, target_lang)
+            translate_book_pages_born_digital.delay(book.id, target_lang, model_type=model_type, thinking_level=thinking_level) # type: ignore
         else: # 'ai_layout' or 'mixed'
             logger.debug(f"Starting ai-layout translation for book {book.id} to {target_lang}")
-            translate_book_pages.delay(book.id, target_lang)
+            translate_book_pages.delay(book.id, target_lang, model_type=model_type, thinking_level=thinking_level) # type: ignore
         # 5) 응답
         page1_url = reverse('mybook:book_page', kwargs={'book_id': book.id, 'page_no': 1}) # type: ignore # type: ignore
         return Response({"message": "Translation has started.", "page1_url": page1_url}, status=status.HTTP_202_ACCEPTED)
@@ -636,6 +645,10 @@ class RetryTranslationView(generics.GenericAPIView):
         book.save(update_fields=['status'])
         
         translate_book_pages.delay(book.id, target_lang, page_numbers_to_process=pages_to_process) # type: ignore
+        # For retry, use the book's current model_type and thinking_level
+        model_type = book.model_type
+        thinking_level = book.thinking_level
+        translate_book_pages.delay(book.id, target_lang, page_numbers_to_process=pages_to_process, model_type=model_type, thinking_level=thinking_level)
 
         return Response({"message": f"Retry for {len(pages_to_process) if pages_to_process else 'all'} pages has been queued."}, status=status.HTTP_202_ACCEPTED)
     

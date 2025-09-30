@@ -27,6 +27,7 @@ class Paragraph:
     span_indices: List[int]       # 원본 spans 인덱스들(flat)
     bbox: Tuple[float, float, float, float]
     text: str
+    line_height: Optional[float] = None # 문단 내 상대적 줄간격 (예: 1.5)
 
 class ParagraphDetector:
     """
@@ -154,7 +155,7 @@ class ParagraphDetector:
         if not gaps: return None
         g, i = max(gaps, key=lambda t: t[0])
         return (xs2[i] + xs2[i+1]) / 2.0 if g > 10.0 else None  # 10pt 이상이면 열 경계 후보
-
+    
     def _detect_paragraphs_in_cluster(self, cluster: List[int]) -> List[Paragraph]:
         Ls = [self.lines[i] for i in cluster]
         if len(Ls) == 0:
@@ -180,11 +181,11 @@ class ParagraphDetector:
             if median_leading > 0 and gap > median_leading * self.gap_factor:
                 return True
             # 3) 들여쓰기 변화(허용오차 포함)
+            # BUGFIX: 이전 로직은 들여쓰기가 늘어나는 경우(양수)만 분리했음.
+            # x좌표가 크게 바뀌면 방향에 상관없이 분리해야 함.
             if prev.origin_x is not None and cur.origin_x is not None:
                 if abs(cur.origin_x - prev.origin_x) > self.indent_eps:
-                    # 첫 줄만 들여쓰기(양수 쪽 변화면 가중)
-                    if (cur.origin_x - prev.origin_x) > self.indent_eps * 0.9:
-                        return True
+                    return True
             # 4) 폰트 사이즈 급변
             if prev.size and cur.size:
                 if abs(cur.size - prev.size) / max(prev.size, 0.1) > self.size_jump_ratio:
@@ -218,9 +219,28 @@ class ParagraphDetector:
             span_idxs.extend(L.idxs)
             texts.append(L.text)
             xs0.append(L.x0); ys0.append(L.y0); xs1.append(L.x1); ys1.append(L.y1)
+
+        # --- NEW: Calculate line height ---
+        line_height = None
+        para_lines = [self.lines[li] for li in line_indices]
+        if len(para_lines) > 1:
+            line_spacings = []
+            font_sizes = [l.size for l in para_lines if l.size and l.size > 0]
+            
+            if font_sizes:
+                median_font_size = statistics.median(font_sizes)
+                for i in range(len(para_lines) - 1):
+                    spacing = para_lines[i+1].y0 - para_lines[i].y0
+                    if spacing > 0:
+                        line_spacings.append(spacing)
+                
+                if line_spacings and median_font_size > 0:
+                    median_spacing = statistics.median(line_spacings)
+                    line_height = round(median_spacing / median_font_size, 2)
+
         text = self._merge_text_with_hyphen(texts)
         bbox = (min(xs0), min(ys0), max(xs1), max(ys1))
-        paras.append(Paragraph(line_indices.copy(), span_idxs, bbox, text))
+        paras.append(Paragraph(line_indices.copy(), span_idxs, bbox, text, line_height=line_height))
 
     def _merge_text_with_hyphen(self, lines: List[str]) -> str:
         out = []
@@ -246,7 +266,8 @@ class ParagraphDetector:
                             max(prev.bbox[2], p.bbox[2]), max(prev.bbox[3], p.bbox[3]))
                 merged[-1] = Paragraph(prev.line_indices + p.line_indices,
                                        prev.span_indices + p.span_indices,
-                                       new_bbox, new_text)
+                                       new_bbox, new_text,
+                                       line_height=prev.line_height)
             else:
                 merged.append(p)
         return merged
@@ -260,18 +281,20 @@ class UnitsBuilder:
     """
     def __init__(self, use_paragraphs: bool = True):
         self.use_paragraphs = use_paragraphs
+        self.paragraphs: List[Paragraph] = []
+        self.detector: Optional[ParagraphDetector] = None
 
     def build_units(self, spans: List[Dict[str, Any]]) -> Tuple[List[str], List[List[int]]]:
         if not spans:
             return [], []
 
         if self.use_paragraphs:
-            detector = ParagraphDetector(spans)
-            paras = detector.detect_paragraphs()
+            self.detector = ParagraphDetector(spans)
+            self.paragraphs = self.detector.detect_paragraphs()
             # 문단이 너무 적거나 모든 문단이 한 줄뿐이면 이득이 적으니 폴백
-            if len(paras) >= 1 and any(len(p.text) > 0 for p in paras):
-                units = [p.text for p in paras]
-                idx_map = [p.span_indices for p in paras]
+            if len(self.paragraphs) >= 1 and any(len(p.text) > 0 for p in self.paragraphs):
+                units = [p.text for p in self.paragraphs]
+                idx_map = [p.span_indices for p in self.paragraphs]
                 return units, idx_map
 
         # ---- 폴백: 기존 라인 단위 그룹핑 ----

@@ -379,7 +379,8 @@ class TextDictImageExtractorV2:
         self.pno = pno  # 1-based
         self.out_dir = Path(out_dir)
         self.media_root = media_root
-        self.saved_hashes: set[str] = set()
+        #self.saved_hashes: set[str] = set()
+        self.saved_files: dict[str, str] = {}
         self.order_base = 1000
 
     # --- utils ---
@@ -406,10 +407,11 @@ class TextDictImageExtractorV2:
         if mask_img.mode not in ("1", "L"):
             mask_img = mask_img.convert("L")
         hist = mask_img.histogram()
-        if hist:
-            black_ratio = hist[0] / max(1, sum(hist))
-            if black_ratio > 0.8:
-                mask_img = ImageOps.invert(mask_img)
+        # 아래의 휴리스틱이 반대로 작동하는 경우가 있어 주석처리함.
+        # if hist:
+        #     black_ratio = hist[0] / max(1, sum(hist))
+        #     if black_ratio > 0.8:
+        #         mask_img = ImageOps.invert(mask_img)
         return mask_img
 
     def _compose_rgba(self, image_bytes: bytes, mask_bytes: bytes | None) -> Image.Image:
@@ -453,19 +455,23 @@ class TextDictImageExtractorV2:
 
             # 중복 방지
             sig = self._stable_hash(img_b + (mask_b or b""))
-            if sig in self.saved_hashes:
-                continue
-            self.saved_hashes.add(sig)
-
-            # 합성
-            composed = self._compose_rgba(img_b, mask_b)
-            if not composed:
-                logger.debug(f"[textdict 이미지 합성 실패]")
-
-            # 파일명: textdict_p{pno}_{blockNo}
-            base_name = f"textdict_p{self.pno}_{block['number']}"
-            rel_path = self._save_png(composed, base_name)
-            logger.debug(f"[textdict이미지 저장 상대경로] : {rel_path}")
+            if sig in self.saved_files:
+                # 이미 저장된 파일이 있다면, 경로만 재사용하고 파일 저장 과정은 건너뜀
+                rel_path = self.saved_files[sig]
+                composed = None # 이미 저장되었으므로 다시 만들 필요 없음
+                logger.debug(f"[textdict이미지 재사용] : {rel_path}")
+            else:
+                # 처음 보는 이미지라면, 합성하고 파일로 저장
+                composed = self._compose_rgba(img_b, mask_b)
+                if not composed:
+                    logger.debug(f"[textdict 이미지 합성 실패]")
+                    continue # 합성에 실패하면 다음 블록으로
+                
+                # 파일명: textdict_p{pno}_{blockNo}_{sig[:6]}.png
+                base_name = f"textdict_p{self.pno}_{block['number']}_{sig[:6]}" # 파일명 충돌 방지를 위해 해시값 사용
+                rel_path = self._save_png(composed, base_name)
+                self.saved_files[sig] = rel_path # 새로 저장된 경로를 딕셔너리에 추가
+                logger.debug(f"[textdict이미지 신규 저장] : {rel_path}")
 
             # 메인 스키마에 맞춰 반환
             # - bbox_pt: xyxy (points)
@@ -475,9 +481,24 @@ class TextDictImageExtractorV2:
             logger.debug(f"[textdict 이미지 tf] : {tf}")
 
             # img_w/h: 저장된 이미지 픽셀 크기
-            img_w, img_h = composed.width, composed.height
-            origin_w = int(block.get("width") or img_w)
-            origin_h = int(block.get("height") or img_h)
+            origin_w = int(block.get("width", 0))
+            origin_h = int(block.get("height", 0))
+
+             # 저장된 이미지 크기를 알아내기 위해, 필요하면 이미지 열기
+            if composed:
+                img_w, img_h = composed.width, composed.height
+            else:
+                # 재사용된 이미지의 경우, 실제 파일에서 크기를 읽어와야 함
+                # (성능이 중요하다면 이 부분은 생략하거나 다른 방식으로 처리 가능)
+                try:
+                    full_path = os.path.join(self.media_root, rel_path)
+                    with Image.open(full_path) as img:
+                        img_w, img_h = img.size
+                except FileNotFoundError:
+                    img_w, img_h = origin_w, origin_h # 파일을 못찾으면 원본 크기 사용
+            
+            if origin_w == 0: origin_w = img_w
+            if origin_h == 0: origin_h = img_h
 
             out_images.append({
                 "order": current_order,

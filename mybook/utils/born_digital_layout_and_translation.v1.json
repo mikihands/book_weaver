@@ -1,0 +1,38 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "Born-Digital Page Layout Analysis and Translation",
+  "type": "array",
+  "description": "A list of paragraph objects that constitute the page content.",
+  "items": {
+    "type": "object",
+    "properties": {
+          "role": {
+            "type": "string",
+            "description": "The semantic role of the paragraph on the page.",
+            "enum": ["title", "heading", "body", "footer", "pagination", "caption", "table_data", "list_item"]
+          },
+          "span_indices": {
+            "type": "array",
+            "description": "An ordered list of integer indices corresponding to the original text spans that make up this paragraph.",
+            "items": {
+              "type": "integer"
+            }
+          },
+          "translated_text": {
+            "type": "string",
+            "description": "The translated text of the paragraph."
+          },
+          "alignment": {
+            "type": "string",
+            "description": "The text alignment of the paragraph.",
+            "enum": ["left", "center", "right", "justify"]
+          },
+          "flow": {
+            "type": "string",
+            "description": "The reading direction of the text.",
+            "enum": ["left_to_right", "right_to_left", "top_to_bottom"]
+          }
+    },
+    "required": ["role", "span_indices", "translated_text", "alignment", "flow"]
+  }
+}

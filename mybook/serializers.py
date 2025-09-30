@@ -24,6 +24,8 @@ class StartTranslationSerializer(serializers.Serializer):
     genre = serializers.CharField(max_length=100, required=False, allow_blank=True)
     glossary = serializers.CharField(required=False, allow_blank=True)
     target_language = serializers.CharField(max_length=10)
+    model_type = serializers.CharField(max_length=16, required=False, default="standard")
+    thinking_level = serializers.CharField(max_length=16, required=False, default="medium")
 
 class RegisterSerializer(serializers.Serializer):
     username = serializers.CharField(max_length=150)

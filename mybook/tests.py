@@ -1,15 +1,21 @@
 import json
-from pathlib import Path
 import os
 from bs4 import BeautifulSoup
 import fitz  # PyMuPDF
-from django.conf import settings
+from pathlib import Path
+from django.conf import settings 
 from django.test import TestCase
 import base64
 
 from google import genai
 from google.genai import types
 from PIL import Image, ImageDraw
+from unittest.mock import patch, MagicMock
+from mybook.utils.gemini_helper import GeminiHelper
+import unittest
+from mybook.utils.layout_prompt import SYS_MSG, create_layout_user_prompt
+from mybook.utils.born_digital import _collect_spans_from, collect_page_layout
+from mybook.utils.paragraphs import UnitsBuilder
 
 class PdfDebuggingAnalysisTest(TestCase):
     """
@@ -56,7 +62,7 @@ class PdfDebuggingAnalysisTest(TestCase):
         # 예: Path(settings.BASE_DIR) / 'test_pdfs' / '사원총회_의사록_양식.pdf'
         pdf_files_to_test = [
             #sample_pdf_path,
-            test_dir / "testbook2-4_5page.pdf" ,
+            test_dir / "one-step-from-reality-chapter1_2.pdf" ,
             # 여기에 분석하고 싶은 PDF 파일 경로를 추가하세요.
         ]
 
@@ -82,7 +88,7 @@ class PdfDebuggingAnalysisTest(TestCase):
                     },
                     "get_text_dict": page.get_text("dict",flags=fitz.TEXTFLAGS_DICT | fitz.TEXT_PRESERVE_IMAGES), # type:ignore
                     #"get_text_rawdict": page.get_text("rawdict"), # type:ignore
-                    "get_text_html": page.get_text("html"), # type:ignore
+                    #"get_text_html": page.get_text("html"), # type:ignore
                     #"get_text_xhtml": page.get_text("xhtml"), # type:ignore
                     #"get_text_blocks": page.get_text("blocks"), # type:ignore
                     "get_drawings": page.get_drawings(extended=True), # type:ignore
@@ -90,7 +96,7 @@ class PdfDebuggingAnalysisTest(TestCase):
                     #"get_cdrawings":page.get_cdrawings(extended=True), # get_drawings 에서 빈속성을 뺀 신속 간단 버젼
                     "get_images_full": page.get_images(full=True),
                     #"get_links": page.get_links(), # type:ignore,
-                    "get_image_info": page.get_image_info(xrefs=True),
+                    "get_image_info": page.get_image_info(xrefs=True), # type:ignore
                     #"get_xobjects":page.get_xobjects(),
                 }
 
@@ -109,6 +115,15 @@ class PdfDebuggingAnalysisTest(TestCase):
                             return list(o) # type:ignore
                         if isinstance(o, bytes):
                             return o.decode('utf-8', 'replace')
+                        if isinstance(o, (set, tuple)):
+                            return list(o)
+                        if isinstance(o, fitz.Quad):
+                            return {
+                                "ul": list(o.ul), "ur": list(o.ur), "lr": list(o.lr), "ll": list(o.ll), # type:ignore
+                                "bbox": list(o.rect)  # type:ignore
+                            }
+                        if isinstance(o, fitz.Matrix):
+                            return [o.a, o.b, o.c, o.d, o.e, o.f]
                         raise TypeError(f"Object of type {o.__class__.__name__} is not JSON serializable")
 
                     json.dump(analysis_results, f, ensure_ascii=False, indent=2, default=default_serializer)
@@ -337,7 +352,7 @@ class ImageMaskExtractionTests(TestCase):
 
         # 여기에 분석하고 싶은 PDF 파일 경로를 추가
         cls.pdf_files_to_test = [
-            cls.test_dir / "test_23page.pdf",
+            cls.test_dir / "one-step-from-reality-chapter1_2.pdf",
         ]
 
     def _extract_with_smask_or_render(self, doc, page, pdf_stem: str) -> int:
@@ -366,6 +381,11 @@ class ImageMaskExtractionTests(TestCase):
                 if has_mask and smask_map.get(xref):
                     # ---- SMask 결합 추출 ----
                     base_pix = fitz.Pixmap(doc, xref)
+                    # [FIX] base_pix에 알파 채널이 있으면 제거합니다.
+                    # fitz.Pixmap(base, mask)를 호출하려면 base에 알파가 없어야 합니다.
+                    if base_pix.alpha:
+                        base_pix = fitz.Pixmap(fitz.csRGB, base_pix)
+
                     mask_pix = fitz.Pixmap(doc, smask_map[xref])
                     combined = fitz.Pixmap(base_pix, mask_pix)  # 알파 합성
                     out_path = self.out_dir / f"{tag}_withalpha.png"
@@ -387,7 +407,7 @@ class ImageMaskExtractionTests(TestCase):
                     outputs += 1
 
             except Exception as e:  # pragma: no cover
-                print("처리 실패: %s (xref=%s): %s", tag, xref, e)
+                print(f"처리 실패: {tag} (xref={xref}): {e}")
 
         return outputs
 
@@ -411,3 +431,174 @@ class ImageMaskExtractionTests(TestCase):
 
         # 최소 한 장이라도 생성되었는지 확인 (문서에 이미지가 전혀 없다면 실패)
         self.assertGreater(total_outputs, 0, "결과 PNG가 생성되지 않았습니다. 테스트 PDF와 페이지 내 이미지 유무를 확인하세요.")
+
+
+# This is a sample response that Gemini might return, conforming to the schema.
+# We'll use this to mock the API call in the test.
+MOCK_GEMINI_RESPONSE = {
+    "book_id": "test-book-123",
+    "page_no": 1,
+    "paragraphs": [
+        {
+            "role": "title",
+            "span_indices": [0, 1],
+            "alignment": "center",
+            "flow": "left_to_right",
+            "font_changes": []
+        },
+        {
+            "role": "body",
+            "span_indices": [2, 3, 4],
+            "alignment": "justify",
+            "flow": "left_to_right",
+            "font_changes": [
+                {
+                    "text": "important concept",
+                    "styles": ["bold"]
+                }
+            ]
+        },
+        {
+            "role": "pagination",
+            "span_indices": [5],
+            "alignment": "center",
+            "flow": "left_to_right",
+            "font_changes": []
+        }
+    ]
+}
+
+
+class GeminiLayoutAnalysisTest(TestCase):
+    def setUp(self):
+        # Load the JSON schema
+        schema_path = os.path.join(settings.BASE_DIR, 'mybook', 'utils', 'born_digital_weaver_layout.v1.json')
+        with open(schema_path, 'r', encoding='utf-8') as f:
+            self.schema = json.load(f)
+        self.test_dir = Path(settings.BASE_DIR) / "test"
+        self.pdf_path = self.test_dir / "testbook2-4_5page.pdf" # The user will provide this file.
+
+    @patch('mybook.utils.gemini_helper.genai.Client')
+    def test_layout_analysis_request_with_real_pdf(self, mock_genai_client):
+        """
+        Tests sending a layout analysis request using a real PDF file
+        from the 'test' directory.
+        """
+        # Skip the test if the user-provided PDF is not found.
+        if not self.pdf_path.exists():
+            self.skipTest(f"Test PDF not found at {self.pdf_path}. Please place a single-page PDF there to run this test.")
+
+        # --- 1. Setup Mocks ---
+        mock_response = MagicMock()
+        mock_response.text = json.dumps(MOCK_GEMINI_RESPONSE)
+        mock_model_instance = MagicMock()
+        mock_model_instance.generate_content.return_value = mock_response
+        mock_client_instance = MagicMock()
+        mock_client_instance.models = mock_model_instance
+        mock_genai_client.return_value = mock_client_instance
+
+        # --- 2. Prepare Inputs from Real PDF ---
+        book_id = "gemini-layout-test"
+        page_no = 1
+
+        # Open the PDF and extract spans
+        doc = fitz.open(self.pdf_path)
+        self.assertEqual(doc.page_count, 1, "The test PDF should be a single page.")
+        page = doc.load_page(0) # 0-indexed
+        page_dict = page.get_text("dict")
+        spans = _collect_spans_from(page_dict, page_no)
+        doc.close()
+
+        self.assertGreater(len(spans), 0, "Spans should be extracted from the PDF.")
+
+        # Create the file part for Gemini
+        with open(self.pdf_path, "rb") as f:
+            pdf_bytes = f.read()
+        file_part = types.Part.from_bytes(data=pdf_bytes, mime_type="application/pdf")
+
+        # Create the user message
+        user_msg = create_layout_user_prompt(book_id, page_no, spans)
+
+        # --- 3. Instantiate Helper and Call ---
+        gemini_helper = GeminiHelper(schema=self.schema)
+        result, errors = gemini_helper.generate_page_json(
+            file_part=file_part,
+            sys_msg=SYS_MSG,
+            user_msg=user_msg,
+            example_json=json.dumps(self.schema.get("examples", [])[0])
+        )
+
+        # --- 4. Assertions ---
+        mock_model_instance.generate_content.assert_called_once()
+        # Check that the call was made with the correct parts
+        call_args, call_kwargs = mock_model_instance.generate_content.call_args
+        contents = call_kwargs['contents']
+        self.assertEqual(contents[0], file_part)
+        self.assertIn('"task": "Analyze the layout', contents[1])
+        self.assertIn(f'"book_id": "{book_id}"', contents[1])
+        self.assertIn('"spans":', contents[1])
+        self.assertTrue(len(json.loads(contents[1])['spans']) > 0)
+
+        # Check the result (which is from the mock response)
+        self.assertIsNotNone(result, "The result should not be None on success.")
+        self.assertIsNone(errors, "Errors should be None on success.")
+        self.assertEqual(result['book_id'], MOCK_GEMINI_RESPONSE['book_id'])
+        self.assertEqual(len(result['paragraphs']), 3)
+
+    @unittest.skipUnless(os.getenv('RUN_REAL_API_TESTS') == 'true', "Skipping real API test. Set RUN_REAL_API_TESTS=true to run.")
+    def test_real_layout_analysis_with_gemini_api(self):
+        """
+        Sends a REAL request to the Gemini API and prints/saves the result.
+        This test will only run if the environment variable RUN_REAL_API_TESTS is set to 'true'.
+        
+        Usage:
+        $ RUN_REAL_API_TESTS=true ./manage.py test mybook.tests.GeminiLayoutAnalysisTest.test_real_layout_analysis_with_gemini_api
+        """
+        if not self.pdf_path.exists():
+            self.skipTest(f"Test PDF not found at {self.pdf_path}. Please place a single-page PDF there to run this test.")
+
+        # --- 1. Prepare Inputs from Real PDF ---
+        book_id = "gemini-layout-test-real"
+        page_no = 1
+
+        doc = fitz.open(self.pdf_path)
+        page = doc.load_page(0)
+        page_dict = page.get_text("dict")
+        spans = _collect_spans_from(page_dict, page_no)
+        doc.close()
+
+        with open(self.pdf_path, "rb") as f:
+            pdf_bytes = f.read()
+        file_part = types.Part.from_bytes(data=pdf_bytes, mime_type="application/pdf")
+
+        user_msg = create_layout_user_prompt(book_id, page_no, spans)
+
+        # --- 2. Instantiate Helper and Call (REAL API CALL) ---
+        from mybook.utils.gemini_helper import GeminiHelper
+        gemini_helper = GeminiHelper(schema=self.schema)
+        result, errors = gemini_helper.generate_page_json(
+            file_part=file_part,
+            sys_msg=SYS_MSG,
+            user_msg=user_msg,
+            example_json=json.dumps(self.schema.get("examples", [])[0])
+        )
+
+        # --- 3. Check and Save the Result ---
+        print("\n--- Gemini API Real Response ---")
+        if errors:
+            print("🚨 Errors occurred:")
+            print(json.dumps(errors, indent=2, ensure_ascii=False))
+        else:
+            print("✅ Success! Result:")
+            print(json.dumps(result, indent=2, ensure_ascii=False))
+
+            # Save the result to a file for inspection
+            result_path = self.test_dir / "layout_test_result.json"
+            with open(result_path, 'w', encoding='utf-8') as f:
+                json.dump(result, f, ensure_ascii=False, indent=2)
+            print(f"\n📄 Result saved to: {result_path}")
+
+        self.assertIsNone(errors, "The real API call should not produce schema or parsing errors.")
+        self.assertIsNotNone(result, "The real API call should return a result.")
+        if result:
+            self.assertEqual(result['book_id'], book_id)

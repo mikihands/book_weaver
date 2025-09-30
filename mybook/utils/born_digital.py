@@ -4,6 +4,9 @@ import fitz
 from .html_inject import escape_html
 from .pick_best_path import pick_final_clip
 from typing import Dict, Any, List, Tuple
+from .paragraphs import Paragraph # Paragraph 타입 힌트를 위해 임포트
+from .nonbody_detector import NonBodyLabel # NonBodyLabel 타입 힌트를 위해 임포트
+from bs4 import BeautifulSoup
 
 logger = logging.getLogger(__name__)
 
@@ -172,10 +175,10 @@ def collect_page_layout(pdf_path: str, page_no: int) -> Dict[str, Any]:
     except Exception:
         pass
 
-    logger.debug(f"[DEBUG-UTILS-COLLECT]page {page_no} spans: {spans}, images: {len(images)}, drawings: {drawings}")
-    # drawings 디버깅
-    for di, d in enumerate(drawings):
-        logger.debug(f"[DEBUG-UTILS-COLLECT] drawing {di}: " + ", ".join(f"{k}={v}" for k,v in d.items() if v))
+    # logger.debug(f"[DEBUG-UTILS-COLLECT]page {page_no} spans: {spans}, images: {len(images)}, drawings: {drawings}")
+    # # drawings 디버깅
+    # for di, d in enumerate(drawings):
+    #     logger.debug(f"[DEBUG-UTILS-COLLECT] drawing {di}: " + ", ".join(f"{k}={v}" for k,v in d.items() if v))
 
     return {"page_no": page_no, "size_pt": {"w": w, "h": h}, "spans": spans, "images": images, "drawings": drawings, "links": link_rects,}
 
@@ -571,15 +574,14 @@ def _build_drawings_svg(drawings, w_pt, h_pt, scale=1.0, link_rects=None, spans=
 
 
 def build_faithful_html(
-    layout: Dict[str, Any],
-    translated_units: List[str] | None,
-    idx_map: List[List[int]],
+    raw_layout: Dict[str, Any],
+    translated_paragraphs: List[Dict[str, Any]],
     *,
     image_src_map: dict[int, str] | None = None,
     font_map: dict[str, str] | None = None,
 ) -> str:
     # 1) 페이지 px 크기
-    size = layout.get("size") or {}
+    size = raw_layout.get("size") or {}
     page_w_px = int(round(float(size.get("w", 0))))
     page_h_px = int(round(float(size.get("h", 0))))
 
@@ -587,14 +589,14 @@ def build_faithful_html(
     svg_defs: List[str] = []
 
     # 2) PT→PX 스케일(m): 텍스트/드로잉용
-    meta = layout.get("meta") or {}
+    meta = raw_layout.get("meta") or {}
     pt_to_px = float((meta.get("norm") or {}).get("pt_to_px", 1.0) or 1.0)
     norm_scale = float((meta.get("norm") or {}).get("scale", 1.0) or 1.0)
     m = pt_to_px * norm_scale
     logger.debug(f"[DEBUG-UTILS-BUILD]: m={m}")
 
     # 3) 이미지
-    for im in layout.get("images", []):
+    for im in raw_layout.get("images", []):
         src = image_src_map.get(int(im.get("xref") or -1)) if image_src_map else None
         if not src:
             continue
@@ -673,63 +675,123 @@ def build_faithful_html(
     html.extend(image_html_parts)
 
     # 4) 드로잉(SVG) — 헤더 배경/수평선/세로 컬러바가 여기서 렌더됨
-    spans = layout.get("spans", []) # 5) 텍스트에서도 활용됨. _should_draw()를 판정하기 위해서 미리 가져옴.
+    spans = raw_layout.get("spans", []) # 5) 텍스트에서도 활용됨. _should_draw()를 판정하기 위해서 미리 가져옴.
 
-    drawings = layout.get("drawings", [])
-    w_pt, h_pt = layout["size_pt"]["w"], layout["size_pt"]["h"] #페이지 사이즈 (pt 좌표)
-    link_rects = layout.get("links", [])  # pt 좌표
+    drawings = raw_layout.get("drawings", [])
+    w_pt, h_pt = raw_layout["size_pt"]["w"], raw_layout["size_pt"]["h"] #페이지 사이즈 (pt 좌표)
+    link_rects = raw_layout.get("links", [])  # pt 좌표
     logger.debug(f"[DEBUG-UTILS-BUILD]: w_pt={w_pt}, h_pt={h_pt}")
     if w_pt <= 0: w_pt = 1 # prevent division by zero
     html.append(_build_drawings_svg(drawings, w_pt, h_pt, scale=m, link_rects=link_rects, spans=spans))
 
-    if not translated_units:
-        html.append("</div>")
-        return "".join(html)
+    # 5) 텍스트 스팬 (Gemini가 반환한 문단 구조와 번역 사용)
+    def apply_styles_from_markers(text: str, para_spans: List[Dict[str, Any]], all_spans: List[Dict[str, Any]]) -> str:
+        """Parses special markers in the translated text and replaces them with HTML style tags."""
+        import re
 
-    # 5) 텍스트 스팬    
-    span_texts = [s["text"] for s in spans]
-    for unit_idx, span_indices in enumerate(idx_map):
-        for j, si in enumerate(span_indices):
-            if unit_idx < len(translated_units) and si < len(span_texts):
-                span_texts[si] = translated_units[unit_idx] if j == 0 else ""
+        # 1. HTML 이스케이프를 먼저 수행하여 마커가 손상되지 않도록 합니다.
+        text = escape_html(text)
 
-    for i, (s, text) in enumerate(zip(spans, span_texts)):
-        if not text:
+        # 2. 스타일 마커를 HTML 태그로 변환합니다.
+        # Bold: §b§...§/b§ -> <span style="font-weight:bold;">...</span>
+        text = re.sub(r'§b§(.*?)§/b§', r'<span style="font-weight:bold;">\1</span>', text)
+
+        # Italic: §i§...§/i§ -> <span style="font-style:italic;">...</span>
+        text = re.sub(r'§i§(.*?)§/i§', r'<span style="font-style:italic;">\1</span>', text)
+
+        # Color: §c§...§/c§ -> <span style="color:...">...</span>
+        # 색상 마커는 실제 색상 값을 찾아야 하므로 콜백 함수를 사용합니다.
+        def color_replacer(match):
+            # match.group(1)은 마커 안의 내용물입니다. 여기에는 다른 스타일 태그가 포함될 수 있습니다.
+            # 예: §c§<span style="font-weight:bold;">colored bold text</span>§/c§
+            inner_html = match.group(1)
+            
+            # 원본 스팬에서 이 텍스트 조각을 포함하는 스팬을 찾아 색상을 가져옵니다.
+            # 스타일 태그를 제거하여 순수 텍스트만으로 원본 스팬을 검색합니다.
+            soup = BeautifulSoup(inner_html, "html.parser")
+            unescaped_fragment = soup.get_text()
+            
+            for span in para_spans:
+                if unescaped_fragment in span.get("text", ""):
+                    color_hex = _int_color_to_hex(span.get("color", 0))
+                    # 기존에 있던 태그(예: bold)를 유지하면서 color 스타일만 덧씌웁니다.
+                    # 만약 inner_html에 이미 span 태그가 있다면, 그 태그에 style을 추가합니다.
+                    # 여기서는 간단하게 외부를 감싸는 방식으로 처리합니다.
+                    return f'<span style="color:{color_hex};">{inner_html}</span>'
+
+            # 색상을 찾지 못하면 스타일 없이 텍스트만 반환
+            return inner_html
+
+        # §c§ 마커를 가장 나중에 처리하여 다른 스타일 태그가 포함된 경우에도 동작하도록 합니다.
+        text = re.sub(r'§c§(.*?)§/c§', color_replacer, text, flags=re.DOTALL)
+
+        return text.replace("\n", "<br>")
+
+    for para_idx, para in enumerate(translated_paragraphs):
+        span_indices = para.get("span_indices", [])
+        if not span_indices:
             continue
-        x0, y0, x1, y1 = s["bbox"]
-        x0, y0 = x0*m, y0*m
+
+        # 문단의 첫 번째 스팬을 기준으로 위치와 스타일을 결정
+        first_span_idx = span_indices[0]
+        if first_span_idx >= len(spans):
+            continue
+        
+        s = spans[first_span_idx]
+        
+        # 문단 전체의 bbox 계산
+        para_spans = [spans[i] for i in span_indices if i < len(spans)]
+        if not para_spans: continue
+        
+        x0 = min(sp["bbox"][0] for sp in para_spans)
+        y0 = min(sp["bbox"][1] for sp in para_spans)
+        x1 = max(sp["bbox"][2] for sp in para_spans)
+        y1 = max(sp["bbox"][3] for sp in para_spans)
+
+        x0, y0, x1, y1 = x0*m, y0*m, x1*m, y1*m
         font_size = float(s.get("size", 12)) * m
         color_int = int(s.get("color", 0))
         color_css = _int_color_to_hex(color_int)
-        bold, italic = _guess_bold_italic(s.get("font", ""), int(s.get("flags", 0)))
         family = _map_font_family(s.get("font", ""), font_map)
+        role = para.get("role", "body")
+        alignment = para.get("alignment", "left")
 
         style = (
             f"position:absolute;left:{x0}px;top:{y0}px;"
             f"font-size:{font_size:.2f}px;"
             f"color:{color_css};"
-            f"font-family:{family};"
-            f"white-space:pre;line-height:1.1;text-align:justify;"
+            f"font-family:{escape_html(family)};"
+            f"width:{(x1 - x0):.2f}px;white-space:pre-wrap;"
+            f"line-height:1.2;text-align:{alignment};"
         )
-        if bold:   style += "font-weight:700;"
-        if italic: style += "font-style:italic;"
 
-        html.append(f'<span id="span-{i}" style="{style}">{escape_html(text)}</span>')
+        # 단일 스팬으로 구성된 문단일 경우, 원본 높이를 data 속성으로 전달
+        data_attrs = ""
+        if len(para_spans) == 1:
+            data_attrs = f' data-allowed-height="{(y1 - y0):.2f}"'
+
+        # 번역된 텍스트의 마커를 파싱하여 스타일 적용
+        final_text = apply_styles_from_markers(
+            para.get("translated_text", ""), para_spans, spans
+        )
+
+        html.append(f'<div id="para-{para_idx}" data-role="{role}" style="{style}"{data_attrs}>{final_text}</div>')
 
     html.append("</div>")
     return "".join(html)
 
 
-def build_readable_html(layout: Dict[str, Any], translated_units: List[str] | None, idx_map: List[List[int]]) -> str:
+def build_readable_html(translated_paragraphs: List[Dict[str, Any]]) -> str:
     """
     가독 모드: 단락 중심. 간단 버전은 unit별 <p>로 나열.
     (실 서비스에서는 컬럼 분리/헤딩 추정/리스트 감지 등 확장)
     """
     parts = ["<article>"]
-    if not translated_units:
+    if not translated_paragraphs:
         parts.append("</article>")
         return "".join(parts)
-    for text in translated_units:
+    for para in translated_paragraphs:
+        text = para.get("translated_text", "")
         t = escape_html(text.strip())
         if t:
             parts.append(f"<p>{t}</p>")

@@ -21,15 +21,18 @@
     </style>
     <style>
         .page.edit-mode-active [id^="span-"],
-        .page.edit-mode-active [id^="el-"] {
+        .page.edit-mode-active [id^="el-"],
+        .page.edit-mode-active [id^="para-"] {
             cursor: pointer;
             transition: background-color 0.2s;
         }
         .page.edit-mode-active [id^="el-"] {
             position: relative;
         }
+        /* 편집 모드에서 마우스를 올렸을 때의 스타일 */
         .page.edit-mode-active [id^="span-"]:hover,
-        .page.edit-mode-active [id^="el-"]:hover {
+        .page.edit-mode-active [id^="el-"]:hover,
+        .page.edit-mode-active [id^="para-"]:hover {
             background-color: rgba(0, 123, 255, 0.2);
             outline: 1px dashed rgba(0, 123, 255, 0.7);
             z-index: 10; /* 다른 요소 위에 보이도록 z-index를 높게 설정 */
@@ -74,6 +77,7 @@
             grid-template-columns: repeat(2, minmax(0, 1fr));
             gap: 12px;
         }
+        /* 편집 모드에서 요소를 클릭했을 때의 스타일 */
         .span-selected {
             outline: 2px solid #007bff;
             background-color: rgba(0, 123, 255, 0.1);
@@ -581,10 +585,8 @@
             }
 
             function getEditableElementSelector() {
-                // born_digital은 span, ai_layout은 p, h1, li 등
-                return processingMode === 'born_digital' 
-                    ? 'span[id^="span-"]' 
-                    : '[id^="el-"]';
+                // born_digital과 ai_layout 모두 문단 단위의 div를 편집 대상으로 통일합니다.
+                return '[id^="para-"]';
             }
 
             function setupEditableElementListeners() {
@@ -632,40 +634,11 @@
                 const editor = document.createElement('div');
                 editor.className = 'span-editor-popover';
                 
-                if (processingMode === 'born_digital') {
-                    // --- born_digital용 UI (기존 로직 유지) ---
-                    const originalStyle = element.getAttribute('style') || '';
-                    const leftMatch = originalStyle.match(/left:\s*([^;]+);/);
-                    const fontSizeMatch = originalStyle.match(/font-size:\s*([^;]+);/);
-                    const letterSpacingMatch = originalStyle.match(/letter-spacing:\s*([^;]+);/);
-
-                    const currentLeft = leftMatch ? parseFloat(leftMatch[1]) : 0;
-                    const currentFontSize = fontSizeMatch ? parseFloat(fontSizeMatch[1]) : 0;
-                    const currentLetterSpacing = letterSpacingMatch ? parseFloat(letterSpacingMatch[1]) : 0;
-
-                    editor.innerHTML = `
-                        
-                        <label>Left (px): <input type="number" step="0.1" value="${currentLeft}" data-style="left" data-unit="px"></label>
-                        <label>Font Size (px): <input type="number" step="0.1" value="${currentFontSize}" data-style="font-size" data-unit="px"></label>
-                        <label>Letter Spacing (px): <input type="number" step="0.1" value="${currentLetterSpacing}" data-style="letter-spacing" data-unit="px"></label>
-                        <label>Text: <input type="text" value="${element.textContent}"></label>
-                    `;
-
-                    editor.addEventListener('input', (e) => {
-                        const target = e.target;
-                        if (target.tagName === 'INPUT') {
-                            if (target.type === 'number') {
-                                const styleProp = target.dataset.style;
-                                const unit = target.dataset.unit;
-                                element.style[styleProp] = `${target.value}${unit}`;
-                            } else if (target.type === 'text') {
-                                element.textContent = target.value;
-                            }
-                            recordChange(element);
-                        }
-                    });
-                } else {
-                    // --- ai_layout용 개선된 UI ---
+                // born_digital과 ai_layout 모드 모두 새로운 UI를 사용하도록 통일합니다.
+                // ai_layout 모드는 CSS 변수를 사용하지만, born_digital은 절대 px 값을 사용합니다.
+                // getComputedStyle을 사용하면 두 경우 모두 현재 렌더링된 값을 가져올 수 있습니다.
+                if (processingMode === 'ai_layout') {
+                    // --- ai_layout용 UI (CSS 변수 기반) ---
                     const originalStyleAttr = element.getAttribute('style') || '';
                     const computedStyle = getComputedStyle(element);
                     const contentDiv = element.closest('.content');
@@ -766,11 +739,74 @@
                         }
                         recordChange(element);
                     });                    
+                } else {
+                    // --- born_digital용 UI (절대 px 값 기반) ---
+                    const computedStyle = getComputedStyle(element);
+                    const currentLeft = parseFloat(computedStyle.left);
+                    const currentTop = parseFloat(computedStyle.top);
+                    const currentFontSize = parseFloat(computedStyle.fontSize);
+                    const currentWidth = parseFloat(computedStyle.width);
+                    const currentLineHeight = parseFloat(computedStyle.lineHeight) / currentFontSize; // 상대값으로 변환
+                    const currentTextAlign = computedStyle.textAlign;
+
+                    editor.innerHTML = `
+                        <div>
+                            <label for="text-editor" class="block text-sm font-medium text-gray-700 mb-1">Text</label>
+                            <textarea id="text-editor" rows="3" class="w-full border border-gray-300 rounded-md p-2 text-sm">${element.textContent}</textarea>
+                        </div>
+                        <div class="grid-inputs flex flex-col gap-8">
+                            <label>Left (px):</label> <input type="number" step="0.1" value="${currentLeft.toFixed(2)}" data-style-prop="left">
+                            <label>Top (px):</label> <input type="number" step="0.1" value="${currentTop.toFixed(2)}" data-style-prop="top">
+                            <label>Font Size (px):</label> <input type="number" step="0.1" value="${currentFontSize.toFixed(2)}" data-style-prop="font-size">
+                            <label>Width (px):</label> <input type="number" step="1" value="${currentWidth.toFixed(0)}" data-style-prop="width">
+                            <label>Line Height:</label> <input type="number" step="0.1" value="${currentLineHeight.toFixed(2)}" data-style-prop="line-height">
+                            <label>Text Align:</label>
+                            <select data-style-prop="text-align" class="border rounded px-1 py-0.5">
+                                <option value="left" ${currentTextAlign === 'left' ? 'selected' : ''}>Left</option>
+                                <option value="center" ${currentTextAlign === 'center' ? 'selected' : ''}>Center</option>
+                                <option value="right" ${currentTextAlign === 'right' ? 'selected' : ''}>Right</option>
+                                <option value="justify" ${currentTextAlign === 'justify' ? 'selected' : ''}>Justify</option>
+                            </select>
+                        </div>
+                    `;
+
+                    editor.addEventListener('input', (e) => {
+                        const target = e.target;
+                        if (target.id === 'text-editor') {
+                            element.textContent = target.value;
+                        } else if (target.dataset.styleProp) {
+                            const prop = target.dataset.styleProp;
+                            const unit = ['left', 'top', 'font-size', 'width'].includes(prop) ? 'px' : '';
+                            element.style[prop] = `${target.value}${unit}`;
+                        }
+                        recordChange(element);
+                    });
                 }
 
+
+                // 툴박스를 화면에 추가하기 전에 먼저 높이를 측정합니다.
+                // 보이지 않게 추가하여 크기를 계산한 후, 올바른 위치를 잡습니다.
+                editor.style.visibility = 'hidden';
                 document.body.appendChild(editor);
+                const editorHeight = editor.offsetHeight;
+
+                // 툴박스를 표시할 최적의 y축 위치를 계산합니다.
+                let topPosition;
+                const spaceBelow = window.innerHeight - rect.bottom;
+                const spaceAbove = rect.top;
+
+                // 아래쪽 공간이 부족하고 위쪽 공간이 더 많으면, 툴박스를 요소의 위에 표시합니다.
+                if (spaceBelow < (editorHeight + 10) && spaceAbove > spaceBelow) {
+                    topPosition = window.scrollY + rect.top - editorHeight - 5;
+                } else {
+                    // 그렇지 않으면, 기존처럼 아래에 표시합니다.
+                    topPosition = window.scrollY + rect.bottom + 5;
+                }
+
                 editor.style.left = `${window.scrollX + rect.left}px`;
-                editor.style.top = `${window.scrollY + rect.bottom + 5}px`;
+                editor.style.top = `${Math.max(window.scrollY, topPosition)}px`; // 페이지 상단 밖으로 나가지 않도록 보정
+                editor.style.visibility = 'visible'; // 이제 툴박스를 보이게 합니다.
+
                 currentEditor = editor;
             }
 
@@ -783,21 +819,20 @@
 
             function removeEditor() {
                 if (currentEditor) {
-                    currentEditor.remove();
-                    currentEditor = null;
+                    currentEditor.remove(); // 편집기 팝업만 제거
+                    currentEditor = null; 
                 }
                 if (selectedElement) {
+                    // // 선택된 요소에서 핸들 제거 (핸들 기능 제거됨)
+                    // const handle = selectedElement.querySelector('.resize-handle');
+                    // if (handle) handle.remove();
+
                     selectedElement.classList.remove('span-selected');
+                    // selectedElement를 null로 만들어, 외부 클릭 시에도 정상 작동하도록 함
                     selectedElement = null;
                 }
             }
             
-            // 편집기 외부 클릭 시 편집기 닫기
-            document.addEventListener('click', (e) => {
-                if (isInEditMode && currentEditor && !currentEditor.contains(e.target) && !e.target.closest(getEditableElementSelector())) {
-                    removeEditor();
-                }
-            });
 
             function saveChanges() {
                 if (Object.keys(changes).length === 0) {
@@ -805,11 +840,17 @@
                     return;
                 }
 
+                // URL 쿼리 파라미터에서 lang과 mode를 직접 읽어옵니다.
+                // 이렇게 하면 템플릿 변수가 비어있는 경우에도 정확한 값을 사용할 수 있습니다.
+                const urlParams = new URLSearchParams(window.location.search);
+                const currentLang = urlParams.get('lang') || "{{ lang }}"; // URL에 없으면 템플릿 변수로 폴백
+                const currentMode = urlParams.get('mode') || "{{ mode }}"; // URL에 없으면 템플릿 변수로 폴백
+
                 const payload = {
-                    lang: "{{ lang }}",
-                    mode: "{{ mode }}",
+                    lang: currentLang,
+                    mode: currentMode,
                     changes: Object.entries(changes).map(([element_id, data]) => ({
-                        element_id, // born_digital과 ai_layout 모두 element_id 사용
+                        element_id,
                         style: data.style,
                         text: data.text
                     }))
@@ -843,6 +884,47 @@
                     alert(`{% trans "오류" %}: ${error.message}`);
                 });
             }
+
+            // --- 자동 겹침 보정 로직 (페이지 로드 시 1회 실행) ---
+            function autoAdjustOverlaps() {
+                if (processingMode !== 'born_digital' || !pageContainer) return;
+
+                const paras = Array.from(pageContainer.querySelectorAll('[id^="para-"]'))
+                    .sort((a, b) => parseFloat(a.style.top) - parseFloat(b.style.top));
+
+                for (let i = 0; i < paras.length; i++) {
+                    const current = paras[i];
+
+                    // 현재 페이지의 scale 값을 매번 다시 가져옵니다 (동적 변경 가능성)
+                    const transform = window.getComputedStyle(pageContainer).transform;
+                    const scale = (transform && transform !== 'none') ? new DOMMatrix(transform).a : 1.0;
+                    
+                    const currentRect = current.getBoundingClientRect();
+
+                    // 백엔드에서 전달받은 '허용 높이'
+                    const allowedHeight = parseFloat(current.dataset.allowedHeight);
+
+                    // 단순화된 로직:
+                    // 1. '허용 높이' 속성이 있고 (원래 한 줄이었던 요소)
+                    // 2. 실제 렌더링된 높이가 허용 높이보다 크다면 (줄바꿈이 일어났다면)
+                    if (allowedHeight && (currentRect.height / scale > allowedHeight + 1)) {
+                        // 강제로 한 줄로 표시하도록 스타일 변경
+                        current.style.whiteSpace = 'pre';
+                    }
+                }
+            }
+
+            // 편집기 외부 클릭 시 편집기 닫기 (이벤트 리스너를 여기에 한번만 등록)
+            document.addEventListener('click', (e) => {
+                if (isInEditMode && currentEditor && !currentEditor.contains(e.target) && !e.target.closest(getEditableElementSelector())) {
+                    removeEditor();
+                }
+            });
+
+            // DOMContentLoaded 대신 window.onload를 사용하여 폰트 로딩 후 실행
+            window.addEventListener('load', () => {
+                autoAdjustOverlaps();
+            });
         });
     </script>
 </body>

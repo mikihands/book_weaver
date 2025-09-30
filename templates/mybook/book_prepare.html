@@ -58,6 +58,55 @@
                 </select>
             </div>
 
+            <div class="flex flex-col space-y-2">
+                <div class="flex items-center space-x-2">
+                    <label for="modelSelect" class="text-gray-700 font-medium">{% trans "번역 모델 선택" %}</label>
+                    <div class="relative group cursor-pointer">
+                        <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5 text-gray-400" viewBox="0 0 20 20" fill="currentColor">
+                            <path fill-rule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7-4a1 1 0 11-2 0 1 1 0 012 0zM9 9a1 1 0 000 2v3a1 1 0 001 1h1a1 1 0 100-2v-3a1 1 0 00-1-1H9z" clip-rule="evenodd" />
+                        </svg>
+                        <div class="absolute bottom-full left-1/2 -translate-x-1/2 mb-2 w-80 bg-gray-800 text-white text-xs rounded py-2 px-3 opacity-0 group-hover:opacity-100 transition-opacity duration-300 pointer-events-none z-10">
+                            <p class="font-bold">{% trans "표준 모델 (Standard Model)" %}:</p>
+                            <p>{% trans "처리 속도는 느리지만, 실수가 적고 복잡한 문서나 정밀도를 요구하는 작업에 적합합니다." %}</p>
+                            <p class="mt-2 font-bold">{% trans "라이트 모델 (Lite Model)" %}:</p>
+                            <p>{% trans "처리 속도는 빠르지만, 표준 모델 대비 실수가 있을 수 있으며, 단순한 문서나 개인용 서적 번역에 적합합니다. 비용이 저렴합니다." %}</p>
+                            <svg class="absolute text-gray-800 h-2 w-full left-0 top-full" x="0px" y="0px" viewBox="0 0 255 255" xml:space="preserve"><polygon class="fill-current" points="0,0 127.5,127.5 255,0"/></svg>
+                        </div>
+                    </div>
+                </div>
+                <select id="modelSelect" name="model_type" required
+                        class="block w-full px-4 py-2 text-gray-700 bg-gray-50 border border-gray-300 rounded-md shadow-sm focus:ring-blue-500 focus:border-blue-500">
+                    <option value="standard" {% if book.model_type == "standard" %}selected{% endif %}>{% trans "표준 모델" %}</option>
+                    <option value="lite" {% if book.model_type == "lite" %}selected{% endif %}>{% trans "라이트 모델" %}</option>
+                </select>
+            </div>
+
+            <div class="flex flex-col space-y-2">
+                <div class="flex items-center space-x-2">
+                    <label for="thinkingLevelSelect" class="text-gray-700 font-medium">{% trans "모델 사고 기능" %}</label>
+                    <div class="relative group cursor-pointer">
+                        <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5 text-gray-400" viewBox="0 0 20 20" fill="currentColor">
+                            <path fill-rule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7-4a1 1 0 11-2 0 1 1 0 012 0zM9 9a1 1 0 000 2v3a1 1 0 001 1h1a1 1 0 100-2v-3a1 1 0 00-1-1H9z" clip-rule="evenodd" />
+                        </svg>
+                        <div class="absolute bottom-full left-1/2 -translate-x-1/2 mb-2 w-80 bg-gray-800 text-white text-xs rounded py-2 px-3 opacity-0 group-hover:opacity-100 transition-opacity duration-300 pointer-events-none z-10">
+                            <p class="font-bold">{% trans "사고 기능 끄기 (Off)" %}:</p>
+                            <p>{% trans "모델이 추가적인 추론 없이 즉시 응답합니다. 가장 빠르고 저렴하지만, 복잡한 문제에서 오류 가능성이 높습니다." %}</p>
+                            <p class="mt-2 font-bold">{% trans "중간 정도 (Medium)" %}:</p>
+                            <p>{% trans "모델이 적당한 수준의 추론을 수행합니다. 속도와 정확도 사이의 균형을 제공합니다." %}</p>
+                            <p class="mt-2 font-bold">{% trans "깊은 생각 (Deep)" %}:</p>
+                            <p>{% trans "모델이 심층적인 추론 과정을 거쳐 응답합니다. 가장 정확하지만, 처리 속도가 느리고 비용이 증가합니다." %}</p>
+                            <svg class="absolute text-gray-800 h-2 w-full left-0 top-full" x="0px" y="0px" viewBox="0 0 255 255" xml:space="preserve"><polygon class="fill-current" points="0,0 127.5,127.5 255,0"/></svg>
+                        </div>
+                    </div>
+                </div>
+                <select id="thinkingLevelSelect" name="thinking_level" required
+                        class="block w-full px-4 py-2 text-gray-700 bg-gray-50 border border-gray-300 rounded-md shadow-sm focus:ring-blue-500 focus:border-blue-500">
+                    <option value="off" {% if book.thinking_level == "off" %}selected{% endif %}>{% trans "사고 기능 끄기" %}</option>
+                    <option value="medium" {% if book.thinking_level == "medium" %}selected{% endif %}>{% trans "중간 정도" %}</option>
+                    <option value="deep" {% if book.thinking_level == "deep" %}selected{% endif %}>{% trans "깊은 생각" %}</option>
+                </select>
+            </div>
+
             <div class="flex flex-col sm:flex-row space-y-4 sm:space-y-0 sm:space-x-4 pt-4">
                 <button type="button" id="saveSettingsButton"
                         class="w-full sm:w-1/2 px-4 py-3 text-lg font-bold text-gray-800 bg-gray-200 rounded-md

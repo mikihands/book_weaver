@@ -1,0 +1,114 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "Born-Digital Page Layout Analysis",
+  "description": "Describes the paragraph structure and layout of a single page from a born-digital PDF, as analyzed by an AI model.",
+  "type": "object",
+  "properties": {
+    "book_id": {
+      "type": "string",
+      "description": "The unique identifier for the book."
+    },
+    "page_no": {
+      "type": "integer",
+      "description": "The 1-based page number within the book."
+    },
+    "paragraphs": {
+      "type": "array",
+      "description": "A list of paragraph objects that constitute the page content.",
+      "items": {
+        "type": "object",
+        "properties": {
+          "role": {
+            "type": "string",
+            "description": "The semantic role of the paragraph on the page.",
+            "enum": ["title", "subtitle", "body", "header", "footer", "pagination", "caption", "table_data", "list_item"]
+          },
+          "span_indices": {
+            "type": "array",
+            "description": "An ordered list of integer indices corresponding to the text spans that make up this paragraph.",
+            "items": {
+              "type": "integer"
+            }
+          },
+          "alignment": {
+            "type": "string",
+            "description": "The text alignment of the paragraph.",
+            "enum": ["left", "center", "right", "justify"]
+          },
+          "flow": {
+            "type": "string",
+            "description": "The reading direction of the text.",
+            "enum": ["left_to_right", "right_to_left", "top_to_bottom"]
+          },
+          "font_changes": {
+            "type": "array",
+            "description": "A list of specific text fragments within the paragraph that have font style changes. Empty if no changes.",
+            "items": {
+              "type": "object",
+              "properties": {
+                "text": {
+                  "type": "string",
+                  "description": "The exact text fragment with a style change."
+                },
+                "styles": {
+                  "type": "array",
+                  "description": "A list of styles applied to the text fragment.",
+                  "items": {
+                    "type": "string",
+                    "enum": ["bold", "italic", "underline", "strikethrough", "color"]
+                  }
+                }
+              },
+              "required": ["text", "styles"]
+            }
+          }
+        },
+        "required": ["role", "span_indices", "alignment", "flow", "font_changes"]
+      }
+    }
+  },
+  "required": ["book_id", "page_no", "paragraphs"],
+  "examples": [
+    {
+      "book_id": "report-xyz-2024",
+      "page_no": 12,
+      "paragraphs": [
+        {
+          "role": "title",
+          "span_indices": [1, 2],
+          "alignment": "center",
+          "flow": "left_to_right",
+          "font_changes": []
+        },
+        {
+          "role": "body",
+          "span_indices": [3, 4, 5, 6],
+          "alignment": "justify",
+          "flow": "left_to_right",
+          "font_changes": [
+            {
+              "text": "Gemini Pro",
+              "styles": ["bold"]
+            },
+            {
+              "text": "very important",
+              "styles": ["bold", "italic"]
+            }
+          ]
+        },
+        {
+          "role": "caption",
+          "span_indices": [7],
+          "alignment": "center",
+          "flow": "left_to_right",
+          "font_changes": [
+            {
+              "text": "Figure 1. Analysis Result",
+              "styles": ["italic"]
+            }
+          ]
+        }
+      ]
+    }
+  ]
+}

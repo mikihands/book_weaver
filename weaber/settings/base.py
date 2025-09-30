@@ -126,6 +126,10 @@ DEFAULT_AUTO_FIELD = 'django.db.models.BigAutoField'
 
 GEMINI_API_KEY = env("GEMINI_API_KEY")
 PAID_GEMINI_KEY = env("PAID_GEMINI_KEY")
+GPT_OSS_KEY = env("GPT_OSS_KEY")
+GPT_OSS_ENDPOINT = env("GPT_OSS_ENDPOINT", default="https://ai.mikihands.com/v1/chat/completions") # type:ignore
+VLLM_API_KEY = env("VLLM_API_KEY")
+VLLM_ENDPOINT = env("VLLM_ENDPOINT", default="https://ai.mikihands.com/v1/chat/completions") # type:ignore
 
 SECURE_PROXY_SSL_HEADER = ('HTTP_X_FORWARDED_PROTO', 'https')
 

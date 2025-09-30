@@ -177,7 +177,6 @@ class TranslatedPage(models.Model):
     mode = models.CharField(max_length=16, choices=TRANSLATION_MODES, default="faithful", help_text="번역 모드")
     data = models.JSONField(help_text="weaver.page.v1 JSON 형식의 번역 데이터")
     status = models.CharField(max_length=16, choices=TRANSLATION_STATUS, default="pending", help_text="번역 상태")
-    tokens_used = models.IntegerField(null=True, blank=True, help_text="번역에 사용된 토큰 수")
     duration_ms = models.IntegerField(null=True, blank=True, help_text="번역에 걸린 시간 (ms)")
     created_at = models.DateTimeField(auto_now_add=True)
 
@@ -186,3 +185,24 @@ class TranslatedPage(models.Model):
 
     class Meta:
         unique_together = ('book', 'page_no', 'lang', 'mode')
+
+
+class ApiUsageLog(models.Model):
+    """LLM API 요청별 사용량 기록 (과금 및 통계용)"""
+    user = models.ForeignKey(UserProfile, on_delete=models.SET_NULL, null=True, blank=True, related_name="api_usage_logs", help_text="요청을 발생시킨 사용자")
+    book = models.ForeignKey(Book, on_delete=models.SET_NULL, null=True, blank=True, related_name="api_usage_logs", help_text="관련된 책 (선택 사항)")
+    request_type = models.CharField(max_length=50, help_text="API 요청의 종류 (e.g., 'translate_page', 'retranslate_page')")
+    model_name = models.CharField(max_length=100, help_text="사용된 LLM 모델 이름")
+    prompt_tokens = models.IntegerField(default=0, help_text="요청에 사용된 프롬프트 토큰 수")
+    completion_tokens = models.IntegerField(default=0, help_text="응답으로 받은 생성 토큰 수")
+    cached_tokens = models.IntegerField(default=0, null=True, blank=True, help_text="프롬프트에서 재사용된 캐시 토큰 수")
+    thinking_tokens = models.IntegerField(default=0, null=True, blank=True, help_text="모델의 내부 추론(CoT)에 사용된 토큰 수")
+    total_tokens = models.IntegerField(default=0, help_text="사용한 총 토큰 수")
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    def __str__(self):
+        username = self.user.username if self.user else "N/A"
+        return f"Log for {username} at {self.created_at.strftime('%Y-%m-%d %H:%M')} ({self.total_tokens} tokens)"
+
+    class Meta:
+        ordering = ['-created_at']

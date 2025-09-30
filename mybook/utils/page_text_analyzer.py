@@ -1,6 +1,8 @@
 # mybook/utils/page_text_analyzer.py
 from __future__ import annotations
 from dataclasses import dataclass
+# NonBodyDetector를 임포트하여 로직을 위임합니다.
+from .nonbody_detector import NonBodyDetector, NonBodyLabel
 from typing import Any, Dict, List, Tuple, Optional
 import re, statistics as st
 
@@ -20,18 +22,6 @@ class Paragraph:
     span_indices: List[int]
     bbox: Tuple[float, float, float, float]
     text: str
-
-@dataclass
-class NonBodyLabel:
-    span_idx: int
-    role: str        # "title"|"subtitle"|"header"|"footer"|"pagenum"|"floating"
-    align: str       # "left"|"right"|"center"
-    confidence: float
-    reason: str
-
-_TITLE_HINTS = re.compile(r"(chapter|chapitre|cap[íi]tulo|章|제\s*\d+\s*장|prologue|epilogue)", re.I)
-_ROMAN_NUM  = re.compile(r"^(?=[ivxlcdm]+$)i{1,3}|iv|vi{0,3}|ix|x{1,3}$", re.I)
-_PAGE_NUM   = re.compile(r"^\d{1,4}$")
 
 class PageTextAnalyzer:
     def __init__(
@@ -76,6 +66,16 @@ class PageTextAnalyzer:
         self._p80_size: Optional[float] = None
         self._line_counts: Optional[Dict[Tuple[int,int], int]] = None
 
+        # NonBodyDetector 인스턴스를 생성하여 로직을 위임합니다.
+        # 이렇게 하면 non-body 탐지 로직이 한 곳에 중앙화되어 유지보수가 용이해집니다.
+        self.nonbody_detector = NonBodyDetector(
+            width_ratio_max=self.nb_width_ratio_max,
+            lr_eps_pt=self.nb_lr_eps,
+            top_band_ratio=self.nb_top_band_ratio,
+            bottom_band_ratio=self.nb_bottom_band_ratio,
+            singleton_only=self.nb_singleton_only,
+        )
+
         self._build_common_features()
 
     # -------- public API --------
@@ -106,64 +106,10 @@ class PageTextAnalyzer:
         return "left"
 
     def detect_nonbody_spans(self) -> List[NonBodyLabel]:
-        if not self.spans:
-            return []
-        spans = self.spans
-        page_w, page_h = self.page_w, self.page_h
-        line_counts = self._line_counts or {}
-
-        sizes = [float(s.get("size") or 0.0) for s in spans if s.get("size") is not None]
-        p80 = self._percentile(sizes, 80) if sizes else None
-
-        labels: List[NonBodyLabel] = []
-        for i, s in enumerate(spans):
-            text = (s.get("text") or "").strip()
-            if not text:
-                continue
-            x0,y0,x1,y1 = s.get("bbox", (0,0,0,0))
-            w = max(0.0, x1 - x0)
-            width_ratio = w / max(page_w, 1e-6)
-            if width_ratio > self.nb_width_ratio_max:
-                continue
-            if self.nb_singleton_only and line_counts.get((int(s.get("block") or 0), int(s.get("line") or 0)), 0) > 1:
-                continue
-
-            L = x0; R = page_w - x1; diff = abs(L - R)
-            if diff <= self.nb_lr_eps:
-                align, a_score = "center", 1.0 - min(1.0, diff/(self.nb_lr_eps+1e-6))
-            elif L + self.nb_lr_eps < R:
-                align, a_score = "left", min(1.0, (R-L)/max(page_w*0.5,1.0))
-            elif R + self.nb_lr_eps < L:
-                align, a_score = "right", min(1.0, (L-R)/max(page_w*0.5,1.0))
-            else:
-                align, a_score = "left", 0.3
-
-            midy = (y0 + y1)/2
-            top_band = page_h * self.nb_top_band_ratio
-            bottom_band = page_h * (1.0 - self.nb_bottom_band_ratio)
-            size = float(s.get("size") or 0.0)
-            size_boost = 0.2 if (p80 and size >= p80) else 0.0
-
-            if midy <= top_band:
-                if _TITLE_HINTS.search(text):
-                    role, r_score, base = "title", 0.9 + size_boost, "top & title-key"
-                else:
-                    role, r_score, base = "header", 0.6 + size_boost, "top"
-            elif midy >= bottom_band:
-                if _PAGE_NUM.match(text) or _ROMAN_NUM.match(text):
-                    role, r_score, base = "pagenum", 0.9, "bottom & pagenum"
-                else:
-                    role, r_score, base = "footer", 0.6, "bottom"
-            else:
-                if _TITLE_HINTS.search(text):
-                    role, r_score, base = "subtitle", 0.65 + size_boost, "mid & title-key"
-                else:
-                    role, r_score, base = "floating", 0.5 + size_boost*0.5, "mid floating"
-
-            conf = round(0.4*a_score + 0.6*r_score, 3)
-            reason = f"{base}; width_ratio={width_ratio:.3f}, L={L:.1f}, R={R:.1f}"
-            labels.append(NonBodyLabel(span_idx=i, role=role, align=align, confidence=conf, reason=reason))
-        return labels
+        """
+        NonBodyDetector에 위임하여 본문이 아닌 요소를 탐지합니다.
+        """
+        return self.nonbody_detector.detect(self.spans, self.page_w, self.page_h)
 
     def build_units(self, use_paragraphs: bool = True) -> Tuple[List[str], List[List[int]]]:
         if use_paragraphs:
