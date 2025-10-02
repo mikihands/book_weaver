@@ -206,9 +206,26 @@ BookWeaver — {% trans "원서를, 당신의 언어로" %}
             const data = await response.json();
 
             if (response.ok) {
-                messageDiv.innerHTML = `<span class="text-green-600">${data.message}</span>`;
-                if (data.prepare_url) {
-                    window.location.href = data.prepare_url;
+                if (data.sanitization_warning) {
+                    // [NEW] 정화 경고가 있는 경우, 사용자 확인을 받습니다.
+                    messageDiv.innerHTML = `
+                        <div class="p-4 mb-4 text-sm text-yellow-800 rounded-lg bg-yellow-50 border border-yellow-300 text-left" role="alert">
+                          <p class="font-bold mb-2">{% trans "주의: 문서 내용이 일부 변경되었습니다." %}</p>
+                          <p>${data.sanitization_warning}</p>
+                        </div>
+                        <button id="confirmAndProceed" class="mt-2 w-full rounded-xl bg-blue-600 px-5 py-3 text-white font-semibold hover:bg-blue-700">
+                          {% trans "확인하고 계속하기" %}
+                        </button>
+                    `;
+                    document.getElementById('confirmAndProceed').addEventListener('click', () => {
+                        if (data.prepare_url) window.location.href = data.prepare_url;
+                    });
+                } else {
+                    // [MODIFIED] 경고가 없는 경우, 성공 메시지를 잠시 보여준 후 이동합니다.
+                    messageDiv.innerHTML = `<span class="text-green-600">${data.message}</span>`;
+                    if (data.prepare_url) {
+                        setTimeout(() => { window.location.href = data.prepare_url; }, 1500);
+                    }
                 }
             } else {
                 if (response.status === 403) {

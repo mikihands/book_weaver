@@ -221,26 +221,26 @@ class ParagraphDetector:
             xs0.append(L.x0); ys0.append(L.y0); xs1.append(L.x1); ys1.append(L.y1)
 
         # --- NEW: Calculate line height ---
-        line_height = None
+        line_height_ratio = None
         para_lines = [self.lines[li] for li in line_indices]
         if len(para_lines) > 1:
             line_spacings = []
             font_sizes = [l.size for l in para_lines if l.size and l.size > 0]
-            
+
             if font_sizes:
                 median_font_size = statistics.median(font_sizes)
                 for i in range(len(para_lines) - 1):
                     spacing = para_lines[i+1].y0 - para_lines[i].y0
                     if spacing > 0:
                         line_spacings.append(spacing)
-                
+
                 if line_spacings and median_font_size > 0:
                     median_spacing = statistics.median(line_spacings)
-                    line_height = round(median_spacing / median_font_size, 2)
+                    line_height_ratio = round(median_spacing / median_font_size, 2)
 
         text = self._merge_text_with_hyphen(texts)
         bbox = (min(xs0), min(ys0), max(xs1), max(ys1))
-        paras.append(Paragraph(line_indices.copy(), span_idxs, bbox, text, line_height=line_height))
+        paras.append(Paragraph(line_indices.copy(), span_idxs, bbox, text, line_height=line_height_ratio))
 
     def _merge_text_with_hyphen(self, lines: List[str]) -> str:
         out = []
@@ -309,3 +309,57 @@ class UnitsBuilder:
                 units.append(text)
                 idx_map.append([item[0] for item in g])
         return units, idx_map
+
+
+def calculate_line_height_for_paragraph(span_indices: List[int], all_spans: List[Dict[str, Any]]) -> Optional[float]:
+    """
+    Gemini가 반환한 특정 문단(span_indices)에 대한 상대적 줄간격(line-height)을 계산합니다.
+    이 함수는 ParagraphDetector의 내부 상태에 의존하지 않습니다.
+
+    :param span_indices: 문단을 구성하는 스팬들의 원본 인덱스 리스트.
+    :param all_spans: 페이지의 모든 스팬 정보 리스트.
+    :return: 계산된 상대적 줄간격 (e.g., 1.5) 또는 계산 불가 시 None.
+    """
+    if not span_indices or not all_spans or len(span_indices) < 2:
+        return None
+
+    para_spans = [all_spans[i] for i in span_indices if i < len(all_spans)]
+
+    # 1. 스팬들을 (block, line) 키로 그룹화하여 라인 단위로 재구성합니다.
+    lines_map: Dict[Tuple[int, int], List[Dict[str, Any]]] = {}
+    for span in para_spans:
+        key = (span.get("block", 0), span.get("line", 0))
+        if key not in lines_map:
+            lines_map[key] = []
+        lines_map[key].append(span)
+
+    # 2. 각 라인의 y0, size를 계산하고 y0 기준으로 정렬합니다.
+    para_lines = []
+    for spans_in_line in lines_map.values():
+        if not spans_in_line:
+            continue
+        y0 = min(s['bbox'][1] for s in spans_in_line)
+        # 라인의 대표 폰트 크기를 찾습니다.
+        size = next((s.get('size') for s in spans_in_line if s.get('size')), None)
+        para_lines.append({'y0': y0, 'size': size})
+
+    # y-좌표 순으로 라인 정렬
+    para_lines.sort(key=lambda x: x['y0'])
+
+    if len(para_lines) < 2:
+        return None
+
+    # 3. 라인 간 간격(spacing)과 폰트 크기의 중간값을 계산합니다.
+    line_spacings = [para_lines[i+1]['y0'] - para_lines[i]['y0'] for i in range(len(para_lines) - 1)]
+    font_sizes = [l['size'] for l in para_lines if l.get('size') and l['size'] > 0]
+
+    if not line_spacings or not font_sizes:
+        return None
+
+    median_spacing = statistics.median(line_spacings)
+    median_font_size = statistics.median(font_sizes)
+
+    if median_font_size > 0:
+        return round(median_spacing / median_font_size, 2)
+
+    return None

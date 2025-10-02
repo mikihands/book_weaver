@@ -62,6 +62,7 @@ def build_prompt_born_digital(
     book_genre: str | None = None,
     glossary: str | None = None,
     previous_page_body_text: str | None = None,
+    previous_page_original_text: str | None = None,
     next_page_span_texts: List[str] | None = None,
 ) -> tuple[str, str]:
     """
@@ -76,9 +77,16 @@ def build_prompt_born_digital(
 
 {genre_principles}
 
-### Cross-Page Context Rules
-- **Tone & Style**: Refer to `previous_page_body_text` to ensure the translation tone and style (e.g., formal/informal speech) are consistent with the preceding page.
-- **Sentence Continuity**: If the first span of the current page seems to continue a sentence from the previous page, use `previous_page_body_text` to create a seamless translation. Similarly, if the last span of the current page seems incomplete, use `next_page_span_texts` to decide where to naturally break the sentence.
+### Cross-Page Context Rules: Follow these instructions STRICTLY.
+1.  **Handling Sentence Start**:
+    - `previous_page_body_text` provides the ending of the previous page's translation for tone and style context.
+    - `previous_page_original_text` provides the original text of the very last paragraph from the previous page.
+    - **Instruction**: If the first span of the current page seems to continue a sentence from the previous page, use `previous_page_original_text` to understand the full original sentence. Then, translate **only the text from the current page's spans**. Your translation for the first paragraph must seamlessly continue the sentence from the previous page, starting mid-sentence if necessary. **Do not re-translate or include text from the previous page in your output.**
+2.  **Handling Sentence End**:
+    - The `next_page_span_texts` provides the beginning text of the next page.
+    - **Instruction**: If the last sentence on the current page seems grammatically incomplete and continues onto the next page (as suggested by `next_page_span_texts`), translate the text fragment on the current page **exactly as it is**. **DO NOT try to complete the sentence or guess the ending.** The translated text for that paragraph should also be an incomplete sentence fragment. This is the correct and expected behavior. 
+3.  **Tone & Style Consistency**:
+    - **Instruction**: Use `previous_page_body_text` as a reference to maintain a consistent tone, style, and use of terminology (e.g., formal/informal speech, character-specific vocabulary) across pages.
 
 ### Core Task
 1.  **Group Spans**: Analyze the provided `spans` list. Group related spans into logical paragraphs. For each paragraph, you MUST include the `span_indices` array containing the original `idx` of each span. **Crucially, treat page footers and page numbers as separate paragraphs.** For example, if a line contains "Document Title" and "Page 5", create one paragraph for "Document Title" with role `footer`, and another for "Page 5" with role `pagination`.
@@ -132,6 +140,11 @@ def build_prompt_born_digital(
             "note": "This is the translated text from the last few body paragraphs of the previous page. Use it for context.",
             "text": previous_page_body_text
         }
+    if previous_page_original_text:
+        payload["previous_page_original_text"] = {
+            "note": "This is the original text from the very last body paragraph of the previous page. Use it to understand how to correctly start the sentence on the current page if it's a continuation.",
+            "text": previous_page_original_text
+        }
     if next_page_span_texts:
         # 다음 페이지의 첫 7개 스팬 텍스트만 컨텍스트로 제공
         payload["next_page_span_texts"] = {
@@ -160,6 +173,9 @@ def build_prompt_retranslate_born_digital(
     book_title: str | None = None,
     book_genre: str | None = None,
     glossary: str | None = None,
+    previous_page_body_text: str | None = None,
+    previous_page_original_text: str | None = None,
+    next_page_span_texts: List[str] | None = None,
 ) -> tuple[str, str]:
     """
     Builds a prompt for re-translating paragraphs based on user feedback.
@@ -173,6 +189,17 @@ def build_prompt_retranslate_born_digital(
     system_prompt = f"""You are an expert translator. Your task is to re-translate a list of paragraphs into {target_lang}, strictly following the user's feedback.
 
 {genre_principles}
+
+### Cross-Page Context Rules: Follow these instructions STRICTLY if context is provided.
+1.  **Handling Sentence Start**:
+    - `previous_page_body_text` provides the ending of the previous page's translation for tone and style context.
+    - `previous_page_original_text` provides the original text of the very last paragraph from the previous page.
+    - **Instruction**: If the first paragraph to re-translate seems to continue a sentence from the previous page, use `previous_page_original_text` to understand the full original sentence. Your new translation for the first paragraph must seamlessly continue the sentence from the previous page, starting mid-sentence if necessary.
+2.  **Handling Sentence End**:
+    - The `next_page_span_texts` provides the beginning text of the next page.
+    - **Instruction**: If the last paragraph to re-translate seems grammatically incomplete and continues onto the next page (as suggested by `next_page_span_texts`), translate the text fragment on the current page **exactly as it is**. **DO NOT try to complete the sentence or guess the ending.**
+3.  **Tone & Style Consistency**:
+    - **Instruction**: Use `previous_page_body_text` as a reference to maintain a consistent tone, style, and use of terminology (e.g., formal/informal speech, character-specific vocabulary) across pages.
 
 ### Core Task
 1.  **Analyze Feedback**: Carefully read the `user_feedback` and understand what needs to be corrected in the `paragraphs_to_retranslate`.
@@ -196,6 +223,23 @@ def build_prompt_retranslate_born_digital(
     }
     if glossary:
         payload["glossary"] = glossary
+    
+    # 이전/다음 페이지 컨텍스트 추가
+    if previous_page_body_text:
+        payload["previous_page_body_text"] = {
+            "note": "This is the translated text from the last few body paragraphs of the previous page. Use it for context.",
+            "text": previous_page_body_text
+        }
+    if previous_page_original_text:
+        payload["previous_page_original_text"] = {
+            "note": "This is the original text from the very last body paragraph of the previous page. Use it to understand how to correctly start the sentence on the current page if it's a continuation.",
+            "text": previous_page_original_text
+        }
+    if next_page_span_texts:
+        payload["next_page_span_texts"] = {
+            "note": "These are the first few text spans from the next page. Use them to decide how to end sentences on the current page.",
+            "texts": next_page_span_texts
+        }
 
     user_prompt_json = json.dumps(payload, ensure_ascii=False)
     return system_prompt, user_prompt_json

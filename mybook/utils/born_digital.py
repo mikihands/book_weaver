@@ -755,14 +755,20 @@ def build_faithful_html(
         family = _map_font_family(s.get("font", ""), font_map)
         role = para.get("role", "body")
         alignment = para.get("alignment", "left")
+        line_height_ratio = para.get("line_height")
+        logger.debug(f"[DEBUG-UTILS-BUILD] line_height_ratio: {line_height_ratio} for para_idx {para_idx}")
+        # line_height_ratio가 있으면 스타일에 추가, 없으면 기본값(1.2) 사용
+        line_height_style = f"line-height:{line_height_ratio};" if line_height_ratio else "line-height:1.2;"
 
         style = (
             f"position:absolute;left:{x0}px;top:{y0}px;"
             f"font-size:{font_size:.2f}px;"
             f"color:{color_css};"
             f"font-family:{escape_html(family)};"
-            f"width:{(x1 - x0):.2f}px;white-space:pre-wrap;"
-            f"line-height:1.2;text-align:{alignment};"
+            f"width:{(x1 - x0):.2f}px;"
+            f"white-space:pre-wrap;" # 줄바꿈을 위해 pre-wrap 유지
+            f"{line_height_style}"
+            f"text-align:{alignment};"
         )
 
         # 단일 스팬으로 구성된 문단일 경우, 원본 높이를 data 속성으로 전달

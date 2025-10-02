@@ -13,7 +13,7 @@ from .utils.gemini_helper import GeminiHelper
 from .utils.gemini_file_ref import GeminiFileRefManager
 from .utils.extract_image import split_images_for_prompt, ImageExtractor
 from .utils.schema_loader import load_weaver_schema
-from .utils.paragraphs import UnitsBuilder
+from .utils.paragraphs import calculate_line_height_for_paragraph
 from .utils.nonbody_detector import NonBodyDetector # NonBodyDetector 임포트
 from .utils.born_digital import (
     collect_page_layout, build_faithful_html, build_readable_html
@@ -305,6 +305,7 @@ def translate_book_pages_born_digital(self, book_id: int, target_lang: str, page
 
             # 이전/다음 페이지 컨텍스트 수집
             previous_page_body_text = None
+            previous_page_original_text = None
             if pno > 1:
                 prev_page_result = None
                 # 현재 작업에서 이미 처리된 경우 캐시에서 가져옵니다.
@@ -318,10 +319,13 @@ def translate_book_pages_born_digital(self, book_id: int, target_lang: str, page
                 
                 if prev_page_result:
                     # role이 'body'인 문단의 번역 텍스트만 추출하여 컨텍스트로 사용합니다.
-                    body_paras = [p.get('translated_text', '') for p in prev_page_result if p.get('role') == 'body']
-                    previous_page_body_text = "\n".join(body_paras[-3:]) # 마지막 3개 본문 문단
-                    logger.debug(f"Previous page {pno-1} body text for context: {previous_page_body_text}")
+                    body_paras = [p for p in prev_page_result if p.get('role') == 'body']
+                    if body_paras:
+                        previous_page_body_text = "\n".join([p.get('translated_text', '') for p in body_paras[-3:]])
+                        previous_page_original_text = body_paras[-1].get('original_text', '')
 
+                    logger.debug(f"Previous page {pno-1} body text for context: {previous_page_body_text}")
+                    logger.debug(f"Previous page {pno-1} original text for context: {previous_page_original_text}")
             next_page_span_texts = None
             # 다음 페이지의 원본 스팬 정보를 미리 읽어둔 데이터에서 가져옵니다.
             if (pno + 1) in raw_layouts:
@@ -369,7 +373,8 @@ def translate_book_pages_born_digital(self, book_id: int, target_lang: str, page
                 book_genre=book.genre,
                 glossary=book.glossary,
                 previous_page_body_text=previous_page_body_text,
-                next_page_span_texts=next_page_span_texts
+                next_page_span_texts=next_page_span_texts,
+                previous_page_original_text=previous_page_original_text
             )
 
             # 3. Gemini API 호출
@@ -398,6 +403,14 @@ def translate_book_pages_born_digital(self, book_id: int, target_lang: str, page
                     indices = para.get("span_indices", [])
                     original_text = " ".join(spans[i]['text'] for i in indices if i < len(spans))
                     para['original_text'] = original_text.strip()
+
+                # [REVISED] Gemini가 반환한 문단별 span_indices를 사용하여 직접 line-height를 계산하고 주입합니다.
+                # 이렇게 하면 로컬의 휴리스틱 문단 감지 로직에 의존하지 않고 안정적으로 줄간격을 계산할 수 있습니다.
+                for para_from_gemini in layout_and_translation_data:
+                    para_from_gemini['line_height'] = calculate_line_height_for_paragraph(
+                        span_indices=para_from_gemini.get('span_indices', []),
+                        all_spans=spans
+                    )
 
                 # Gemini가 반환한 paragraph 구조를 HTML 빌더에 전달
                 # build_faithful_html은 이제 번역된 텍스트를 직접 사용
@@ -477,6 +490,40 @@ def retranslate_single_page(self, book_id: int, page_no: int, target_lang: str, 
             # gemini_result는 이제 paragraph의 리스트입니다.
             paragraphs = current_tp.data.get('gemini_result', [])
 
+            # --- [NEW] 이전/다음 페이지 컨텍스트 수집 ---
+            previous_page_body_text = None
+            previous_page_original_text = None
+            if page_no > 1:
+                prev_tp = TranslatedPage.objects.filter(book=book, page_no=page_no - 1, lang=target_lang, mode='faithful').first()
+                if prev_tp and isinstance(prev_tp.data, dict):
+                    prev_page_result = prev_tp.data.get('gemini_result')
+                    if prev_page_result:
+                        body_paras = [p for p in prev_page_result if p.get('role') == 'body']
+                        if body_paras:
+                            previous_page_body_text = "\n".join([p.get('translated_text', '') for p in body_paras[-3:]])
+                            previous_page_original_text = body_paras[-1].get('original_text', '')
+                        logger.debug(f"Retranslate context: Prev page {page_no-1} body text: {previous_page_body_text}")
+                        logger.debug(f"Retranslate context: Prev page {page_no-1} original text: {previous_page_original_text}")
+
+            next_page_span_texts = None
+            try:
+                next_page = BookPage.objects.get(book=book, page_no=page_no + 1)
+                if next_page:
+                    raw_layout = collect_page_layout(book.original_file.path, page_no + 1)
+                    next_page_spans = raw_layout.get("spans", [])
+                    if next_page_spans:
+                        next_page_span_texts = [
+                            s.get('text', '') for s in next_page_spans if s.get('text', '').strip()
+                        ][:8]
+                        logger.debug(f"Retranslate context: Next page {page_no+1} spans: {next_page_span_texts}")
+            except BookPage.DoesNotExist:
+                logger.debug(f"Retranslate context: Next page {page_no+1} does not exist.")
+                pass
+            except Exception as e:
+                logger.warning(f"Error collecting next page context for re-translation: {e}")
+                pass
+            # --- 컨텍스트 수집 끝 ---
+
             if not paragraphs:
                 logger.info(f"No paragraphs to re-translate for book {book_id}, page {page_no}.")
                 return
@@ -489,7 +536,10 @@ def retranslate_single_page(self, book_id: int, page_no: int, target_lang: str, 
                 user_feedback=feedback,
                 book_title=book.title,
                 book_genre=book.genre,
-                glossary=book.glossary
+                glossary=book.glossary,
+                previous_page_body_text=previous_page_body_text,
+                previous_page_original_text=previous_page_original_text,
+                next_page_span_texts=next_page_span_texts
             )
 
             # 3. Call LLM for new translation
@@ -578,7 +628,7 @@ def retranslate_single_page(self, book_id: int, page_no: int, target_lang: str, 
         file_manager = GeminiFileRefManager()
         llm = GeminiHelper(schema=load_weaver_schema(SCHEMA_PATH), model_type=model_type, thinking_level=thinking_level)
         
-        # ai_layout 재번역 시에도 다음 페이지 컨텍스트를 함께 전달합니다.
+        # [MODIFIED] ai_layout 재번역 시에도 다음 페이지 컨텍스트를 함께 전달합니다.
         pages_to_send = [page_no]
         if page_no < book.page_count:
             pages_to_send.append(page_no + 1)
