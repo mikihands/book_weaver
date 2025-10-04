@@ -1,0 +1,288 @@
+{% extends 'base.html' %}
+{% load i18n %}
+
+{% block title %}{% trans "이용약관" %}{% endblock %}
+
+{% block content %}
+<section class="mx-auto max-w-7xl px-6 py-14 md:py-20">
+  <h1 class="text-3xl md:text-5xl font-extrabold">{% trans "이용약관" %}</h1>
+  <p class="mt-2 text-sm text-slate-500">
+    {% blocktrans %}최종 업데이트: {{ today|default_if_none:"" }}{% endblocktrans %}
+  </p>
+  <p class="mt-6 text-lg text-slate-600 max-w-6xl">
+    {% blocktrans %}본 이용약관(이하 "약관")은 Mikihands - Weaver(이하 "서비스")의 제공 및 이용에 관한 권리·의무 관계를 규정합니다. 이용자는 본 약관에 동의함으로써 서비스를 이용할 수 있습니다. 본 약관은 국제적으로 통용되는 보편적 기준과 관련 법령을 준수하면서도, 서비스 제공을 위한 합리적 범위에서 적용됩니다.{% endblocktrans %}
+  </p>
+</section>
+
+<!-- TOC -->
+<section class="border-t border-slate-100">
+  <div class="mx-auto max-w-7xl px-6 py-8">
+    <div class="rounded-2xl border border-slate-200 bg-white p-6">
+      <h2 class="font-semibold text-lg">{% trans "목차" %}</h2>
+      <ol class="mt-3 grid sm:grid-cols-2 gap-2 text-sm text-slate-700 list-decimal list-inside">
+        <li><a href="#definitions" class="hover:underline">{% trans "정의" %}</a></li>
+        <li><a href="#eligibility" class="hover:underline">{% trans "자격 및 계정" %}</a></li>
+        <li><a href="#fees" class="hover:underline">{% trans "요금·결제·세금" %}</a></li>
+        <li><a href="#credits" class="hover:underline">{% trans "크레딧" %}</a></li>
+        <li><a href="#renewal_refund" class="hover:underline">{% trans "자동갱신·해지·환불" %}</a></li>
+        <li><a href="#license" class="hover:underline">{% trans "콘텐츠 라이선스 및 지식재산" %}</a></li>
+        <li><a href="#acceptable_use" class="hover:underline">{% trans "금지행위(사용정책)" %}</a></li>
+        <li><a href="#copyright" class="hover:underline">{% trans "저작권 침해 신고" %}</a></li>
+        <li><a href="#ai_disclaimer" class="hover:underline">{% trans "AI 결과물 고지·보증부인" %}</a></li>
+        <li><a href="#liability" class="hover:underline">{% trans "책임 제한" %}</a></li>
+        <li><a href="#indemnity" class="hover:underline">{% trans "면책" %}</a></li>
+        <li><a href="#sla" class="hover:underline">{% trans "서비스 가용성(SLA)" %}</a></li>
+        <li><a href="#data" class="hover:underline">{% trans "데이터 보관·개인정보" %}</a></li>
+        <li><a href="#thirdparty" class="hover:underline">{% trans "제3자 서비스" %}</a></li>
+        <li><a href="#changes_service" class="hover:underline">{% trans "서비스 변경·베타" %}</a></li>
+        <li><a href="#termination" class="hover:underline">{% trans "중지·해지" %}</a></li>
+        <li><a href="#law" class="hover:underline">{% trans "준거법·관할" %}</a></li>
+        <li><a href="#notice" class="hover:underline">{% trans "통지·변경" %}</a></li>
+        <li><a href="#misc" class="hover:underline">{% trans "기타" %}</a></li>
+        <li><a href="#contact" class="hover:underline">{% trans "문의" %}</a></li>
+      </ol>
+    </div>
+  </div>
+</section>
+
+<!-- 1. Definitions -->
+<section id="definitions" class="border-t border-slate-100">
+  <div class="mx-auto max-w-7xl px-6 py-12">
+    <h2 class="text-xl font-bold">{% trans "1. 정의" %}</h2>
+    <ul class="mt-3 text-sm text-slate-700 space-y-2">
+      <li>{% blocktrans %}"이용자"란 본 약관에 동의하고 서비스를 이용하는 개인 또는 법인을 의미합니다.{% endblocktrans %}</li>
+      <li>{% blocktrans %}"콘텐츠"란 이용자가 업로드하는 원본 파일(PDF/이미지 등)과 서비스가 생성·가공한 결과물을 의미합니다.{% endblocktrans %}</li>
+      <li>{% blocktrans %}"Eco/Precision"은 번역 처리 방식의 모델 유형으로, Precision은 높은 정밀도를 제공하나 더 많은 과금 단위를 소모할 수 있습니다.{% endblocktrans %}</li>
+      <li>{% blocktrans %}"서비스 크레딧"은 금전적 환불이 아닌 향후 이용요금에 상당하는 신용으로, 환급·현금화되지 않습니다.{% endblocktrans %}</li>
+    </ul>
+  </div>
+</section>
+
+<!-- 2. Eligibility & Account -->
+<section id="eligibility" class="border-t border-slate-100 bg-slate-50/50">
+  <div class="mx-auto max-w-7xl px-6 py-12">
+    <h2 class="text-xl font-bold">{% trans "2. 자격 및 계정" %}</h2>
+    <ul class="mt-3 text-sm text-slate-700 space-y-2">
+      <li>{% blocktrans %}원칙적으로 만 14세 미만은 이용 대상이 아닙니다. 필요한 경우 법정대리인 동의가 요구될 수 있습니다.{% endblocktrans %}</li>
+      <li>{% blocktrans %}이용자는 계정 접근 정보의 보안을 유지해야 하며, 계정의 무단 사용에 대해 즉시 통지해야 합니다.{% endblocktrans %}</li>
+      <li>{% blocktrans %}회사(서비스)는 약관 위반, 불법·유해한 사용, 타인의 권리 침해 우려가 있는 경우 계정을 제한·정지할 수 있습니다.{% endblocktrans %}</li>
+    </ul>
+  </div>
+</section>
+
+<!-- 3. Fees / Payment / Taxes -->
+<section id="fees" class="border-t border-slate-100">
+  <div class="mx-auto max-w-7xl px-6 py-12">
+    <h2 class="text-xl font-bold">{% trans "3. 요금·결제·세금" %}</h2>
+    <ul class="mt-3 text-sm text-slate-700 space-y-2">
+      <li>{% blocktrans %}요금제, 한도, 과금 규칙은 서비스 내 "Pricing" 페이지의 고지에 따릅니다.{% endblocktrans %} <a class="text-blue-600 hover:underline" href="{% url 'mybook:pricing' %}">{% trans "자세히 보기" %}</a></li>
+      <li>{% blocktrans %}대한민국 내 소비에는 부가가치세 10%가 부과되며, 그 외의 국가에서의 이용은 관련 법령상 요건 충족 시 영세율(0%)이 적용될 수 있습니다.{% endblocktrans %}</li>
+      <li>{% blocktrans %}대한민국 결제는 토스페이먼츠, 그 외의 국가의 결제는 PayPal을 사용하며, 각 결제사는 자체 약관·정책을 적용합니다.{% endblocktrans %}</li>
+    </ul>
+  </div>
+</section>
+
+<!-- 4. Credits -->
+<section id="credits" class="border-t border-slate-100 bg-slate-50/50">
+  <div class="mx-auto max-w-7xl px-6 py-12">
+    <h2 class="text-xl font-bold">{% trans "4. 크레딧" %}</h2>
+    <ul class="mt-3 text-sm text-slate-700 space-y-2">
+      <li>{% blocktrans %}크레딧은 Eco 기준 1페이지=1크레딧, Precision은 1페이지=6크레딧이 차감됩니다.{% endblocktrans %}</li>
+      <li>{% blocktrans %}$5(미화)로 1,000 크레딧 단위 구매가 가능하며, 유효기간은 구매일로부터 1년입니다.{% endblocktrans %}</li>
+      <li>{% blocktrans %}월간 페이지 한도 미초과 시 크레딧은 사용되지 않으며, 한도 초과 시 또는 Precision 사용 한도 초과분에 대해 사용됩니다.{% endblocktrans %}</li>
+      <li>{% blocktrans %}크레딧은 양도·환불·현금화가 불가합니다.{% endblocktrans %}</li>
+    </ul>
+  </div>
+</section>
+
+<!-- 5. Auto-renewal / Cancellation / Refund -->
+<section id="renewal_refund" class="border-t border-slate-100">
+  <div class="mx-auto max-w-7xl px-6 py-12">
+    <h2 class="text-xl font-bold">{% trans "5. 자동갱신·해지·환불" %}</h2>
+    <ul class="mt-3 text-sm text-slate-700 space-y-2">
+      <li>{% blocktrans %}구독은 월 단위 자동갱신되며, 갱신 24시간 전까지 계정 설정에서 해지할 수 있습니다.{% endblocktrans %}</li>
+      <li>{% blocktrans %}디지털 서비스 특성상 환불은 원칙적으로 불가합니다. 시스템 장애로 결과물이 생성되지 않은 경우 서비스 크레딧을 제공할 수 있으며, 이는 환불이 아니고 월 요금의 50%를 상한으로 합니다.{% endblocktrans %}</li>
+    </ul>
+  </div>
+</section>
+
+<!-- 6. License & IP -->
+<section id="license" class="border-t border-slate-100 bg-slate-50/50">
+  <div class="mx-auto max-w-7xl px-6 py-12">
+    <h2 class="text-xl font-bold">{% trans "6. 콘텐츠 라이선스 및 지식재산" %}</h2>
+    <ul class="mt-3 text-sm text-slate-700 space-y-2">
+      <li>{% blocktrans %}이용자는 업로드한 콘텐츠에 대한 권리를 보유하며, 서비스 제공·운영·보안·백업을 위해 필요한 범위 내에서 비독점적·전세계적·로열티 없는 호스팅·저장·처리 라이선스를 회사에 부여합니다.{% endblocktrans %}</li>
+      <li>{% blocktrans %}이용자는 업로드 콘텐츠에 대한 적법한 권리(사용·배포·번역 권한 포함)를 보유해야 하며, 제3자의 권리를 침해하지 않아야 합니다.{% endblocktrans %}</li>
+      <li>{% blocktrans %}서비스와 관련된 상표·로고·소프트웨어·문서 등은 회사 또는 라이선서의 지식재산이며, 약관에서 명시적으로 허용한 범위를 넘어 사용할 수 없습니다.{% endblocktrans %}</li>
+      <li>{% blocktrans %}이용자가 제공하는 피드백·제안은 회사가 제한 없이 사용할 수 있으며, 이용자에게 별도의 보상이 제공되지 않습니다.{% endblocktrans %}</li>
+    </ul>
+  </div>
+</section>
+
+<!-- 7. Acceptable Use -->
+<section id="acceptable_use" class="border-t border-slate-100">
+  <div class="mx-auto max-w-7xl px-6 py-12">
+    <h2 class="text-xl font-bold">{% trans "7. 금지행위(사용정책)" %}</h2>
+    <ul class="mt-3 text-sm text-slate-700 space-y-2">
+      <li>{% blocktrans %}저작권 침해 자료, 불법물, 악성코드, 성착취물 등 불법·유해 콘텐츠의 업로드·처리가 금지됩니다.{% endblocktrans %}</li>
+      <li>{% blocktrans %}서비스의 리버스 엔지니어링, 우회, 과도한 트래픽 유발, 자동화된 대량 요청 등 서비스 안정성을 해치는 행위는 금지됩니다.{% endblocktrans %}</li>
+      <li>{% blocktrans %}타인의 권리를 침해하거나 법령을 위반하는 방식으로 결과물을 배포·상업화하는 행위는 금지됩니다.{% endblocktrans %}</li>
+      <li>{% blocktrans %}회사는 위반이 확인되거나 합리적으로 의심되는 경우 콘텐츠 삭제, 처리 중단, 계정 정지·해지 등 필요한 조치를 취할 수 있습니다.{% endblocktrans %}</li>
+    </ul>
+  </div>
+</section>
+
+<!-- 8. Copyright Notice -->
+<section id="copyright" class="border-t border-slate-100 bg-slate-50/50">
+  <div class="mx-auto max-w-7xl px-6 py-12">
+    <h2 class="text-xl font-bold">{% trans "8. 저작권 침해 신고" %}</h2>
+    <p class="mt-3 text-sm text-slate-700">
+      {% blocktrans %}권리자가 침해를 주장하는 경우, 신속한 처리를 위해 소유 증빙, 침해 주장 내역, 연락처를 포함하여 신고해 주시기 바랍니다. 회사는 관련 법령에 따라 적절한 조치를 취하고 필요한 경우 당사자에게 통지합니다.{% endblocktrans %}
+    </p>
+    <a href="{% url 'mybook:contact' %}" class="inline-flex mt-4 items-center gap-2 rounded-lg bg-blue-600 text-white px-4 py-2 text-sm font-semibold hover:bg-blue-700">
+      {% trans "신고/문의 접수" %}
+    </a>
+  </div>
+</section>
+
+<!-- 9. AI Disclaimer -->
+<section id="ai_disclaimer" class="border-t border-slate-100">
+  <div class="mx-auto max-w-7xl px-6 py-12">
+    <h2 class="text-xl font-bold">{% trans "9. AI 결과물 고지·보증부인" %}</h2>
+    <p class="mt-3 text-sm text-slate-700">
+      {% blocktrans %}생성형 AI의 특성상 결과물에는 오류·누락·부정확성이 포함될 수 있습니다. 이용자는 결과물을 최종 사용 전에 검수해야 하며, 결과물의 사용(배포·상업적 이용 포함)으로 인한 책임은 이용자에게 있습니다. 서비스는 “있는 그대로(AS IS)” 및 “이용 가능한 범위(AS AVAILABLE)”로 제공되며, 특정 목적 적합성, 비침해성 등에 대한 명시적·묵시적 보증을 하지 않습니다.{% endblocktrans %}
+    </p>
+  </div>
+</section>
+
+<!-- 10. Liability -->
+<section id="liability" class="border-t border-slate-100 bg-slate-50/50">
+  <div class="mx-auto max-w-7xl px-6 py-12">
+    <h2 class="text-xl font-bold">{% trans "10. 책임 제한" %}</h2>
+    <p class="mt-3 text-sm text-slate-700">
+      {% blocktrans %}법이 허용하는 최대 한도에서, 회사는 간접·부수·특별·결과적 손해 또는 영업이익·데이터 손실에 대해 책임지지 않습니다. 또한, 회사의 총 누적 책임은 이용자가 문제 발생 12개월 이내에 서비스에 지불한 금액을 상한으로 합니다. 일부 지역에서는 책임 제한이 허용되지 않을 수 있으며, 이 경우 적용 법령이 허용하는 한도 내에서만 제한됩니다.{% endblocktrans %}
+    </p>
+  </div>
+</section>
+
+<!-- 11. Indemnity -->
+<section id="indemnity" class="border-t border-slate-100">
+  <div class="mx-auto max-w-7xl px-6 py-12">
+    <h2 class="text-xl font-bold">{% trans "11. 면책" %}</h2>
+    <p class="mt-3 text-sm text-slate-700">
+      {% blocktrans %}이용자는 이용자의 콘텐츠 또는 약관·법령 위반으로 인해 발생하는 제3자의 청구·손실·책임·비용(합리적 변호사 비용 포함)으로부터 회사 및 그 임직원·파트너를 방어하고 면책해야 합니다.{% endblocktrans %}
+    </p>
+  </div>
+</section>
+
+<!-- 12. SLA -->
+<section id="sla" class="border-t border-slate-100 bg-slate-50/50">
+  <div class="mx-auto max-w-7xl px-6 py-12">
+    <h2 class="text-xl font-bold">{% trans "12. 서비스 가용성(SLA)" %}</h2>
+    <p class="mt-3 text-sm text-slate-700">
+      {% blocktrans %}Starter/Growth 플랜에는 공식 SLA가 제공되지 않습니다. Pro/Enterprise 플랜은 월 99.5% 업타임을 목표로 하며, 예정된 점검·불가항력·고객사 원인 장애를 제외하고 미달 시 서비스 크레딧을 제공합니다. 서비스 크레딧은 환불이 아니며, 월 요금의 50%를 상한으로 합니다.{% endblocktrans %}
+    </p>
+  </div>
+</section>
+
+<!-- 13. Data & Privacy -->
+<section id="data" class="border-t border-slate-100">
+  <div class="mx-auto max-w-7xl px-6 py-12">
+    <h2 class="text-xl font-bold">{% trans "13. 데이터 보관·개인정보" %}</h2>
+    <ul class="mt-3 text-sm text-slate-700 space-y-2">
+      <li>{% blocktrans %}구독 기간 중 업로드 원본 및 결과물을 보관하고, 구독 종료 후 30일 경과 시 영구 삭제합니다(법령상 보존 의무는 예외).{% endblocktrans %}</li>
+      <li>{% blocktrans %}업로드 데이터와 결과물은 별도 동의 없는 한 모델 학습에 사용되지 않습니다.{% endblocktrans %}</li>
+      <li>{% blocktrans %}개인정보 처리에 관한 상세 내용은 개인정보 처리방침을 참조하십시오.{% endblocktrans %} <a class="text-blue-600 hover:underline" href="{% url 'mybook:privacy' %}">{% trans "개인정보 처리방침" %}</a></li>
+    </ul>
+  </div>
+</section>
+
+<!-- 14. Third-party -->
+<section id="thirdparty" class="border-t border-slate-100 bg-slate-50/50">
+  <div class="mx-auto max-w-7xl px-6 py-12">
+    <h2 class="text-xl font-bold">{% trans "14. 제3자 서비스" %}</h2>
+    <p class="mt-3 text-sm text-slate-700">
+      {% blocktrans %}서비스는 호스팅·스토리지·결제·전송·분석 등 제3자 서비스를 이용할 수 있으며, 해당 서비스는 각 제공자의 약관·정책이 적용됩니다. 회사는 합리적인 범위에서 제3자 서비스의 안정적 연계를 위해 노력합니다.{% endblocktrans %}
+    </p>
+  </div>
+</section>
+
+<!-- 15. Changes to Service / Beta -->
+<section id="changes_service" class="border-t border-slate-100">
+  <div class="mx-auto max-w-7xl px-6 py-12">
+    <h2 class="text-xl font-bold">{% trans "15. 서비스 변경·베타" %}</h2>
+    <p class="mt-3 text-sm text-slate-700">
+      {% blocktrans %}회사는 서비스의 기능·요금·정책을 변경하거나 일부 기능을 중단할 수 있습니다. 베타·시험 기능은 “있는 그대로” 제공되며, 예고 없이 변경·중단될 수 있습니다.{% endblocktrans %}
+    </p>
+  </div>
+</section>
+
+<!-- 16. Suspension / Termination -->
+<section id="termination" class="border-t border-slate-100 bg-slate-50/50">
+  <div class="mx-auto max-w-7xl px-6 py-12">
+    <h2 class="text-xl font-bold">{% trans "16. 중지·해지" %}</h2>
+    <p class="mt-3 text-sm text-slate-700">
+      {% blocktrans %}이용자가 약관 또는 법령을 위반하거나, 타인의 권리를 침해하는 경우, 회사는 사전 통지 없이 서비스 제공을 전부 또는 일부 중지하거나 계정을 해지할 수 있습니다. 해지 후에도 성격상 존속되어야 하는 조항(지식재산, 보증부인, 책임 제한, 면책, 준거법 등)은 유효합니다.{% endblocktrans %}
+    </p>
+  </div>
+</section>
+
+<!-- 17. Governing Law / Venue -->
+<section id="law" class="border-t border-slate-100">
+  <div class="mx-auto max-w-7xl px-6 py-12">
+    <h2 class="text-xl font-bold">{% trans "17. 준거법·관할" %}</h2>
+    <p class="mt-3 text-sm text-slate-700">
+      {% blocktrans %}본 약관은 대한민국 법률에 따라 해석·적용되며, 본 약관 또는 서비스와 관련하여 발생하는 분쟁은 대한민국 서울중앙지방법원을 전속적 관할 법원으로 합니다.{% endblocktrans %}
+    </p>
+  </div>
+</section>
+
+<!-- 18. Notice / Changes -->
+<section id="notice" class="border-t border-slate-100 bg-slate-50/50">
+  <div class="mx-auto max-w-7xl px-6 py-12">
+    <h2 class="text-xl font-bold">{% trans "18. 통지·변경" %}</h2>
+    <ul class="mt-3 text-sm text-slate-700 space-y-2">
+      <li>{% blocktrans %}회사는 서비스 내 공지, 이메일, 앱 내 알림 등 합리적인 방법으로 중요한 통지를 수행할 수 있습니다.{% endblocktrans %}</li>
+      <li>{% blocktrans %}약관이 변경되는 경우, 효력 발생일 및 주요 변경 사항을 사전에 고지하며, 효력 발생일 이후 서비스 이용은 변경된 약관에 대한 동의로 간주됩니다.{% endblocktrans %}</li>
+    </ul>
+  </div>
+</section>
+
+<!-- 19. Misc -->
+<section id="misc" class="border-t border-slate-100">
+  <div class="mx-auto max-w-7xl px-6 py-12">
+    <h2 class="text-xl font-bold">{% trans "19. 기타" %}</h2>
+    <ul class="mt-3 text-sm text-slate-700 space-y-2">
+      <li>{% blocktrans %}분리가능성: 어떤 조항이 무효가 되더라도 나머지 조항은 계속 유효합니다.{% endblocktrans %}</li>
+      <li>{% blocktrans %}양도 금지: 이용자는 회사의 사전 서면 동의 없이 약관상의 권리·의무를 양도할 수 없습니다.{% endblocktrans %}</li>
+      <li>{% blocktrans %}불행사의 효력: 회사가 권리를 행사하지 않더라도 권리 포기로 해석되지 않습니다.{% endblocktrans %}</li>
+      <li>{% blocktrans %}완전합의: 본 약관은 서비스 이용에 관한 당사자 간 완전한 합의를 구성합니다(관련 페이지의 고지와 함께 해석). 다국어 버전이 존재할 경우, 상충 시 한국어본이 우선합니다.{% endblocktrans %}</li>
+    </ul>
+  </div>
+</section>
+
+<!-- 20. Contact -->
+<section id="contact" class="border-t border-slate-100">
+  <div class="mx-auto max-w-7xl px-6 py-12">
+    <h2 class="text-xl font-bold">{% trans "20. 문의" %}</h2>
+    <p class="mt-3 text-sm text-slate-700">
+      {% blocktrans %}약관 관련 문의 또는 권리 행사 요청은 아래 연락처로 제출해 주시기 바랍니다.{% endblocktrans %}
+    </p>
+    <a href="{% url 'mybook:contact' %}" class="inline-flex mt-4 items-center gap-2 rounded-lg bg-blue-600 text-white px-4 py-2 text-sm font-semibold hover:bg-blue-700">
+      {% trans "문의하기" %}
+    </a>
+  </div>
+</section>
+
+<script>
+  // privacy와 동일: today 미지정 시 오늘 날짜로 표기
+  (function(){
+    const el = document.querySelector('p.text-sm.text-slate-500');
+    if (el && !el.textContent.trim().replace('최종 업데이트:','').trim()) {
+      const now = new Date();
+      const y = now.getFullYear(), m = String(now.getMonth()+1).padStart(2,'0'), d = String(now.getDate()).padStart(2,'0');
+      el.textContent = `${"{% trans '최종 업데이트' %}"}: ${y}-${m}-${d}`;
+    }
+  })();
+</script>
+{% endblock %}

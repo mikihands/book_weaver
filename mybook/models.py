@@ -112,12 +112,12 @@ class Book(models.Model):
             models.UniqueConstraint(fields=['file_hash', 'owner'], name='unique_file_hash_owner')
         ]
 
-    def save(self, *args, **kwargs):
-        if not self.file_hash and self.original_file:
-            file_content = self.original_file.read()
-            self.file_hash = hashlib.sha256(file_content).hexdigest()
-            self.original_file.seek(0)  # 중요! 안 하면 파일 포인터 끝에 머뭄
-        super().save(*args, **kwargs)
+    # def save(self, *args, **kwargs):
+    #     if not self.file_hash and self.original_file:
+    #         file_content = self.original_file.read()
+    #         self.file_hash = hashlib.sha256(file_content).hexdigest()
+    #         self.original_file.seek(0)  # 중요! 안 하면 파일 포인터 끝에 머뭄
+    #     super().save(*args, **kwargs)
 
 class BookPage(models.Model):
     book = models.ForeignKey(Book, on_delete=models.CASCADE, related_name="pages")

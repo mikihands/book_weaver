@@ -1,0 +1,227 @@
+{% extends 'base.html' %}
+{% load i18n %}
+
+{% block title %}{% trans "개인정보 처리방침" %}{% endblock %}
+
+{% block content %}
+<section class="mx-auto max-w-7xl px-6 py-14 md:py-20">
+  <h1 class="text-3xl md:text-5xl font-extrabold">{% trans "개인정보 처리방침" %}</h1>
+  <p class="mt-2 text-sm text-slate-500">
+    {% blocktrans %}최종 업데이트: {{ today|default_if_none:"" }}{% endblocktrans %}
+  </p>
+  <p class="mt-6 text-lg text-slate-600 max-w-6xl">
+    {% blocktrans %}본 개인정보 처리방침은 BookWeaver(이하 "서비스")가 이용자의 개인정보를 어떻게 수집·이용·보관·공유하는지에 대해 설명합니다. 본 방침은 국제적으로 서비스를 제공하는 과정에서 일반적으로 요구되는 윤리와 법규를 준수하는 것을 목표로 하며, 동시에 서비스 제공에 필요한 범위 내에서 합리적으로 적용됩니다.{% endblocktrans %}
+  </p>
+</section>
+
+<!-- TOC -->
+<section class="border-t border-slate-100">
+  <div class="mx-auto max-w-7xl px-6 py-8">
+    <div class="rounded-2xl border border-slate-200 bg-white p-6">
+      <h2 class="font-semibold text-lg">{% trans "목차" %}</h2>
+      <ol class="mt-3 grid sm:grid-cols-2 gap-2 text-sm text-slate-700 list-decimal list-inside">
+        <li><a href="#scope" class="hover:underline">{% trans "적용 범위" %}</a></li>
+        <li><a href="#collect" class="hover:underline">{% trans "수집하는 정보" %}</a></li>
+        <li><a href="#use" class="hover:underline">{% trans "정보의 이용 목적" %}</a></li>
+        <li><a href="#legal" class="hover:underline">{% trans "처리의 법적 근거" %}</a></li>
+        <li><a href="#share" class="hover:underline">{% trans "개인정보의 공유" %}</a></li>
+        <li><a href="#transfer" class="hover:underline">{% trans "국외 이전" %}</a></li>
+        <li><a href="#retention" class="hover:underline">{% trans "보관 기간" %}</a></li>
+        <li><a href="#security" class="hover:underline">{% trans "보안" %}</a></li>
+        <li><a href="#rights" class="hover:underline">{% trans "이용자 권리" %}</a></li>
+        <li><a href="#children" class="hover:underline">{% trans "아동의 개인정보" %}</a></li>
+        <li><a href="#automated" class="hover:underline">{% trans "자동화된 의사결정" %}</a></li>
+        <li><a href="#cookies" class="hover:underline">{% trans "쿠키 및 유사기술" %}</a></li>
+        <li><a href="#changes" class="hover:underline">{% trans "본 방침의 변경" %}</a></li>
+        <li><a href="#contact" class="hover:underline">{% trans "문의" %}</a></li>
+      </ol>
+    </div>
+  </div>
+</section>
+
+<!-- 1. Scope -->
+<section id="scope" class="border-t border-slate-100">
+  <div class="mx-auto max-w-7xl px-6 py-12">
+    <h2 class="text-xl font-bold">{% trans "1. 적용 범위" %}</h2>
+    <p class="mt-3 text-sm text-slate-700">
+      {% blocktrans %}본 방침은 웹사이트, 모바일 웹, 그리고 서비스에 부수되는 모든 온라인 기능에 적용됩니다. 제3자 웹사이트로 연결되는 링크는 당사가 통제하지 않으므로 해당 사이트의 정책을 확인하시기 바랍니다.{% endblocktrans %}
+    </p>
+  </div>
+</section>
+
+<!-- 2. Collect -->
+<section id="collect" class="border-t border-slate-100">
+  <div class="mx-auto max-w-7xl px-6 py-12">
+    <h2 class="text-xl font-bold">{% trans "2. 수집하는 정보" %}</h2>
+    <ul class="mt-3 text-sm text-slate-700 space-y-2">
+      <li>{% blocktrans %}계정 정보: 이메일, 사용자명, 인증 관련 식별자, 구독/결제 상태.{% endblocktrans %}</li>
+      <li>{% blocktrans %}서비스 이용 정보: 접속 로그, 기기/브라우저 정보, 언어설정, 오류 리포트.{% endblocktrans %}</li>
+      <li>{% blocktrans %}업로드 파일: 이용자가 번역을 위해 업로드하는 PDF/이미지 등 원본 데이터(콘텐츠 자체 포함).{% endblocktrans %}</li>
+      <li>{% blocktrans %}결제 관련 정보: 카드/계정 정보는 결제 대행사를 통해 처리되며, 당사는 필요한 거래 식별자와 결과만 보관합니다.{% endblocktrans %}</li>
+      <li>{% blocktrans %}고객지원 정보: 문의 내용, 첨부 파일, 응대 기록.{% endblocktrans %}</li>
+    </ul>
+  </div>
+</section>
+
+<!-- 3. Use -->
+<section id="use" class="border-t border-slate-100 bg-slate-50/50">
+  <div class="mx-auto max-w-7xl px-6 py-12">
+    <h2 class="text-xl font-bold">{% trans "3. 정보의 이용 목적" %}</h2>
+    <ul class="mt-3 text-sm text-slate-700 space-y-2">
+      <li>{% blocktrans %}서비스 제공: 번역 처리, 파일 보관, 계정 관리, 과금 및 영수증 발행.{% endblocktrans %}</li>
+      <li>{% blocktrans %}개선 및 연구: 품질 향상, 오류 분석, 성능/사용성 개선(개인 식별이 필요하지 않은 범위에서 통계·집계 형태로 수행).{% endblocktrans %}</li>
+      <li>{% blocktrans %}보안: 계정/서비스 보호, 부정 사용 탐지 및 대응.{% endblocktrans %}</li>
+      <li>{% blocktrans %}법적 준수: 세무·회계, 법적 요청 대응.{% endblocktrans %}</li>
+      <li>{% blocktrans %}고객지원: 문의 대응 및 공지 발송(필수 안내 포함).{% endblocktrans %}</li>
+    </ul>
+    <p class="mt-4 text-xs text-slate-500">
+      {% blocktrans %}업로드 데이터와 번역 결과물은 별도 동의가 없는 한, 모델 학습에 사용되지 않습니다.{% endblocktrans %}
+    </p>
+  </div>
+</section>
+
+<!-- 4. Legal bases -->
+<section id="legal" class="border-t border-slate-100">
+  <div class="mx-auto max-w-7xl px-6 py-12">
+    <h2 class="text-xl font-bold">{% trans "4. 처리의 법적 근거" %}</h2>
+    <ul class="mt-3 text-sm text-slate-700 space-y-2">
+      <li>{% blocktrans %}계약 이행의 필요: 이용자 요청에 따른 서비스 제공.{% endblocktrans %}</li>
+      <li>{% blocktrans %}정당한 이익: 서비스 개선, 보안 강화, 사기 방지(이익과 권리의 균형을 고려).{% endblocktrans %}</li>
+      <li>{% blocktrans %}동의: 선택적 마케팅 수신 등(언제든지 철회 가능).{% endblocktrans %}</li>
+      <li>{% blocktrans %}법적 의무 준수: 세무/회계 기록 보존, 법 집행기관 요청 대응 등.{% endblocktrans %}</li>
+    </ul>
+  </div>
+</section>
+
+<!-- 5. Sharing -->
+<section id="share" class="border-t border-slate-100">
+  <div class="mx-auto max-w-7xl px-6 py-12">
+    <h2 class="text-xl font-bold">{% trans "5. 개인정보의 공유" %}</h2>
+    <ul class="mt-3 text-sm text-slate-700 space-y-2">
+      <li>{% blocktrans %}수탁사/처리자: 인프라(호스팅, 스토리지), 결제 대행, 분석/모니터링, 고객지원 등 서비스 운영을 위한 파트너와 계약에 따라 처리됩니다.{% endblocktrans %}</li>
+      <li>{% blocktrans %}법적 요청: 법령 준수 또는 권리/안전을 보호하기 위해 필요한 경우.{% endblocktrans %}</li>
+      <li>{% blocktrans %}사업 이전: 합병·인수·자산 양도의 경우, 본 방침과 동등한 수준으로 보호되는 조건에서 이전될 수 있습니다.{% endblocktrans %}</li>
+    </ul>
+    <p class="mt-3 text-sm text-slate-700">
+      {% blocktrans %}당사는 법이 허용하는 범위에서, 이용자의 동의 없이 개인을 판매하지 않으며, 민감정보는 수집하지 않습니다.{% endblocktrans %}
+    </p>
+  </div>
+</section>
+
+<!-- 6. International transfer -->
+<section id="transfer" class="border-t border-slate-100 bg-slate-50/50">
+  <div class="mx-auto max-w-7xl px-6 py-12">
+    <h2 class="text-xl font-bold">{% trans "6. 국외 이전" %}</h2>
+    <p class="mt-3 text-sm text-slate-700">
+      {% blocktrans %}서비스 제공 특성상 데이터가 거주 국가 밖의 서버로 이전·저장·처리될 수 있습니다. 이 경우 적용 법령을 준수하고, 적정성 결정, 표준계약조항(SCC) 또는 이에 준하는 적절한 보호조치를 적용합니다.{% endblocktrans %}
+    </p>
+  </div>
+</section>
+
+<!-- 7. Retention -->
+<section id="retention" class="border-t border-slate-100">
+  <div class="mx-auto max-w-7xl px-6 py-12">
+    <h2 class="text-xl font-bold">{% trans "7. 보관 기간" %}</h2>
+    <ul class="mt-3 text-sm text-slate-700 space-y-2">
+      <li>{% blocktrans %}서비스 제공 및 법적 의무 이행에 필요한 기간 동안 보관합니다.{% endblocktrans %}</li>
+      <li>{% blocktrans %}구독 종료 후 30일 경과 시 업로드 원본과 결과물은 영구 삭제됩니다(관련 법령에 따라 예외가 있을 수 있음).{% endblocktrans %}</li>
+      <li>{% blocktrans %}회계/거래 기록 등은 법정 보존기간을 따릅니다.{% endblocktrans %}</li>
+    </ul>
+  </div>
+</section>
+
+<!-- 8. Security -->
+<section id="security" class="border-t border-slate-100">
+  <div class="mx-auto max-w-7xl px-6 py-12">
+    <h2 class="text-xl font-bold">{% trans "8. 보안" %}</h2>
+    <p class="mt-3 text-sm text-slate-700">
+      {% blocktrans %}당사는 암호화, 접근통제, 모니터링 등 합리적인 기술적·관리적 조치를 적용합니다. 다만 인터넷을 통한 전송·저장은 100% 안전을 보장할 수 없으며, 최선의 보호를 위해 지속적으로 개선합니다.{% endblocktrans %}
+    </p>
+  </div>
+</section>
+
+<!-- 9. Rights -->
+<section id="rights" class="border-t border-slate-100 bg-slate-50/50">
+  <div class="mx-auto max-w-7xl px-6 py-12">
+    <h2 class="text-xl font-bold">{% trans "9. 이용자 권리" %}</h2>
+    <ul class="mt-3 text-sm text-slate-700 space-y-2">
+      <li>{% blocktrans %}열람/사본 제공, 정정/삭제, 처리 제한, 이의 제기, 데이터 이동권을 행사할 수 있습니다.{% endblocktrans %}</li>
+      <li>{% blocktrans %}동의를 기반으로 처리되는 경우, 언제든지 동의를 철회할 수 있습니다(철회 전 처리의 적법성은 영향을 받지 않음).{% endblocktrans %}</li>
+      <li>{% blocktrans %}법이 허용하는 범위에서, 부당한 반복·과도한 요청에는 합리적인 비용을 청구하거나 요청을 제한할 수 있습니다.{% endblocktrans %}</li>
+      <li>{% blocktrans %}관할 기관에 불복/민원을 제기할 권리가 있습니다.{% endblocktrans %}</li>
+    </ul>
+  </div>
+</section>
+
+<!-- 10. Children -->
+<section id="children" class="border-t border-slate-100">
+  <div class="mx-auto max-w-7xl px-6 py-12">
+    <h2 class="text-xl font-bold">{% trans "10. 아동의 개인정보" %}</h2>
+    <p class="mt-3 text-sm text-slate-700">
+      {% blocktrans %}서비스는 원칙적으로 만 14세 미만을 대상으로 하지 않습니다. 해당 연령 미만의 이용자가 서비스 사용이 필요한 경우, 관련 법령에 따른 법정대리인의 동의를 받아야 합니다.{% endblocktrans %}
+    </p>
+  </div>
+</section>
+
+<!-- 11. Automated -->
+<section id="automated" class="border-t border-slate-100">
+  <div class="mx-auto max-w-7xl px-6 py-12">
+    <h2 class="text-xl font-bold">{% trans "11. 자동화된 의사결정" %}</h2>
+    <p class="mt-3 text-sm text-slate-700">
+      {% blocktrans %}번역 생성은 자동화된 처리를 포함하나, 법적 효과 또는 이용자에게 중대한 영향을 미치는 결정을 전적으로 자동화된 방식으로 내리지 않습니다.{% endblocktrans %}
+    </p>
+  </div>
+</section>
+
+<!-- 12. Cookies -->
+<section id="cookies" class="border-t border-slate-100 bg-slate-50/50">
+  <div class="mx-auto max-w-7xl px-6 py-12">
+    <h2 class="text-xl font-bold">{% trans "12. 쿠키 및 유사기술" %}</h2>
+    <ul class="mt-3 text-sm text-slate-700 space-y-2">
+      <li>{% blocktrans %}필수 쿠키: 인증, 보안, 세션 유지에 필요합니다.{% endblocktrans %}</li>
+      <li>{% blocktrans %}기능 쿠키: 환경설정(언어 등)을 기억합니다.{% endblocktrans %}</li>
+      <li>{% blocktrans %}분석 쿠키: 트래픽/사용 패턴 파악에 사용되며, 통계적 목적으로만 처리됩니다.{% endblocktrans %}</li>
+    </ul>
+    <p class="mt-3 text-sm text-slate-700">
+      {% blocktrans %}브라우저 설정에서 쿠키를 거부하거나 삭제할 수 있으나, 일부 기능이 제한될 수 있습니다.{% endblocktrans %}
+    </p>
+  </div>
+</section>
+
+<!-- 13. Changes -->
+<section id="changes" class="border-t border-slate-100">
+  <div class="mx-auto max-w-7xl px-6 py-12">
+    <h2 class="text-xl font-bold">{% trans "13. 본 방침의 변경" %}</h2>
+    <p class="mt-3 text-sm text-slate-700">
+      {% blocktrans %}법령·서비스 변경에 따라 본 방침이 갱신될 수 있으며, 중요한 변경은 서비스 내 공지 또는 이메일로 통지합니다.{% endblocktrans %}
+    </p>
+  </div>
+</section>
+
+<!-- 14. Contact -->
+<section id="contact" class="border-t border-slate-100">
+  <div class="mx-auto max-w-7xl px-6 py-12">
+    <h2 class="text-xl font-bold">{% trans "14. 문의" %}</h2>
+    <p class="mt-3 text-sm text-slate-700">
+      {% blocktrans %}개인정보 관련 문의, 권리 행사, 불만 제기는 아래 연락처로 요청해 주세요.{% endblocktrans %}
+    </p>
+    <a href="{% url 'mybook:contact' %}" class="inline-flex mt-4 items-center gap-2 rounded-lg bg-blue-600 text-white px-4 py-2 text-sm font-semibold hover:bg-blue-700">
+      {% trans "문의하기" %}
+    </a>
+  </div>
+</section>
+
+{% endblock %}
+{% block extra_js %}
+<script>
+  // 서버에서 today 변수를 안 주는 경우를 대비해 클라이언트에서 날짜 표기
+  (function(){
+    const el = document.querySelector('p.text-sm.text-slate-500');
+    if (el && !el.textContent.trim().replace('최종 업데이트:','').trim()) {
+      const now = new Date();
+      const y = now.getFullYear(), m = String(now.getMonth()+1).padStart(2,'0'), d = String(now.getDate()).padStart(2,'0');
+      el.textContent = `${"{% trans '최종 업데이트' %}"}: ${y}-${m}-${d}`;
+    }
+  })();
+</script>
+{% endblock %}

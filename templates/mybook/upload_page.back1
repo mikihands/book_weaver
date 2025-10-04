@@ -1,0 +1,257 @@
+{% extends 'base.html' %}
+{% load i18n %}
+{% load static tailwind_tags %}
+{% block title %}
+BookWeaver — {% trans "원서를, 당신의 언어로" %}
+{% endblock %}
+{% block content %}
+    <section class="mx-auto max-w-7xl px-6 pt-10 pb-16">
+      <!-- hero -->
+      <div class="mx-auto max-w-3xl text-center">
+        <h1 class="text-3xl sm:text-4xl md:text-5xl font-extrabold tracking-tight text-slate-900 leading-tight">
+          {% blocktrans %}
+          원서를 당신의 언어로, <span class="bg-gradient-to-r from-[var(--bw-bg-from)] to-[var(--bw-bg-to)] bg-clip-text text-transparent">페이지 그대로</span>
+          {% endblocktrans %}
+        </h1>
+        <p class="mt-4 text-base sm:text-lg text-slate-600">
+        {% trans "PDF/스캔본을 올리면, 원본의 레이아웃을 유지한 번역본을 생성합니다. 표·각주·이미지까지 깔끔하게." %}
+        </p>
+      </div>
+
+      <!-- upload card -->
+      <div class="mx-auto mt-10 max-w-2xl rounded-2xl bw-border bw-shadow bw-glass">
+        <div class="p-6 sm:p-8">
+          <form class="space-y-5" id="uploadForm">
+            {% csrf_token %}
+            <!-- file -->
+            <div>
+              <label class="block text-sm font-medium text-slate-700 mb-2">{% trans "파일 선택" %}</label>
+              <label for="fileInput" class="flex items-center justify-between gap-3 rounded-xl border border-dashed border-slate-300 bg-white px-4 py-3 hover:border-slate-400 cursor-pointer transition-colors">
+                <div class="flex items-center gap-3 min-w-0"> {# min-w-0 for truncate to work in flexbox #}
+                  <div class="grid h-9 w-9 place-items-center rounded-lg bg-slate-100 text-slate-600">
+                    <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                      <path d="M12 5v14m-7-7h14"/>
+                    </svg>
+                  </div>
+                  <div id="fileInputText" class="text-sm truncate">
+                    <span class="font-medium text-slate-800">{% trans "파일 업로드" %}</span>
+                    <span class="ml-2 text-slate-500">PDF, JPG, PNG</span>
+                  </div>
+                </div>
+                <span class="rounded-lg bg-slate-900 px-3 py-1.5 text-white text-xs font-semibold">{% trans "찾아보기" %}</span>
+              </label>
+              <p class="mt-2 text-xs text-slate-500">{% trans "최대 50MB 까지 처리됩니다." %}</p>
+              <input id="fileInput" type="file" name="file" accept=".pdf,.jpg,.jpeg,.png" required class="sr-only">
+            </div>
+
+            <!-- book title -->
+            <div>
+              <label for="titleInput" class="block text-sm font-medium text-slate-700 mb-2">{% trans "책 제목 (선택)" %}</label>
+              <input id="titleInput" name="title" type="text" placeholder="{% trans '입력하지 않으면 파일명이 사용됩니다.' %}"
+                     class="w-full rounded-xl border-slate-300 focus:border-slate-500 focus:ring-slate-500 bg-white">
+            </div>
+
+            <!-- genre + language -->
+            <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
+              <div>
+                <div class="flex items-center space-x-2">
+                    <label for="genreSelect" class="block text-sm font-medium text-slate-700 mb-2">{% trans "장르 (선택)" %}</label>
+                    <div class="relative group cursor-pointer">
+                        <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5 text-gray-400" viewBox="0 0 20 20" fill="currentColor">
+                            <path fill-rule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7-4a1 1 0 11-2 0 1 1 0 012 0zM9 9a1 1 0 000 2v3a1 1 0 001 1h1a1 1 0 100-2v-3a1 1 0 00-1-1H9z" clip-rule="evenodd" />
+                        </svg>
+                        <div class="absolute bottom-full left-1/2 -translate-x-1/2 mb-2 w-64 bg-gray-800 text-white text-xs rounded py-2 px-3 opacity-0 group-hover:opacity-100 transition-opacity duration-300 pointer-events-none z-10">
+                            {% trans "정확한 genre를 입력하면 AI가 번역본을 제작하는데 도움이 됩니다." %}
+                            <svg class="absolute text-gray-800 h-2 w-full left-0 top-full" x="0px" y="0px" viewBox="0 0 255 255" xml:space="preserve"><polygon class="fill-current" points="0,0 127.5,127.5 255,0"/></svg>
+                        </div>
+                    </div>
+                </div>
+                <select id="genreSelect" name="genre" class="w-full rounded-xl border-slate-300 bg-white focus:border-slate-500 focus:ring-slate-500">
+                    <option value="">{% trans "장르를 선택하세요" %}</option>
+                    <option value="fiction">{% trans "소설" %}</option>
+                    <option value="non-fiction">{% trans "비소설" %}</option>
+                    <option value="technical">{% trans "기술/과학" %}</option>
+                    <option value="history">{% trans "역사" %}</option>
+                    <option value="self-help">{% trans "자기계발" %}</option>
+                    <option value="fantasy">{% trans "판타지" %}</option>
+                    <option value="science-fiction">{% trans "SF (공상 과학)" %}</option>
+                    <option value="romance">{% trans "로맨스" %}</option>
+                    <option value="thriller">{% trans "스릴러/미스터리" %}</option>
+                    <option value="children">{% trans "아동" %}</option>
+                    <option value="other">{% trans "기타" %}</option>
+                </select>
+              </div>
+
+              <div>
+                <label for="languageSelect" class="block text-sm font-medium text-slate-700 mb-2">{% trans "번역할 언어" %}</label>
+                <select id="languageSelect" name="target_language" class="w-full rounded-xl border-slate-300 bg-white focus:border-slate-500 focus:ring-slate-500">
+                    <option value="en">English</option>
+                    <option value="es">Español</option>
+                    <option value="ja">日本語</option>
+                    <option value="ko">한국어</option>
+                    <option value="fr">Français</option>
+                    <option value="de">Deutsch</option>
+                </select>
+              </div>
+            </div>
+
+            <!-- CTA -->
+            <div class="pt-2">
+              <button type="submit" id="submitButton" 
+                class="w-full rounded-xl bg-gradient-to-r from-[var(--bw-bg-from)] to-[var(--bw-bg-to)] px-5 py-3 text-white font-semibold hover:opacity-95 bw-shadow">
+                {% trans "파일 업로드 시작" %}
+              </button>
+              <p class="mt-3 text-xs text-slate-500 text-center">{% trans "개인정보는 암호화되어 전송됩니다. 업로드한 파일은 일정 기간 후 자동 삭제됩니다." %}</p>
+            </div>
+          </form>
+          <div id="message" class="mt-8 text-center"></div>
+        </div>
+      </div>
+
+      <!-- features -->
+      <div class="mx-auto mt-14 grid max-w-5xl grid-cols-1 gap-6 sm:grid-cols-3">
+        <div class="rounded-2xl bg-white p-6 bw-border bw-shadow">
+          <div class="h-10 w-10 rounded-lg bg-sky-100 text-sky-700 grid place-items-center mb-3">
+            <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <path d="M3 4h18M3 12h18M3 20h18"/>
+            </svg>
+          </div>
+          <h3 class="font-semibold text-slate-900">{% trans "레이아웃 보존" %}</h3>
+          <p class="mt-2 text-sm text-slate-600">{% trans "문단·표·각주·이미지까지 최대한 원본 구조를 유지하여 HTML로 재구성합니다." %}</p>
+        </div>
+        <div class="rounded-2xl bg-white p-6 bw-border bw-shadow">
+          <div class="h-10 w-10 rounded-lg bg-violet-100 text-violet-700 grid place-items-center mb-3">
+            <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <path d="M12 6v12m6-6H6"/>
+            </svg>
+          </div>
+          <h3 class="font-semibold text-slate-900">{% trans "다중 포맷 지원" %}</h3>
+          <p class="mt-2 text-sm text-slate-600">{% trans "PDF·이미지 스캔본 모두 OK. 대용량은 자동으로 최적 처리를 사용합니다." %}</p>
+        </div>
+        <div class="rounded-2xl bg-white p-6 bw-border bw-shadow">
+          <div class="h-10 w-10 rounded-lg bg-emerald-100 text-emerald-700 grid place-items-center mb-3">
+            <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <path d="M5 13l4 4L19 7"/>
+            </svg>
+          </div>
+          <h3 class="font-semibold text-slate-900">{% trans "간편한 결과 확인" %}</h3>
+          <p class="mt-2 text-sm text-slate-600">{% trans "브라우저에서 즉시 결과 미리보기. 페이지 네비게이션과 검색도 지원됩니다." %}</p>
+        </div>
+      </div>
+    </section>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+    const form = document.getElementById('uploadForm');
+    const submitButton = document.getElementById('submitButton');
+    const messageDiv = document.getElementById('message');
+    const fileInput = document.getElementById('fileInput');
+    const fileInputText = document.getElementById('fileInputText');
+    const originalFileInputHTML = fileInputText.innerHTML;
+
+    fileInput.addEventListener('change', () => {
+        if (fileInput.files.length > 0) {
+            const fileName = fileInput.files[0].name;
+            // 긴 파일명을 위해 truncate하고, 전체 이름은 title 속성으로 보여줍니다.
+            fileInputText.innerHTML = `<span class="font-medium text-slate-800" title="${fileName}">${fileName}</span>`;
+        } else {
+            // 파일 선택이 취소되면 원래 텍스트로 복원합니다.
+            fileInputText.innerHTML = originalFileInputHTML;
+        }
+    });
+    
+    function getCookie(name) {
+        let cookieValue = null;
+        if (document.cookie && document.cookie !== '') {
+            const cookies = document.cookie.split(';');
+            for (let i = 0; i < cookies.length; i++) {
+                const cookie = cookies[i].trim();
+                if (cookie.startsWith(name + '=')) {
+                    cookieValue = decodeURIComponent(cookie.substring(name.length + 1));
+                    break;
+                }
+            }
+        }
+        return cookieValue;
+    }
+    const csrftoken = getCookie('csrftoken');
+
+    form.addEventListener('submit', async (e) => {
+        e.preventDefault();
+
+        const fileInput = document.getElementById('fileInput');
+        if (!fileInput.files || fileInput.files.length === 0) {
+            messageDiv.innerHTML = `<span class="text-red-600">{% trans "파일을 선택해주세요." %}</span>`;
+            return;
+        }
+
+        const formData = new FormData(form);
+        
+        submitButton.disabled = true;
+        submitButton.classList.add('bg-blue-400', 'cursor-not-allowed');
+        submitButton.classList.remove('bg-blue-600', 'hover:bg-blue-700');
+        
+        messageDiv.innerHTML = '<div class="flex justify-center items-center"><div class="animate-spin rounded-full h-5 w-5 border-b-2 border-blue-600"></div><span class="ml-3 text-blue-600"> 업로드 중... 잠시만 기다려주세요.</span></div>';
+
+        try {
+            const response = await fetch('{% url "mybook:book_upload" %}', {
+                method: 'POST',
+                body: formData,
+                headers: {
+                    'X-CSRFToken': csrftoken,
+                },
+            });
+
+            const data = await response.json();
+
+            if (response.ok) {
+                if (data.sanitization_warning) {
+                    // [NEW] 정화 경고가 있는 경우, 사용자 확인을 받습니다.
+                    messageDiv.innerHTML = `
+                        <div class="p-4 mb-4 text-sm text-yellow-800 rounded-lg bg-yellow-50 border border-yellow-300 text-left" role="alert">
+                          <p class="font-bold mb-2">{% trans "주의: 문서 내용이 일부 변경되었습니다." %}</p>
+                          <p>${data.sanitization_warning}</p>
+                        </div>
+                        <button id="confirmAndProceed" class="mt-2 w-full rounded-xl bg-blue-600 px-5 py-3 text-white font-semibold hover:bg-blue-700">
+                          {% trans "확인하고 계속하기" %}
+                        </button>
+                    `;
+                    document.getElementById('confirmAndProceed').addEventListener('click', () => {
+                        if (data.prepare_url) window.location.href = data.prepare_url;
+                    });
+                } else {
+                    // [MODIFIED] 경고가 없는 경우, 성공 메시지를 잠시 보여준 후 이동합니다.
+                    messageDiv.innerHTML = `<span class="text-green-600">${data.message}</span>`;
+                    if (data.prepare_url) {
+                        setTimeout(() => { window.location.href = data.prepare_url; }, 1500);
+                    }
+                }
+            } else {
+                if (response.status === 403) {
+                    messageDiv.innerHTML = `<span class="text-red-600">{% trans "로그인이 필요합니다." %} <a href="{% url 'mybook:login_page' %}" class="underline">{% trans "로그인 페이지로 이동" %}</a></span>`;
+                } else {
+                  let errorMessage = "{% trans '오류가 발생했습니다.' %}"; // Default message
+                  if (data.detail) {
+                      errorMessage = data.detail;
+                  } else if (data.error) {
+                      // This handles cases where the error message is nested
+                      // For example: {"error": {"detail": "..."}}
+                      errorMessage = data.error.detail || JSON.stringify(data.error);
+                  } else {
+                      errorMessage = JSON.stringify(data);
+                  }
+                  messageDiv.innerHTML = `<span class="text-red-600">{% trans "오류:" %} ${errorMessage}</span>`;
+                }
+            }
+        } catch (error) {
+            messageDiv.innerHTML = `<span class="text-red-600">{% trans "네트워크 오류가 발생했습니다." %}</span>`;
+            console.error('Error:', error);
+        } finally {
+            submitButton.disabled = false;
+            submitButton.classList.remove('bg-blue-400', 'cursor-not-allowed');
+            submitButton.classList.add('bg-blue-600', 'hover:bg-blue-700');
+        }
+    });
+</script>
+{% endblock %}

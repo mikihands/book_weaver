@@ -1,4 +1,4 @@
-import logging, os, json, hashlib, re
+import logging, os,hashlib, re, tempfile
 from bs4 import BeautifulSoup
 from pathlib import Path
 
@@ -14,6 +14,7 @@ from typing import Dict
 
 from django.conf import settings
 from django.core.mail import EmailMessage
+from django.core.files.base import ContentFile
 from django.db import transaction, models
 from django.contrib.auth.models import User
 from django.core.files.storage import default_storage
@@ -21,6 +22,7 @@ from django.core.files import File # Django File 객체를 임포트합니다.
 from django.shortcuts import get_object_or_404, render, redirect
 from django.utils.encoding import smart_str
 from django.utils.translation import gettext as _
+from django.utils.text import get_valid_filename
 from django.urls import reverse
 from django.http import FileResponse
 
@@ -32,14 +34,13 @@ from .serializers import (
 )
 from .models import Book, BookPage, PageImage, TranslatedPage, UserProfile
 from .utils.font_scaler import FontScaler
-from .utils.gemini_helper import GeminiHelper
 from .utils.extract_image import extract_images_and_bboxes, is_fullpage_background
 from .utils.layout_norm import normalize_pages_layout
-from .utils.html_inject import inject_sources, escape_html
+from .utils.html_inject import inject_sources 
 from .utils.pdf_sanitizer import sanitize_pdf_active_content # 새 임포트
 from .utils.pdf_inspector import inspect_pdf, choose_processing_mode
 from .utils.delete_dir_files import safe_remove
-from .tasks import translate_book_pages, retranslate_single_page, translate_book_pages_born_digital, _log_api_usage
+from .tasks import translate_book_pages, retranslate_single_page, translate_book_pages_born_digital
 from .permissions import IsBookOwner
 from common.mixins.hmac_sign_mixin import HmacSignMixin
 
@@ -71,8 +72,7 @@ class BookUploadView(APIView):
         """
         serializer = FileUploadSerializer(data=request.data)
         serializer.is_valid(raise_exception=True)
-        sanitized_pdf_path = None # finally 블록에서 참조할 수 있도록 try 밖에 선언
-
+        
         uploaded_file = serializer.validated_data["file"] # type: ignore
         target_language = serializer.validated_data["target_language"] # type: ignore
         title = serializer.validated_data.get("title", None) # type: ignore
@@ -87,51 +87,56 @@ class BookUploadView(APIView):
                 status=status.HTTP_400_BAD_REQUEST,
             )
 
+        # making safe filename
+        orig_name = get_valid_filename(getattr(uploaded_file, "name", "uploaded.pdf"))
+
+        sanitized_path = None  # finally에서 정리용    
+
+        # 0) 업로드 스트림을 일단 메모리로 확보(대용량이면 NamedTemporaryFile을 써도 됨)
+        def _read_all(fp):
+            pos = fp.tell()
+            fp.seek(0)
+            data = fp.read()
+            fp.seek(pos)
+            return data
+        raw_bytes = _read_all(uploaded_file)
+        # 원본 기준 해시 계산 → 이 해시로만 멱등 보장
+        raw_hash = hashlib.sha256(raw_bytes).hexdigest()
+
+        # 1) 임시파일에 쓴 뒤 Sanitize 시도
+        with tempfile.NamedTemporaryFile(suffix=".pdf", delete=False) as tmp:
+            tmp.write(raw_bytes)
+            tmp.flush()
+            tmp_path = tmp.name
+
         try:
-            # --- [REVISED] PDF Sanitization and Hashing Logic ---
-            # 1. Save the uploaded file to a temporary location first.
-            temp_file_name = default_storage.save(f"_tmp/{uuid4().hex}/{uploaded_file.name}", uploaded_file)
-            temp_file_path = default_storage.path(temp_file_name)
-
-            # 2. Sanitize the temporary file.
-            sanitized_pdf_path, removed_keys = sanitize_pdf_active_content(temp_file_path)
-
-            # 3. Determine which file to use for hashing and permanent storage.
-            # If sanitized, use the sanitized file. Otherwise, use the original temp file.
-            sanitization_occurred = bool(sanitized_pdf_path)
-            final_processing_path = sanitized_pdf_path if sanitized_pdf_path else temp_file_path
+            sanitized_path, removed = sanitize_pdf_active_content(tmp_path) # (경로 or None, 키 리스트)
+            # 2) 최종 바이트 확정: sanitize 결과 있으면 그걸로, 없으면 원본
+            if sanitized_path:
+                with open(sanitized_path, "rb") as f:
+                    final_bytes = f.read()
+                final_name = orig_name
+            else:
+                final_bytes = raw_bytes
+                final_name = orig_name
             
-            # 4. Create a hash from the final, clean file.
-            with open(final_processing_path, 'rb') as f:
-                file_hash = hashlib.sha256(f.read()).hexdigest()
-
-            # 5. Check for duplicates using the hash.
+            # 4) 멱등 생성
             book, created = Book.objects.get_or_create(
                 owner=user_profile,
-                file_hash=file_hash,
+                file_hash=raw_hash,
                 defaults={
-                    "title": title or uploaded_file.name,
+                    "title": title or orig_name,
                     "genre": genre,
                     "status": "pending",
+                    "original_file": ContentFile(final_bytes, name=final_name),
                 },
             )
+
             if not created:
-                # Clean up temporary files before returning.
-                default_storage.delete(temp_file_name)
-                if sanitized_pdf_path: os.remove(sanitized_pdf_path)
                 return Response(
-                    {"message": "This file has already been uploaded.", "book_id": book.id}, # type:ignore
+                    {"message": _("This file has already been uploaded."), "book_id": book.id}, # type:ignore
                     status=status.HTTP_200_OK,
                 )
-            
-            # 6. Save the final, clean file to the Book model's FileField.
-            with open(final_processing_path, 'rb') as f:
-                django_file = File(f) # 파일 객체를 Django의 File 객체로 래핑합니다.
-                book.original_file.save(os.path.basename(uploaded_file.name), django_file, save=False)
-
-            # 7. Clean up the initial temporary file. The sanitized one will be cleaned in the finally block.
-            default_storage.delete(temp_file_name)
-            # --- End of Revised Logic ---
 
             # Set status to processing for the extraction phase
             book.status = 'processing'
@@ -143,8 +148,8 @@ class BookUploadView(APIView):
                     uploaded_file.seek(0)
                     book.source_size = size
                 except Exception:
-                    # fallback to file object on disk after save
-                    book.source_size = os.path.getsize(final_processing_path)
+                    _path = sanitized_path if sanitized_path else tmp_path
+                    book.source_size = os.path.getsize(_path)
                 book.source_mime = ctype or book.source_mime
                 book.save(update_fields=['status', 'source_mime', 'source_size'])
             except Exception:
@@ -245,21 +250,17 @@ class BookUploadView(APIView):
                 "prepare_url": prepare_url,
             }
 
-            if sanitization_occurred:
-                # Django i18n best practice: Use string formatting on the translated string.
-                # The placeholder {keys} will be correctly handled by the gettext toolchain.
+            if sanitized_path:
                 warning_template = _("The uploaded document contained dynamic elements (e.g., {keys}). "
                                      "To prevent potential security risks, these have been removed. "
                                      "As a result, some original interactive features or layouts may differ from the source.")
-                warning_message = warning_template.format(keys=', '.join(list(set(removed_keys))[:5]))
+                warning_message = warning_template.format(keys=', '.join(list(set(removed))[:5]))
                 response_data["sanitization_warning"] = warning_message
 
             return Response(response_data, status=status.HTTP_200_OK)
 
         except Exception as e:
             # FileField는 스토리지에 이미 올라갔을 수 있음 → 필요하면 정리 로직 추가
-            # 여기서는 로깅만
-            import logging
             logging.getLogger(__name__).exception("Upload pipeline failed")
             # 실패 표시
             try:
@@ -273,10 +274,16 @@ class BookUploadView(APIView):
             status=status.HTTP_500_INTERNAL_SERVER_ERROR,
             )
         finally:
-            # try 블록이 성공하든 실패하든, 정화된 임시 파일이 생성되었다면 항상 삭제합니다.
-            if sanitized_pdf_path and os.path.exists(sanitized_pdf_path):
-                os.remove(sanitized_pdf_path)
-                logger.info(f"Cleaned up temporary sanitized PDF: {sanitized_pdf_path}")
+            # 임시파일 정리
+            try:
+                os.remove(tmp_path)
+            except Exception:
+                pass
+            if sanitized_path:
+                try:
+                    os.remove(sanitized_path)
+                except Exception:
+                    pass
 
 import bleach
 from bleach.css_sanitizer import CSSSanitizer

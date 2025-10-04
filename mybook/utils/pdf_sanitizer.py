@@ -16,7 +16,6 @@ DANGEROUS_PDF_KEYS = [
     "/Launch",
     "/EmbeddedFiles",
     "/RichMedia",
-    #"/URI", # URI 액션도 외부 링크로 간주될 수 있어 포함 (필요에 따라 조절)
     "/SubmitForm",
     "/GoToR", # Remote GoTo action
     "/GoToE", # Embedded GoTo action
@@ -47,7 +46,6 @@ def sanitize_pdf_active_content(original_pdf_path: str) -> tuple[Optional[str], 
                 if doc.xref_get_key(catalog_xref, key):
                     doc.xref_set_key(catalog_xref, key, "null")
                     removed_keys.append(key)
-                    logger.warning(f"Removed '{key}' from document catalog (xref: {catalog_xref}) in {original_pdf_path}")
                     modified = True
 
         # 2. 각 페이지에서 active 요소 제거
@@ -60,7 +58,6 @@ def sanitize_pdf_active_content(original_pdf_path: str) -> tuple[Optional[str], 
                 if doc.xref_get_key(page_xref, key):
                     doc.xref_set_key(page_xref, key, "null")
                     removed_keys.append(key)
-                    logger.warning(f"Removed '{key}' from page {pno+1} dictionary (xref: {page_xref}) in {original_pdf_path}")
                     modified = True
 
             # 어노테이션(링크, 필드 등)에서 active 요소 제거
@@ -72,7 +69,6 @@ def sanitize_pdf_active_content(original_pdf_path: str) -> tuple[Optional[str], 
                         if doc.xref_get_key(annot_xref, key):
                             doc.xref_set_key(annot_xref, key, "null")
                             removed_keys.append(f"{key} in Annotation")
-                            logger.warning(f"Removed '{key}' from annotation (xref: {annot_xref}) on page {pno+1} in {original_pdf_path}")
                             modified = True
 
         if modified:
@@ -86,6 +82,7 @@ def sanitize_pdf_active_content(original_pdf_path: str) -> tuple[Optional[str], 
 
             doc.save(temp_path, garbage=3, deflate=True) # 최적화하여 저장
             logger.info(f"PDF active content sanitized. Saved to temporary file: {temp_path}")
+            logger.info(f"Removed keys: {set(removed_keys)}")
             return temp_path, list(set(removed_keys))
         else:
             logger.info(f"No active content found or removed in {original_pdf_path}. No new file created.")

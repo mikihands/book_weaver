@@ -47,6 +47,9 @@ urlpatterns = [
     path('auth/login/page/', LoginPage.as_view(), name='login_page'),
     path('pricing/', PricingPage.as_view(), name='pricing'),
     path('features/', FeaturesPage.as_view(), name='features'),
+    path('faq/', TemplateView.as_view(template_name='mybook/faq.html'), name='faq'),
+    path('privacy/', TemplateView.as_view(template_name='privacy.html'), name='privacy'),
+    path('terms/', TemplateView.as_view(template_name='terms.html'), name='terms'),
     path('auth/logout/', user_logout, name='logout'),  # 로그아웃 URL 추가
     path('bookshelf/', BookshelfView.as_view(), name='bookshelf'),
     path("api/contact/", ContactAPIView.as_view(), name="api_contact"),

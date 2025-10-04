@@ -1,257 +1,287 @@
 {% extends 'base.html' %}
-{% load i18n %}
-{% load static tailwind_tags %}
-{% block title %}
-BookWeaver — {% trans "원서를, 당신의 언어로" %}
+{% load i18n static %}
+{% block title %}Weaver — {% trans "외국 서적 번역본 제작" %}{% endblock %}
+{% block additional_head %}
+ <meta name="description" content= {% trans "PDF 업로드만으로 원본 레이아웃을 보존한 번역 HTML/PDF 생성. 무료 30페이지 체험, Eco/Precision 모델 선택, 브라우저에서 바로 편집." %} />
 {% endblock %}
+
 {% block content %}
-    <section class="mx-auto max-w-7xl px-6 pt-10 pb-16">
-      <!-- hero -->
-      <div class="mx-auto max-w-3xl text-center">
-        <h1 class="text-3xl sm:text-4xl md:text-5xl font-extrabold tracking-tight text-slate-900 leading-tight">
-          {% blocktrans %}
-          원서를 당신의 언어로, <span class="bg-gradient-to-r from-[var(--bw-bg-from)] to-[var(--bw-bg-to)] bg-clip-text text-transparent">페이지 그대로</span>
-          {% endblocktrans %}
-        </h1>
-        <p class="mt-4 text-base sm:text-lg text-slate-600">
-        {% trans "PDF/스캔본을 올리면, 원본의 레이아웃을 유지한 번역본을 생성합니다. 표·각주·이미지까지 깔끔하게." %}
-        </p>
+<section class="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8 py-16 md:py-24 grid md:grid-cols-2 gap-10 items-start">
+  <!-- Left: 홍보 -->
+  <div>
+    <h1 class="text-3xl sm:text-4xl md:text-5xl font-extrabold tracking-tight leading-tight">
+      {% blocktrans %}이미지와 PDF 업로드만으로, <span class="text-blue-600">레이아웃을 보존한 번역본</span>을 만들어보세요.{% endblocktrans %}
+    </h1>
+    <p class="mt-4 text-base sm:text-lg text-slate-600">
+      {% trans "소설·에세이부터 학술 자료까지. AI로 문서의 레이아웃 보존하며 번역합니다. 완료된 페이지부터 바로 열람하고, 간단 편집툴로 보정하세요." %}
+    </p>
+    <ul class="mt-6 space-y-2 text-slate-700">
+      <li class="flex gap-3"><span class="text-blue-600">•</span>{% trans "무료: 최대 30페이지 문서 지원, 결과 편집, 원문 비교 가능" %}</li>
+      <li class="flex gap-3"><span class="text-blue-600">•</span>{% trans "유료: 최대 페이지 제한 없음 + PDF 다운로드" %}</li>
+      <li class="flex gap-3"><span class="text-blue-600">•</span>{% trans "Pro/Enterprise: 문단 재번역 무료, 연간 전환 1개월 무료" %}</li>
+    </ul>
+    <div class="mt-8 flex gap-3">
+      <a href="{% url 'mybook:pricing' %}" class="px-5 py-3 rounded-lg bg-blue-600 text-white font-semibold hover:bg-blue-700">{% trans "요금 보기" %}</a>
+      <a href="{% url 'mybook:features' %}" class="px-5 py-3 rounded-lg bg-slate-100 font-semibold hover:bg-slate-200">{% trans "기능 보기" %}</a>
+    </div>
+    <p class="mt-4 text-xs text-slate-500">{% trans "* 생성형 AI 특성상 오류가 있을 수 있으므로 최종검수의 책임은 사용자에게 있습니다." %}</p>
+  </div>
+
+  <!-- Right: 업로드 카드 -->
+  <div class="rounded-2xl border border-slate-200 shadow-sm p-6 bg-white">
+    <h2 class="font-semibold text-lg">{% trans "지금 바로 시작하기" %}</h2>
+    <p class="text-sm text-slate-500 mt-1">{% trans "PDF를 드래그&드롭하거나 파일 선택" %}</p>
+
+    <form class="mt-4 space-y-5" id="uploadForm">
+      {% csrf_token %}
+      <!-- file -->
+      <label for="fileInput" class="flex flex-col items-center justify-center h-44 rounded-xl border-2 border-dashed border-slate-300 hover:border-blue-400 transition cursor-pointer">
+        <input type="file" id="fileInput" name="file" accept="application/pdf" class="hidden" />
+        <svg viewBox="0 0 24 24" class="w-10 h-10 text-slate-400"><path d="M7 16a4 4 0 1 1 0-8c.71 0 1.373.185 1.947.509A5.5 5.5 0 0 1 20.5 11a4.5 4.5 0 0 1-1.606 3.443M12 12v9m0-9 3 3m-3-3-3 3" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg>
+        <span id="fileInputText" class="mt-2 text-sm text-slate-600">{% trans "PDF 업로드" %}</span>
+      </label>
+
+      {# 숨김: serializer 호환을 위한 target_language #}
+      <input type="hidden" name="target_language" value="{{ LANGUAGE_CODE|default:'ko'|slice:':2' }}"/>
+
+      {# CTA (컨테이너로 묶음) #}
+      <div id="ctaContainer">
+        <button type="submit" id="submitButton" class="w-full rounded-lg bg-blue-600 text-white py-3 font-semibold hover:bg-blue-700">{% trans "업로드 시작" %}</button>
+        <p class="mt-2 text-xs text-slate-500 text-center">{% trans "악성코드 예방을 위하여 PDF에 삽입된 Active 코드는 제거되며, 업로드한 파일은 일정 기간 후 자동 삭제됩니다." %}</p>
       </div>
 
-      <!-- upload card -->
-      <div class="mx-auto mt-10 max-w-2xl rounded-2xl bw-border bw-shadow bw-glass">
-        <div class="p-6 sm:p-8">
-          <form class="space-y-5" id="uploadForm">
-            {% csrf_token %}
-            <!-- file -->
-            <div>
-              <label class="block text-sm font-medium text-slate-700 mb-2">{% trans "파일 선택" %}</label>
-              <label for="fileInput" class="flex items-center justify-between gap-3 rounded-xl border border-dashed border-slate-300 bg-white px-4 py-3 hover:border-slate-400 cursor-pointer transition-colors">
-                <div class="flex items-center gap-3 min-w-0"> {# min-w-0 for truncate to work in flexbox #}
-                  <div class="grid h-9 w-9 place-items-center rounded-lg bg-slate-100 text-slate-600">
-                    <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                      <path d="M12 5v14m-7-7h14"/>
-                    </svg>
-                  </div>
-                  <div id="fileInputText" class="text-sm truncate">
-                    <span class="font-medium text-slate-800">{% trans "파일 업로드" %}</span>
-                    <span class="ml-2 text-slate-500">PDF, JPG, PNG</span>
-                  </div>
-                </div>
-                <span class="rounded-lg bg-slate-900 px-3 py-1.5 text-white text-xs font-semibold">{% trans "찾아보기" %}</span>
-              </label>
-              <p class="mt-2 text-xs text-slate-500">{% trans "최대 50MB 까지 처리됩니다." %}</p>
-              <input id="fileInput" type="file" name="file" accept=".pdf,.jpg,.jpeg,.png" required class="sr-only">
-            </div>
+      <!-- 메시지: 레이아웃 보호(고정 높이 + 스크롤) -->
+      <div id="message" class="mt-4 text-sm text-center break-words overflow-auto"></div>
+    </form>
+  </div>
+</section>
 
-            <!-- book title -->
-            <div>
-              <label for="titleInput" class="block text-sm font-medium text-slate-700 mb-2">{% trans "책 제목 (선택)" %}</label>
-              <input id="titleInput" name="title" type="text" placeholder="{% trans '입력하지 않으면 파일명이 사용됩니다.' %}"
-                     class="w-full rounded-xl border-slate-300 focus:border-slate-500 focus:ring-slate-500 bg-white">
-            </div>
-
-            <!-- genre + language -->
-            <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
-              <div>
-                <div class="flex items-center space-x-2">
-                    <label for="genreSelect" class="block text-sm font-medium text-slate-700 mb-2">{% trans "장르 (선택)" %}</label>
-                    <div class="relative group cursor-pointer">
-                        <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5 text-gray-400" viewBox="0 0 20 20" fill="currentColor">
-                            <path fill-rule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7-4a1 1 0 11-2 0 1 1 0 012 0zM9 9a1 1 0 000 2v3a1 1 0 001 1h1a1 1 0 100-2v-3a1 1 0 00-1-1H9z" clip-rule="evenodd" />
-                        </svg>
-                        <div class="absolute bottom-full left-1/2 -translate-x-1/2 mb-2 w-64 bg-gray-800 text-white text-xs rounded py-2 px-3 opacity-0 group-hover:opacity-100 transition-opacity duration-300 pointer-events-none z-10">
-                            {% trans "정확한 genre를 입력하면 AI가 번역본을 제작하는데 도움이 됩니다." %}
-                            <svg class="absolute text-gray-800 h-2 w-full left-0 top-full" x="0px" y="0px" viewBox="0 0 255 255" xml:space="preserve"><polygon class="fill-current" points="0,0 127.5,127.5 255,0"/></svg>
-                        </div>
-                    </div>
-                </div>
-                <select id="genreSelect" name="genre" class="w-full rounded-xl border-slate-300 bg-white focus:border-slate-500 focus:ring-slate-500">
-                    <option value="">{% trans "장르를 선택하세요" %}</option>
-                    <option value="fiction">{% trans "소설" %}</option>
-                    <option value="non-fiction">{% trans "비소설" %}</option>
-                    <option value="technical">{% trans "기술/과학" %}</option>
-                    <option value="history">{% trans "역사" %}</option>
-                    <option value="self-help">{% trans "자기계발" %}</option>
-                    <option value="fantasy">{% trans "판타지" %}</option>
-                    <option value="science-fiction">{% trans "SF (공상 과학)" %}</option>
-                    <option value="romance">{% trans "로맨스" %}</option>
-                    <option value="thriller">{% trans "스릴러/미스터리" %}</option>
-                    <option value="children">{% trans "아동" %}</option>
-                    <option value="other">{% trans "기타" %}</option>
-                </select>
-              </div>
-
-              <div>
-                <label for="languageSelect" class="block text-sm font-medium text-slate-700 mb-2">{% trans "번역할 언어" %}</label>
-                <select id="languageSelect" name="target_language" class="w-full rounded-xl border-slate-300 bg-white focus:border-slate-500 focus:ring-slate-500">
-                    <option value="en">English</option>
-                    <option value="es">Español</option>
-                    <option value="ja">日本語</option>
-                    <option value="ko">한국어</option>
-                    <option value="fr">Français</option>
-                    <option value="de">Deutsch</option>
-                </select>
-              </div>
-            </div>
-
-            <!-- CTA -->
-            <div class="pt-2">
-              <button type="submit" id="submitButton" 
-                class="w-full rounded-xl bg-gradient-to-r from-[var(--bw-bg-from)] to-[var(--bw-bg-to)] px-5 py-3 text-white font-semibold hover:opacity-95 bw-shadow">
-                {% trans "파일 업로드 시작" %}
-              </button>
-              <p class="mt-3 text-xs text-slate-500 text-center">{% trans "개인정보는 암호화되어 전송됩니다. 업로드한 파일은 일정 기간 후 자동 삭제됩니다." %}</p>
-            </div>
-          </form>
-          <div id="message" class="mt-8 text-center"></div>
+  <!-- TRUST / BADGES -->
+  <section class="border-t border-gray-100">
+    <div class="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8 py-10 grid md:grid-cols-3 gap-6">
+      <div class="flex items-start gap-4">
+        <div class="h-10 w-10 rounded-xl bg-blue-50 text-blue-600 flex items-center justify-center font-bold">A</div>
+        <div>
+          <h3 class="font-semibold">{% trans "레이아웃 보존" %}</h3>
+          <p class="text-sm text-gray-600 mt-1">{% trans "표·도표·각주 등 구조를 최대한 유지한 HTML/PDF 생성." %}</p>
         </div>
       </div>
-
-      <!-- features -->
-      <div class="mx-auto mt-14 grid max-w-5xl grid-cols-1 gap-6 sm:grid-cols-3">
-        <div class="rounded-2xl bg-white p-6 bw-border bw-shadow">
-          <div class="h-10 w-10 rounded-lg bg-sky-100 text-sky-700 grid place-items-center mb-3">
-            <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-              <path d="M3 4h18M3 12h18M3 20h18"/>
-            </svg>
-          </div>
-          <h3 class="font-semibold text-slate-900">{% trans "레이아웃 보존" %}</h3>
-          <p class="mt-2 text-sm text-slate-600">{% trans "문단·표·각주·이미지까지 최대한 원본 구조를 유지하여 HTML로 재구성합니다." %}</p>
-        </div>
-        <div class="rounded-2xl bg-white p-6 bw-border bw-shadow">
-          <div class="h-10 w-10 rounded-lg bg-violet-100 text-violet-700 grid place-items-center mb-3">
-            <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-              <path d="M12 6v12m6-6H6"/>
-            </svg>
-          </div>
-          <h3 class="font-semibold text-slate-900">{% trans "다중 포맷 지원" %}</h3>
-          <p class="mt-2 text-sm text-slate-600">{% trans "PDF·이미지 스캔본 모두 OK. 대용량은 자동으로 최적 처리를 사용합니다." %}</p>
-        </div>
-        <div class="rounded-2xl bg-white p-6 bw-border bw-shadow">
-          <div class="h-10 w-10 rounded-lg bg-emerald-100 text-emerald-700 grid place-items-center mb-3">
-            <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-              <path d="M5 13l4 4L19 7"/>
-            </svg>
-          </div>
-          <h3 class="font-semibold text-slate-900">{% trans "간편한 결과 확인" %}</h3>
-          <p class="mt-2 text-sm text-slate-600">{% trans "브라우저에서 즉시 결과 미리보기. 페이지 네비게이션과 검색도 지원됩니다." %}</p>
+      <div class="flex items-start gap-4">
+        <div class="h-10 w-10 rounded-xl bg-blue-50 text-blue-600 flex items-center justify-center font-bold">B</div>
+        <div>
+          <h3 class="font-semibold">{% trans "빠른 시작" %}</h3>
+          <p class="text-sm text-gray-600 mt-1">{% trans "업로드 즉시 처리. 완료된 페이지부터 차례로 열람." %}</p>
         </div>
       </div>
-    </section>
+      <div class="flex items-start gap-4">
+        <div class="h-10 w-10 rounded-xl bg-blue-50 text-blue-600 flex items-center justify-center font-bold">C</div>
+        <div>
+          <h3 class="font-semibold">{% trans "편집 지원" %}</h3>
+          <p class="text-sm text-gray-600 mt-1">{% trans "문단 재번역(Pro/Ent 무료)과 간단 편집툴 제공." %}</p>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- HOW IT WORKS -->
+  <section class="border-t border-gray-100 bg-gray-50/50">
+    <div class="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8 py-14">
+      <h2 class="text-2xl md:text-3xl font-extrabold">{% trans "이용 방법" %}</h2>
+      <div class="mt-8 grid md:grid-cols-3 gap-6">
+        <div class="rounded-2xl bg-white border border-gray-200 p-6">
+          <h3 class="font-semibold">1. {% trans "업로드" %}</h3>
+          <p class="text-sm text-gray-600 mt-2">{% trans "PDF 선택 → 언어/모델 선택 → 시작." %}</p>
+        </div>
+        <div class="rounded-2xl bg-white border border-gray-200 p-6">
+          <h3 class="font-semibold">2. {% trans "실시간 확인" %}</h3>
+          <p class="text-sm text-gray-600 mt-2">{% trans "완료된 페이지부터 브라우저에서 바로 보기." %}</p>
+        </div>
+        <div class="rounded-2xl bg-white border border-gray-200 p-6">
+          <h3 class="font-semibold">3. {% trans "편집/출판" %}</h3>
+          <p class="text-sm text-gray-600 mt-2">{% trans "사소한 오류는 편집툴로 보정하고, 유료는 PDF로 다운로드." %}</p>
+        </div>
+      </div>
+      <div class="mt-10">
+        <a href="{% url 'mybook:pricing' %}" class="inline-flex items-center gap-2 text-blue-600 font-semibold hover:underline">
+          {% trans "요금플랜 자세히 보기" %}
+          <svg class="w-4 h-4" viewBox="0 0 24 24"><path d="M9 5l7 7-7 7" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg>
+        </a>
+      </div>
+    </div>
+  </section>
 {% endblock %}
 
 {% block extra_js %}
 <script>
-    const form = document.getElementById('uploadForm');
-    const submitButton = document.getElementById('submitButton');
-    const messageDiv = document.getElementById('message');
-    const fileInput = document.getElementById('fileInput');
-    const fileInputText = document.getElementById('fileInputText');
-    const originalFileInputHTML = fileInputText.innerHTML;
+  const form = document.getElementById('uploadForm');
+  const submitButton = document.getElementById('submitButton');
+  const messageDiv = document.getElementById('message');
+  const fileInput = document.getElementById('fileInput');
+  const fileInputText = document.getElementById('fileInputText');
+  const ctaContainer = document.getElementById('ctaContainer');
+  const dropZone = document.querySelector('label[for="fileInput"]');
+  const originalFileInputHTML = fileInputText.innerHTML;
+  let droppedFile = null; 
+  const AUTO_SUBMIT_ON_DROP = false; // true로 바꾸면 드롭 즉시 업로드 시작
+  const MAX_FILE_SIZE_MB = 50;       // 백엔드 한도에 맞춰 사전 검증
 
-    fileInput.addEventListener('change', () => {
-        if (fileInput.files.length > 0) {
-            const fileName = fileInput.files[0].name;
-            // 긴 파일명을 위해 truncate하고, 전체 이름은 title 속성으로 보여줍니다.
-            fileInputText.innerHTML = `<span class="font-medium text-slate-800" title="${fileName}">${fileName}</span>`;
-        } else {
-            // 파일 선택이 취소되면 원래 텍스트로 복원합니다.
-            fileInputText.innerHTML = originalFileInputHTML;
-        }
+  function validateFile(file) {
+  if (!file) return "{% trans '파일을 선택해주세요.' %}";
+  const isPDF = file.type === 'application/pdf' || /\.pdf$/i.test(file.name);
+  if (!isPDF) return "{% trans 'PDF 파일만 업로드할 수 있습니다.' %}";
+  if (file.size > MAX_FILE_SIZE_MB * 1024 * 1024) {
+      return "{% blocktrans %}최대 {{max}}MB 이하의 PDF만 업로드할 수 있습니다.{% endblocktrans %}".replace('{{max}}', MAX_FILE_SIZE_MB);
+  }
+  return null;
+  }
+
+  if (dropZone && fileInput) {
+    const onHighlight = (on) => {
+        dropZone.classList.toggle('border-blue-500', on);
+        dropZone.classList.toggle('bg-blue-50', on);
+        dropZone.classList.toggle('ring-2', on);
+        dropZone.classList.toggle('ring-blue-300', on);
+    };
+
+    // 브라우저 기본 동작(파일 열기) 방지
+    ['dragover', 'drop'].forEach(evt =>
+        window.addEventListener(evt, e => { if (!dropZone.contains(e.target)) e.preventDefault(); })
+    );
+
+    ['dragenter','dragover'].forEach(evt =>
+        dropZone.addEventListener(evt, e => { e.preventDefault(); onHighlight(true); })
+    );
+    ['dragleave','dragend'].forEach(evt =>
+        dropZone.addEventListener(evt, () => onHighlight(false))
+    );
+
+    dropZone.addEventListener('drop', (e) => {
+        e.preventDefault(); onHighlight(false);
+        const files = Array.from(e.dataTransfer?.files || []);
+        if (!files.length) return;
+
+        // PDF만 허용
+        const pdf = files.find(f => f.type === 'application/pdf' || /\.pdf$/i.test(f.name));
+        const error = validateFile(pdf);
+        if (error) { messageDiv.innerHTML = `<span class="text-red-600">${error}</span>`; return; }
+
+        // FF 호환: input.files를 건드리지 않음
+        droppedFile = pdf;
+
+        // 파일명 UI 갱신
+        fileInputText.innerHTML = `<span class="font-medium text-slate-800" title="${pdf.name}">${pdf.name}</span>`;
+
+        if (AUTO_SUBMIT_ON_DROP) form.requestSubmit();
+        else messageDiv.innerHTML = `<span class="text-blue-600">{% trans "파일이 선택되었습니다. ‘업로드 시작’을 눌러주세요." %}</span>`;
     });
-    
-    function getCookie(name) {
-        let cookieValue = null;
-        if (document.cookie && document.cookie !== '') {
-            const cookies = document.cookie.split(';');
-            for (let i = 0; i < cookies.length; i++) {
-                const cookie = cookies[i].trim();
-                if (cookie.startsWith(name + '=')) {
-                    cookieValue = decodeURIComponent(cookie.substring(name.length + 1));
-                    break;
-                }
-            }
-        }
-        return cookieValue;
     }
-    const csrftoken = getCookie('csrftoken');
 
-    form.addEventListener('submit', async (e) => {
-        e.preventDefault();
 
-        const fileInput = document.getElementById('fileInput');
-        if (!fileInput.files || fileInput.files.length === 0) {
-            messageDiv.innerHTML = `<span class="text-red-600">{% trans "파일을 선택해주세요." %}</span>`;
-            return;
+  fileInput.addEventListener('change', () => {
+    droppedFile = null; //클릭으로 파일을 선택하면 드롭상태 해제
+    if (fileInput.files.length > 0) {
+      const fileName = fileInput.files[0].name;
+      fileInputText.innerHTML = `<span class="font-medium text-slate-800" title="${fileName}">${fileName}</span>`;
+    } else {
+      fileInputText.innerHTML = originalFileInputHTML;
+    }
+  });
+
+  function getCookie(name) {
+    let cookieValue = null;
+    if (document.cookie && document.cookie !== '') {
+      const cookies = document.cookie.split(';');
+      for (let i = 0; i < cookies.length; i++) {
+        const cookie = cookies[i].trim();
+        if (cookie.substring(0, name.length + 1) === (name + '=')) {
+          cookieValue = decodeURIComponent(cookie.substring(name.length + 1));
+          break;
         }
+      }
+    }
+    return cookieValue;
+  }
+  const csrftoken = getCookie('csrftoken');
 
-        const formData = new FormData(form);
-        
-        submitButton.disabled = true;
-        submitButton.classList.add('bg-blue-400', 'cursor-not-allowed');
-        submitButton.classList.remove('bg-blue-600', 'hover:bg-blue-700');
-        
-        messageDiv.innerHTML = '<div class="flex justify-center items-center"><div class="animate-spin rounded-full h-5 w-5 border-b-2 border-blue-600"></div><span class="ml-3 text-blue-600"> 업로드 중... 잠시만 기다려주세요.</span></div>';
+  form.addEventListener('submit', async (e) => {
+    e.preventDefault();
+    //if (!fileInput.files || fileInput.files.length === 0) {
+    //  messageDiv.innerHTML = `<span class="text-red-600">{% trans "파일을 선택해주세요." %}</span>`;
+    //  return;
+    //}
+    const selectedFile = droppedFile || (fileInput.files && fileInput.files[0]);
+    const error = validateFile(selectedFile);
+    if (error) {
+        messageDiv.innerHTML = `<span class="text-red-600">${error}</span>`;
+        return;
+    }
 
-        try {
-            const response = await fetch('{% url "mybook:book_upload" %}', {
-                method: 'POST',
-                body: formData,
-                headers: {
-                    'X-CSRFToken': csrftoken,
-                },
+    let formData = new FormData(form);
+    if (droppedFile) {
+    // 폼에 빈 file 필드가 있어도 덮어씀 (FF/Safari 호환)
+    formData.set('file', droppedFile, droppedFile.name);
+    }
+
+    submitButton.disabled = true;
+    submitButton.classList.add('bg-blue-400','cursor-not-allowed');
+    submitButton.classList.remove('bg-blue-600','hover:bg-blue-700');
+    messageDiv.innerHTML = '<div class="flex justify-center items-center gap-2"><svg class="animate-spin h-4 w-4 text-blue-600" viewBox="0 0 24 24"><circle cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4" fill="none" opacity=".3"></circle><path d="M4 12a8 8 0 018-8" stroke="currentColor" stroke-width="4" fill="none"></path></svg><span class="text-blue-600">{% trans "업로드 중... 잠시만 기다려주세요." %}</span></div>';
+
+    try {
+      const response = await fetch('{% url "mybook:book_upload" %}', {
+        method: 'POST',
+        body: formData,
+        headers: {'X-CSRFToken': csrftoken},
+      });
+      const data = await response.json();
+
+      if (response.ok) {
+        if (data.sanitization_warning) {
+            ctaContainer.classList.add('hidden'); // CTA 컨테이너 숨기기
+            // [NEW] 정화 경고가 있는 경우, 사용자 확인을 받습니다.
+            messageDiv.innerHTML = `
+                <div class="p-4 mb-4 text-sm text-yellow-800 rounded-lg bg-yellow-50 border border-yellow-300 text-left" role="alert">
+                    <p class="font-bold mb-2">{% trans "주의: 문서내에 동적 코드가 발견되었습니다." %}</p>
+                    <p>${data.sanitization_warning}</p>
+                </div>
+                <button id="confirmAndProceed" type="button" class="mt-2 w-full rounded-xl bg-blue-600 px-5 py-3 text-white font-semibold hover:bg-blue-700">
+                    {% trans "확인하고 계속하기" %}
+                </button>
+            `;
+            document.getElementById('confirmAndProceed').addEventListener('click', (e) => {
+                e.preventDefault();
+                if (data.prepare_url) window.location.href = data.prepare_url;
             });
-
-            const data = await response.json();
-
-            if (response.ok) {
-                if (data.sanitization_warning) {
-                    // [NEW] 정화 경고가 있는 경우, 사용자 확인을 받습니다.
-                    messageDiv.innerHTML = `
-                        <div class="p-4 mb-4 text-sm text-yellow-800 rounded-lg bg-yellow-50 border border-yellow-300 text-left" role="alert">
-                          <p class="font-bold mb-2">{% trans "주의: 문서 내용이 일부 변경되었습니다." %}</p>
-                          <p>${data.sanitization_warning}</p>
-                        </div>
-                        <button id="confirmAndProceed" class="mt-2 w-full rounded-xl bg-blue-600 px-5 py-3 text-white font-semibold hover:bg-blue-700">
-                          {% trans "확인하고 계속하기" %}
-                        </button>
-                    `;
-                    document.getElementById('confirmAndProceed').addEventListener('click', () => {
-                        if (data.prepare_url) window.location.href = data.prepare_url;
-                    });
-                } else {
-                    // [MODIFIED] 경고가 없는 경우, 성공 메시지를 잠시 보여준 후 이동합니다.
-                    messageDiv.innerHTML = `<span class="text-green-600">${data.message}</span>`;
-                    if (data.prepare_url) {
-                        setTimeout(() => { window.location.href = data.prepare_url; }, 1500);
-                    }
-                }
-            } else {
-                if (response.status === 403) {
-                    messageDiv.innerHTML = `<span class="text-red-600">{% trans "로그인이 필요합니다." %} <a href="{% url 'mybook:login_page' %}" class="underline">{% trans "로그인 페이지로 이동" %}</a></span>`;
-                } else {
-                  let errorMessage = "{% trans '오류가 발생했습니다.' %}"; // Default message
-                  if (data.detail) {
-                      errorMessage = data.detail;
-                  } else if (data.error) {
-                      // This handles cases where the error message is nested
-                      // For example: {"error": {"detail": "..."}}
-                      errorMessage = data.error.detail || JSON.stringify(data.error);
-                  } else {
-                      errorMessage = JSON.stringify(data);
-                  }
-                  messageDiv.innerHTML = `<span class="text-red-600">{% trans "오류:" %} ${errorMessage}</span>`;
-                }
+        } else {
+            // [MODIFIED] 경고가 없는 경우, 성공 메시지를 잠시 보여준 후 이동합니다.
+            ctaContainer.classList.remove('hidden'); // CTA 컨테이너 다시 표시
+            messageDiv.innerHTML = `<span class="text-green-600">${data.message}</span>`;
+            if (data.prepare_url) {
+                setTimeout(() => { window.location.href = data.prepare_url; }, 1500);
             }
-        } catch (error) {
-            messageDiv.innerHTML = `<span class="text-red-600">{% trans "네트워크 오류가 발생했습니다." %}</span>`;
-            console.error('Error:', error);
-        } finally {
-            submitButton.disabled = false;
-            submitButton.classList.remove('bg-blue-400', 'cursor-not-allowed');
-            submitButton.classList.add('bg-blue-600', 'hover:bg-blue-700');
         }
-    });
+      } else {
+        if (response.status === 403) {
+          ctaContainer.classList.remove('hidden');
+          messageDiv.innerHTML = `<span class="text-red-600">{% trans "로그인이 필요합니다." %} <a href="{% url 'mybook:login_page' %}" class="underline">{% trans "로그인 페이지로 이동" %}</a></span>`;
+        } else {
+          let errorMessage = "{% trans '오류가 발생했습니다.' %}";
+          if (data.detail) errorMessage = data.detail;
+          else if (data.error) errorMessage = data.error.detail || JSON.stringify(data.error);
+          else errorMessage = JSON.stringify(data);
+          ctaContainer.classList.remove('hidden');
+          messageDiv.innerHTML = `<span class="text-red-600">{% trans "오류:" %} ${errorMessage}</span>`;
+        }
+      }
+    } catch (err) {
+      messageDiv.innerHTML = `<span class="text-red-600">{% trans "네트워크 오류가 발생했습니다." %}</span>`;
+      console.error(err);
+    } finally {
+      submitButton.disabled = false;
+      submitButton.classList.remove('bg-blue-400','cursor-not-allowed');
+      submitButton.classList.add('bg-blue-600','hover:bg-blue-700');
+    }
+  });
+
 </script>
 {% endblock %}

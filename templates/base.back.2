@@ -1,0 +1,163 @@
+{% load i18n %}
+{% load static tailwind_tags %}
+<!DOCTYPE html>
+<html lang={{ LANGUAGE_CODE|default:"ko" }}>
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>{% block title %}{% endblock %}</title>
+    {% block additional_head %} {% endblock %}
+    {# favicon #}
+    <link rel="icon" type="image/svg+xml" href="{% static 'img/mikihands-favicon.svg' %}">
+    <link rel="icon" sizes="16x16" href="{% static 'img/mikihands-favicon-16.png' %}" type="image/png">
+    <link rel="icon" sizes="32x32" href="{% static 'img/mikihands-favicon-32.png' %}" type="image/png">
+    <link rel="icon" sizes="48x48" href="{% static 'img/mikihands-favicon-48.png' %}" type="image/png">
+    <link rel="apple-touch-icon" sizes="180x180" href="{% static 'img/mikihands-favicon-180.png' %}">
+    <!-- Fonts -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Noto+Sans+KR:wght@400;500;700&display=swap" rel="stylesheet">
+    
+    <style>
+        :root{
+        --bw-bg-from:#0ea5e9; /* sky-500 */
+        --bw-bg-to:#8b5cf6;   /* violet-500 */
+        --bw-ink:#0b1021;
+        }
+        html,body{height:100%}
+        body{font-family: Inter, 'Noto Sans KR', system-ui, -apple-system, Segoe UI, Roboto, 'Helvetica Neue', Arial, 'Apple SD Gothic Neo', 'Noto Sans CJK KR', 'Malgun Gothic', sans-serif;}
+        /* soft shadow helper */
+        .bw-shadow{box-shadow:0 10px 30px rgba(16,24,40,.08), 0 4px 8px rgba(16,24,40,.06);}
+        /* subtle card border */
+        .bw-border{border:1px solid rgba(15,23,42,.08)}
+        /* glass */
+        .bw-glass{backdrop-filter: blur(10px); background: rgba(255,255,255,.72);}
+    </style>
+    {% if not DEBUG_MODE %}
+        {% tailwind_preload_css %}
+    {% endif %}
+    {% tailwind_css %}
+</head>
+<body class="min-h-full bg-slate-50">
+  <!-- Gradient background -->
+  <div class="absolute inset-0 -z-10 bg-gradient-to-br from-[var(--bw-bg-from)]/15 via-transparent to-[var(--bw-bg-to)]/20"></div>
+
+  <header class="w-full">
+    <div class="mx-auto max-w-7xl px-6 py-5 flex items-center justify-between">
+      <a class="group inline-flex items-center gap-2" href="{% url 'mybook:upload_page' %}" aria-label="BookWeaver">
+        <span class="inline-flex h-8 w-8 items-center justify-center rounded-lg bg-slate-900 text-white dark:bg-white dark:text-slate-900">W</span>
+        <span class="text-slate-800 text-lg font-semibold tracking-tight group-hover:opacity-90">BookWeaver</span>
+      </a>
+      <nav class="hidden md:flex items-center gap-6 text-sm text-slate-600">
+        <a href="{% url 'mybook:features' %}" class="hover:text-slate-800">{% trans "기능" %}</a>
+        <a href="{% url 'mybook:pricing' %}" class="hover:text-slate-800">{% trans "가격" %}</a>
+        <a href="#" class="hover:text-slate-800">FAQ</a>
+      </nav>
+      {% if user_logged_in %}
+        <div class="relative">
+            <button id="user-menu-button" class="flex items-center text-gray-600 hover:text-gray-900 focus:outline-none transition duration-300 text-sm font-medium">
+                <span>{{ user_profile.username }}</span>
+                <svg class="w-4 h-4 ml-1" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"></path></svg>
+            </button>
+            <div id="user-menu" class="hidden absolute right-0 mt-2 w-48 bg-white rounded-md shadow-lg py-1 z-50 ring-1 ring-black ring-opacity-5">
+                <a href="{% url 'mybook:bookshelf' %}" class="block px-4 py-2 text-sm text-gray-700 hover:bg-gray-100">{% trans "내 서재" %}</a>
+                <a href="{% url 'mybook:logout' %}" class="block px-4 py-2 text-sm text-gray-700 hover:bg-gray-100">{% trans "로그아웃" %}</a>
+            </div>
+        </div>
+    {% else %}
+      <div class="flex items-center gap-3">
+        <a href="{% url 'mybook:login_page' %}" class="hidden sm:inline-block text-sm font-medium text-slate-700 hover:text-slate-900">{% trans "로그인" %}</a>
+        <a href="{% url 'mybook:register_page' %}" class="rounded-xl bg-slate-900 px-4 py-2 text-sm font-semibold text-white hover:bg-slate-800">{% trans "무료로 시작" %}</a>
+      </div>
+    {% endif %}
+    </div>
+  </header>
+  <main class="relative">
+    {% block content %}
+    {% endblock %}
+  </main>
+
+  {# 현재 언어/지원 언어 목록 얻기 #}
+{% get_current_language as CURRENT_LANGUAGE_CODE %}
+{% get_available_languages as LANGUAGES %}
+{% get_language_info_list for LANGUAGES as languages %}
+
+<!-- Footer -->
+<footer class="mt-10 border-t border-slate-200/70 bg-white/70 backdrop-blur mt-auto">
+  <div class="mx-auto max-w-7xl px-6 py-8 flex flex-col sm:flex-row items-center justify-between gap-4">
+    <p class="text-sm text-slate-500">© <span id="y"></span> Mikihands · BookWeaver</p>
+
+    <div class="flex items-center gap-4">
+      <!-- Footer nav -->
+      <nav class="flex items-center gap-4 text-sm text-slate-600">
+        <a href="#" class="hover:text-slate-800">{% trans "이용 약관" %}</a>
+        <a href="#" class="hover:text-slate-800">{% trans "개인정보 처리방침" %}</a>
+        <a href="{% url 'mybook:contact' %}" class="hover:text-slate-800">{% trans "문의" %}</a>
+      </nav>
+
+      <!-- Language selector (no-JS dropdown) -->
+      <details class="relative">
+        <summary class="list-none inline-flex items-center gap-2 rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm font-medium text-slate-700 hover:bg-slate-50 cursor-pointer">
+          <span class="text-base" aria-hidden="true">
+            {# 간단한 국기 이모지 매핑 (필요 언어만 if로 확장) #}
+            {% if CURRENT_LANGUAGE_CODE|slice:":2" == "ko" %}🇰🇷{% elif CURRENT_LANGUAGE_CODE|slice:":2" == "en" %}🇺🇸{% elif CURRENT_LANGUAGE_CODE|slice:":2" == "ja" %}🇯🇵{% elif CURRENT_LANGUAGE_CODE|slice:":2" == "zh" %}🇨🇳{% elif CURRENT_LANGUAGE_CODE|slice:":2" == "de" %}🇩🇪{% elif CURRENT_LANGUAGE_CODE|slice:":2" == "fr" %}🇫🇷{% elif CURRENT_LANGUAGE_CODE|slice:":2" == "es" %}🇪🇸{% else %}🌐{% endif %}
+          </span>
+          <span class="sr-only">{% trans "언어 선택" %}</span>
+          <span class="uppercase">{{ CURRENT_LANGUAGE_CODE }}</span>
+          <svg class="h-4 w-4 text-slate-400" viewBox="0 0 20 20" fill="currentColor" aria-hidden="true">
+            <path fill-rule="evenodd" d="M5.23 7.21a.75.75 0 011.06.02L10 11.2l3.71-3.97a.75.75 0 111.08 1.04l-4.25 4.55a.75.75 0 01-1.08 0L5.21 8.27a.75.75 0 01.02-1.06z" clip-rule="evenodd" />
+          </svg>
+        </summary>
+
+        <div class="absolute bottom-full right-0 mb-2 w-56 rounded-xl border border-slate-200 bg-white shadow-lg p-2 z-50">
+          {% for lang in languages %}
+            <form method="post" action="{% url 'set_language' %}" class="w-full">
+              {% csrf_token %}
+              <input type="hidden" name="next" value="{{ request.get_full_path }}">
+              <input type="hidden" name="language" value="{{ lang.code }}">
+              <button type="submit"
+                      class="w-full flex items-center justify-between gap-3 rounded-lg px-3 py-2 text-sm hover:bg-slate-50 {% if lang.code == CURRENT_LANGUAGE_CODE %}text-slate-900 font-semibold{% else %}text-slate-700{% endif %}">
+                <span class="inline-flex items-center gap-2">
+                  <span aria-hidden="true">
+                    {% if lang.code|slice:":2" == "ko" %}🇰🇷{% elif lang.code|slice:":2" == "en" %}🇺🇸{% elif lang.code|slice:":2" == "ja" %}🇯🇵{% elif lang.code|slice:":2" == "zh" %}🇨🇳{% elif lang.code|slice:":2" == "de" %}🇩🇪{% elif lang.code|slice:":2" == "fr" %}🇫🇷{% elif lang.code|slice:":2" == "es" %}🇪🇸{% else %}🌐{% endif %}
+                  </span>
+                  <span>{{ lang.name_local }}</span>
+                </span>
+                {% if lang.code == CURRENT_LANGUAGE_CODE %}
+                  <span class="text-indigo-600">•</span>
+                {% endif %}
+              </button>
+            </form>
+          {% endfor %}
+        </div>
+      </details>
+    </div>
+  </div>
+</footer>
+
+
+    {% block extra_js %}{% endblock %}
+    <script>
+    document.getElementById('y').textContent = new Date().getFullYear();
+    </script>
+    <script>
+        document.addEventListener('DOMContentLoaded', function() {
+            const userMenuButton = document.getElementById('user-menu-button');
+            const userMenu = document.getElementById('user-menu');
+
+            if (userMenuButton && userMenu) {
+                userMenuButton.addEventListener('click', function() {
+                    userMenu.classList.toggle('hidden');
+                });
+
+                // Close the dropdown if the user clicks outside of it
+                window.addEventListener('click', function(event) {
+                    if (!userMenuButton.contains(event.target) && !userMenu.contains(event.target)) {
+                        userMenu.classList.add('hidden');
+                    }
+                });
+            }
+        });
+    </script>
+</body>
+</html>

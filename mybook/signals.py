@@ -13,6 +13,10 @@ def move_original_into_book_dir(sender, instance: "Book", created, **kwargs):
     PK 부여 후에도 original_file이 _tmp 경로에 있다면
     original/book_{id}/ 로 안전하게 이동
     """
+    if not created:
+        return
+
+    logger.debug("--------- [Signals] : move original_into_book_dir 호출됨  ---------")
     if not instance.original_file:
         return
 
@@ -32,6 +36,7 @@ def move_original_into_book_dir(sender, instance: "Book", created, **kwargs):
     # 1) 원본을 열어 새 경로로 저장
     with default_storage.open(current_path, "rb") as f:
         default_storage.save(final_relpath, f)
+        logger.debug("[Signals]Original file 이동 완료")
     # 2) 원본 삭제
     try:
         default_storage.delete(current_path)
