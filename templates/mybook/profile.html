@@ -1,0 +1,146 @@
+{% extends 'base.html' %}
+{% load i18n %}
+
+{% block title %}{% trans "계정 관리" %} — Weaver{% endblock %}
+
+{% block content %}
+<section class="mx-auto max-w-7xl px-6 py-14 md:py-20">
+  <h1 class="text-3xl md:text-5xl font-extrabold">{% trans "계정 관리" %}</h1>
+  <p class="mt-4 text-lg text-slate-600">{% trans "구독 상태를 확인하고 계정 설정을 변경할 수 있습니다." %}</p>
+</section>
+
+<section class="border-t border-slate-100">
+  <div class="mx-auto max-w-5xl px-6 py-12 space-y-12">
+
+    <!-- 1. 구독 관리 -->
+    <div id="subscription">
+      <h2 class="text-2xl font-bold border-b border-slate-200 pb-3">{% trans "구독 관리" %}</h2>
+      <div class="mt-6 grid md:grid-cols-2 gap-8">
+        <!-- 현재 플랜 -->
+        <div>
+          <h3 class="font-semibold text-lg">{% trans "현재 구독 플랜" %}</h3>
+          {% if user_profile.is_paid_member and user_profile.plan_type != 'None' %}
+            <div class="mt-4 rounded-xl border border-slate-200 bg-white p-6">
+              <p class="text-2xl font-bold text-blue-600">{{ user_profile.plan_type }}</p>
+              <dl class="mt-4 grid grid-cols-2 gap-x-4 gap-y-2 text-sm">
+                <dt class="text-slate-500">{% trans "구독 시작일" %}</dt>
+                <dd class="text-slate-800">{{ user_profile.start_date|date:"Y-m-d" }}</dd>
+                <dt class="text-slate-500">{% trans "다음 결제일 (만료일)" %}</dt>
+                <dd class="text-slate-800">{{ user_profile.end_date|date:"Y-m-d" }}</dd>
+              </dl>
+              {% if user_profile.cancel_requested %}
+                <div class="mt-6 border-t border-slate-100 pt-4">
+                  <p class="text-sm font-semibold text-orange-600">{% trans "구독 해지가 신청되었습니다." %}</p>
+                  <p class="text-xs text-slate-500 mt-1">{% blocktrans with end_date=user_profile.end_date|date:"Y-m-d" %}만료일인 {{ end_date }}까지 서비스 이용이 가능합니다.{% endblocktrans %}</p>
+                </div>
+              {% else %}
+                <div class="mt-6 border-t border-slate-100 pt-4">
+                  <button id="cancel-subscription-btn" class="text-sm text-red-600 hover:underline">{% trans "구독 해지 신청" %}</button>
+                  <p class="text-xs text-slate-400 mt-1">{% trans "해지 신청 시, 현재 구독 기간 만료 후 자동 갱신되지 않습니다." %}</p>
+                </div>
+              {% endif %}
+            </div>
+          {% else %}
+            <div class="mt-4 rounded-xl border border-dashed border-slate-300 bg-slate-50 p-6 text-center">
+              <p class="text-slate-600">{% trans "활성화된 구독이 없습니다." %}</p>
+              <a href="{% url 'mybook:pricing' %}" class="mt-4 inline-block rounded-lg bg-blue-600 px-5 py-2.5 text-sm font-semibold text-white hover:bg-blue-700">
+                {% trans "요금제 보러가기" %}
+              </a>
+            </div>
+          {% endif %}
+        </div>
+        <!-- 결제 내역 -->
+        <div>
+          <h3 class="font-semibold text-lg">{% trans "결제 내역" %}</h3>
+          <div class="mt-4 rounded-xl border border-slate-200 bg-white">
+            <div class="overflow-x-auto">
+              <table class="w-full text-sm">
+                <thead class="bg-slate-50 text-slate-500">
+                  <tr>
+                    <th class="p-3 text-left">{% trans "결제일" %}</th>
+                    <th class="p-3 text-left">{% trans "플랜" %}</th>
+                    <th class="p-3 text-right">{% trans "금액" %}</th>
+                    <th class="p-3 text-right">{% trans "상태" %}</th>
+                  </tr>
+                </thead>
+                <tbody class="divide-y divide-slate-100">
+                  {% for item in payment_history %}
+                    <tr>
+                      <td class="p-3">{{ item.date }}</td>
+                      <td class="p-3">{{ item.plan }}</td>
+                      <td class="p-3 text-right">{{ item.amount }}</td>
+                      <td class="p-3 text-right">
+                        {% if item.status == 'Paid' %}<span class="text-green-600">{% trans "성공" %}</span>
+                        {% else %}<span class="text-red-600">{% trans "실패" %}</span>{% endif %}
+                      </td>
+                    </tr>
+                  {% empty %}
+                    <tr>
+                      <td colspan="4" class="p-6 text-center text-slate-500">{% trans "결제 내역이 없습니다." %}</td>
+                    </tr>
+                  {% endfor %}
+                </tbody>
+              </table>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- 2. 사용량 관리 (Placeholder) -->
+    <div id="usage">
+      <h2 class="text-2xl font-bold border-b border-slate-200 pb-3">{% trans "사용량 관리" %}</h2>
+      <div class="mt-6 rounded-xl border border-dashed border-slate-300 bg-slate-50 p-8 text-center text-slate-500">
+        <p>{% trans "번역 사용량 및 잔여량 표시 기능이 여기에 추가될 예정입니다." %}</p>
+      </div>
+    </div>
+
+    <!-- 3. 계정 설정 (Placeholder) -->
+    <div id="account-settings">
+      <h2 class="text-2xl font-bold border-b border-slate-200 pb-3">{% trans "계정 설정" %}</h2>
+      <div class="mt-6 rounded-xl border border-dashed border-slate-300 bg-slate-50 p-8 text-center text-slate-500">
+        <p>{% trans "비밀번호 변경, 이메일 주소 변경, 회원 탈퇴 기능이 여기에 추가될 예정입니다." %}</p>
+      </div>
+    </div>
+
+  </div>
+</section>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+document.getElementById('cancel-subscription-btn')?.addEventListener('click', async () => {
+  if (!confirm('{% trans "정말로 구독을 해지하시겠습니까? 현재 플랜은 만료일까지 유지됩니다." %}')) {
+    return;
+  }
+
+  function getCookie(name) {
+    let cookieValue = null;
+    if (document.cookie && document.cookie !== '') {
+        const cookies = document.cookie.split(';');
+        for (let i = 0; i < cookies.length; i++) {
+            const cookie = cookies[i].trim();
+            if (cookie.substring(0, name.length + 1) === (name + '=')) {
+                cookieValue = decodeURIComponent(cookie.substring(name.length + 1));
+                break;
+            }
+        }
+    }
+    return cookieValue;
+  }
+  const csrftoken = getCookie('csrftoken');
+
+  try {
+    const response = await fetch("{% url 'mybook_api:cancel_subscription' %}", {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'X-CSRFToken': csrftoken },
+    });
+    const data = await response.json();
+    alert(data.message || data.error || '{% trans "알 수 없는 응답이 돌아왔습니다." %}');
+    if (response.ok) window.location.reload();
+  } catch (error) {
+    alert('{% trans "네트워크 오류가 발생했습니다. 잠시 후 다시 시도해주세요." %}');
+  }
+});
+</script>
+{% endblock %}

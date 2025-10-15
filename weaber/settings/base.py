@@ -205,7 +205,7 @@ INTERNAL_IPS = [
 ]
 
 HMAC_APP_ID = "weaver"
-# HMAC_KEY_ID = "v1"  # 현재 사용중인 키 식별자
+HMAC_KEY_ID = "v1"  # 현재 사용중인 키 식별자
 MAC_SECRET=env('HMAC_SECRET_WEAVER')
 
 REST_FRAMEWORK = {
@@ -233,3 +233,6 @@ EMAIL_HOST_USER = "jessekim80@gmail.com"
 EMAIL_HOST_PASSWORD = env("EMAIL_HOST_PASSWORD")
 ADMIN_EMAIL_ADDRESS = "info@mikihands.com"
 DEFAULT_FROM_EMAIL = EMAIL_HOST_USER
+
+# 이 서비스의 기본 URL (Referer 헤더 등에 사용)
+WEAVER_BASE_URL = env("WEAVER_BASE_URL", default="https://weaver.mikihands.com") # type:ignore

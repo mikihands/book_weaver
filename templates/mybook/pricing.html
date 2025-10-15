@@ -1,5 +1,5 @@
 {% extends 'base.html' %}
-{% load i18n %}
+{% load i18n my_filters %}
 {% block title %}Weaver — Pricing{% endblock %}
 
 {% block content %}
@@ -10,9 +10,16 @@
 </section>
 
 <section class="border-t border-slate-100">
+  {% if user.is_authenticated and user.is_paid_member and not user.cancel_requested %}
+    {% define_plan_levels as plan_levels %}
+    {% get_plan_level user.plan_type as user_plan_level %}
+  {% else %}
+    {% define_plan_levels as plan_levels %}
+    {% get_plan_level 'None' as user_plan_level %}
+  {% endif %}
   <div class="mx-auto max-w-7xl px-6 py-12 grid md:grid-cols-4 gap-6">
     <!-- Starter -->
-    <div class="rounded-2xl border border-slate-200 p-6">
+    <div class="rounded-2xl border border-slate-200 p-6 flex flex-col">
       <h3 class="font-bold text-lg">Starter</h3>
       <p class="mt-1 text-3xl font-extrabold">$4<span class="text-sm font-medium text-slate-500"> /{% trans "월" %}</span></p>
       <ul class="mt-4 space-y-2 text-sm text-slate-700">
@@ -21,10 +28,18 @@
         <li>PDF {% trans "다운로드 가능" %}</li>
         <li>{% trans "보관 제한 해제" %}</li>
       </ul>
-      <a href="{% url 'mybook:upload_page' %}" class="mt-6 block text-center rounded-lg bg-blue-600 text-white py-2 font-semibold hover:bg-blue-700">{% trans "시작하기" %}</a>
+      {% if user.is_authenticated and user.is_paid_member and not user.cancel_requested %}
+        {% if plan_levels.Starter > user_plan_level %}
+          <button data-plan="Starter" class="upgrade-btn mt-auto block text-center rounded-lg bg-green-600 text-white py-3 font-semibold hover:bg-green-700">{% trans "업그레이드" %}</button>
+        {% else %}
+          <button disabled class="mt-auto block text-center rounded-lg bg-slate-300 text-slate-500 py-3 font-semibold cursor-not-allowed">{% if plan_levels.Starter == user_plan_level %}{% trans "현재 플랜" %}{% else %}{% trans "업그레이드 불가" %}{% endif %}</button>
+        {% endif %}
+      {% else %}
+        <button data-plan="Starter" class="subscribe-btn mt-auto block text-center rounded-lg bg-blue-600 text-white py-3 font-semibold hover:bg-blue-700">{% trans "시작하기" %}</button>
+      {% endif %}
     </div>
     <!-- Growth -->
-    <div class="rounded-2xl border border-slate-200 p-6">
+    <div class="rounded-2xl border border-slate-200 p-6 flex flex-col">
       <h3 class="font-bold text-lg">Growth</h3>
       <p class="mt-1 text-3xl font-extrabold">$7<span class="text-sm font-medium text-slate-500"> /{% trans "월" %}</span></p>
       <ul class="mt-4 space-y-2 text-sm text-slate-700">
@@ -33,10 +48,18 @@
         <li>PDF {% trans "다운로드 가능" %}</li>
         <li>{% trans "보관 제한 해제" %}</li>
       </ul>
-      <a href="{% url 'mybook:upload_page' %}" class="mt-6 block text-center rounded-lg bg-blue-600 text-white py-2 font-semibold hover:bg-blue-700">{% trans "시작하기" %}</a>
+      {% if user.is_authenticated and user.is_paid_member and not user.cancel_requested %}
+        {% if plan_levels.Growth > user_plan_level %}
+          <button data-plan="Growth" class="upgrade-btn mt-auto block text-center rounded-lg bg-green-600 text-white py-3 font-semibold hover:bg-green-700">{% trans "업그레이드" %}</button>
+        {% else %}
+          <button disabled class="mt-auto block text-center rounded-lg bg-slate-300 text-slate-500 py-3 font-semibold cursor-not-allowed">{% if plan_levels.Growth == user_plan_level %}{% trans "현재 플랜" %}{% else %}{% trans "업그레이드 불가" %}{% endif %}</button>
+        {% endif %}
+      {% else %}
+        <button data-plan="Growth" class="subscribe-btn mt-auto block text-center rounded-lg bg-blue-600 text-white py-3 font-semibold hover:bg-blue-700">{% trans "시작하기" %}</button>
+      {% endif %}
     </div>
     <!-- Pro -->
-    <div class="rounded-2xl border-2 border-blue-600 p-6 relative">
+    <div class="rounded-2xl border-2 border-blue-600 p-6 relative flex flex-col">
       <div class="absolute -top-3 right-4 rounded-full bg-blue-600 text-white text-xs px-3 py-1">{% trans "Most Popular" %}</div>
       <h3 class="font-bold text-lg">Pro</h3>
       <p class="mt-1 text-3xl font-extrabold">$15<span class="text-sm font-medium text-slate-500"> /{% trans "월" %}</span></p>
@@ -47,10 +70,18 @@
         <li>PDF {% trans "다운로드, 보관 무제한" %}</li>
         <li>{% trans "연간 전환 시 1개월 무료" %}</li>
       </ul>
-      <a href="{% url 'mybook:upload_page' %}" class="mt-6 block text-center rounded-lg bg-blue-600 text-white py-2 font-semibold hover:bg-blue-700">{% trans "시작하기" %}</a>
+      {% if user.is_authenticated and user.is_paid_member and not user.cancel_requested %}
+        {% if plan_levels.Pro > user_plan_level %}
+          <button data-plan="Pro" class="upgrade-btn mt-auto block text-center rounded-lg bg-green-600 text-white py-3 font-semibold hover:bg-green-700">{% trans "업그레이드" %}</button>
+        {% else %}
+          <button disabled class="mt-auto block text-center rounded-lg bg-slate-300 text-slate-500 py-3 font-semibold cursor-not-allowed">{% if plan_levels.Pro == user_plan_level %}{% trans "현재 플랜" %}{% else %}{% trans "업그레이드 불가" %}{% endif %}</button>
+        {% endif %}
+      {% else %}
+        <button data-plan="Pro" class="subscribe-btn mt-auto block text-center rounded-lg bg-blue-600 text-white py-3 font-semibold hover:bg-blue-700">{% trans "시작하기" %}</button>
+      {% endif %}
     </div>
     <!-- Enterprise -->
-    <div class="rounded-2xl border border-slate-200 p-6">
+    <div class="rounded-2xl border border-slate-200 p-6 flex flex-col">
       <h3 class="font-bold text-lg">Enterprise</h3>
       <p class="mt-1 text-3xl font-extrabold">$25<span class="text-sm font-medium text-slate-500"> /{% trans "월" %}</span></p>
       <ul class="mt-4 space-y-2 text-sm text-slate-700">
@@ -61,7 +92,15 @@
         <li>SLA 99.5% {% trans "목표 + 서비스 크레딧" %}</li>
         <li>{% trans "연간 전환 시 1개월 무료" %}</li>
       </ul>
-      <a href="{% url 'mybook:upload_page' %}" class="mt-6 block text-center rounded-lg bg-blue-600 text-white py-2 font-semibold hover:bg-blue-700">{% trans "시작하기" %}</a>
+      {% if user.is_authenticated and user.is_paid_member and not user.cancel_requested %}
+        {% if plan_levels.Enterprise > user_plan_level %}
+          <button data-plan="Enterprise" class="upgrade-btn mt-auto block text-center rounded-lg bg-green-600 text-white py-3 font-semibold hover:bg-green-700">{% trans "업그레이드" %}</button>
+        {% else %}
+          <button disabled class="mt-auto block text-center rounded-lg bg-slate-300 text-slate-500 py-3 font-semibold cursor-not-allowed">{% if plan_levels.Enterprise == user_plan_level %}{% trans "현재 플랜" %}{% else %}{% trans "업그레이드 불가" %}{% endif %}</button>
+        {% endif %}
+      {% else %}
+        <button data-plan="Enterprise" class="subscribe-btn mt-auto block text-center rounded-lg bg-blue-600 text-white py-3 font-semibold hover:bg-blue-700">{% trans "시작하기" %}</button>
+      {% endif %}
     </div>
   </div>
 
@@ -110,4 +149,111 @@
     </div>
   </div>
 </section>
+
+<!-- Message Modal -->
+<div id="messageModal" class="fixed inset-0 bg-gray-600 bg-opacity-50 overflow-y-auto h-full w-full z-50 hidden">
+  <div class="relative top-20 mx-auto p-5 border w-full max-w-sm shadow-lg rounded-md bg-white">
+    <div class="mt-3 text-center">
+      <div id="modalIcon" class="mx-auto flex items-center justify-center h-12 w-12 rounded-full bg-red-100">
+        <svg class="h-6 w-6 text-red-600" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"></path></svg>
+      </div>
+      <h3 class="text-lg leading-6 font-medium text-gray-900 mt-2" id="modalTitle"></h3>
+      <div class="mt-2 px-7 py-3">
+        <p class="text-sm text-gray-500" id="modalMessage"></p>
+      </div>
+      <div class="items-center px-4 py-3">
+        <button id="closeModalBtn" class="px-4 py-2 bg-gray-200 text-gray-800 text-base font-medium rounded-md w-full shadow-sm hover:bg-gray-300">
+          {% trans "닫기" %}
+        </button>
+      </div>
+    </div>
+  </div>
+</div>
+
+{% endblock %}
+
+{% block extra_js %}
+<script>
+document.addEventListener('DOMContentLoaded', () => {
+    const subscribeButtons = document.querySelectorAll('.subscribe-btn');
+    const upgradeButtons = document.querySelectorAll('.upgrade-btn');
+    const modal = document.getElementById('messageModal');
+    const modalTitle = document.getElementById('modalTitle');
+    const modalMessage = document.getElementById('modalMessage');
+    const closeModalBtn = document.getElementById('closeModalBtn');
+
+    function showModal(title, message) {
+        modalTitle.textContent = title;
+        modalMessage.innerHTML = message;
+        modal.classList.remove('hidden');
+    }
+
+    closeModalBtn.addEventListener('click', () => modal.classList.add('hidden'));
+
+    subscribeButtons.forEach(button => {
+        button.addEventListener('click', async (e) => {
+            const planType = e.target.dataset.plan;
+            const csrftoken = document.querySelector('[name=csrfmiddlewaretoken]').value;
+
+            try {
+                const response = await fetch("{% url 'mybook_api:create_subscription' %}", {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json', 'X-CSRFToken': csrftoken },
+                    body: JSON.stringify({ plan_type: planType })
+                });
+
+                const data = await response.json();
+
+                if (response.ok && data.approval_url) { // PayPal의 경우: 받은 URL로 이동
+                    window.location.href = data.approval_url;
+                } 
+                else {
+                    const errorMessage = data.error || '{% trans "알 수 없는 오류가 발생했습니다." %}';
+                    if (response.status === 403) {
+                        showModal('{% trans "로그인 필요" %}', '{% trans "결제를 진행하려면 먼저 로그인해야 합니다." %} <a href="{% url 'mybook:login_page' %}" class="text-blue-600 hover:underline">{% trans "로그인 페이지로 이동" %}</a>');
+                    } else {
+                        showModal('{% trans "오류" %}', errorMessage);
+                    }
+                }
+            } catch (error) {
+                showModal('{% trans "네트워크 오류" %}', '{% trans "서버와 통신할 수 없습니다. 잠시 후 다시 시도해주세요." %}');
+            }
+        });
+    });
+
+    upgradeButtons.forEach(button => {
+        button.addEventListener('click', async (e) => {
+            const newPlan = e.target.dataset.plan;
+            const csrftoken = document.querySelector('[name=csrfmiddlewaretoken]').value;
+
+            if (!confirm(`{% trans "플랜을" %} '${newPlan}'{% trans "으로 업그레이드하시겠습니까? 남은 기간에 대한 차액이 결제됩니다." %}`)) {
+                return;
+            }
+
+            try {
+                const response = await fetch("{% url 'mybook_api:upgrade_subscription' %}", {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json', 'X-CSRFToken': csrftoken },
+                    body: JSON.stringify({ new_plan: newPlan })
+                });
+
+                const data = await response.json();
+
+                if (response.ok && data.payment_approval_url) { // PayPal
+                    window.location.href = data.payment_approval_url;
+                } else if (response.ok && data.upgraded) { // Toss Payments
+                    showModal('{% trans "업그레이드 완료" %}', data.message);
+                    // 모달 닫기 버튼을 누르면 페이지 새로고침
+                    closeModalBtn.onclick = () => window.location.reload();
+                } else {
+                    const errorMessage = data.error || '{% trans "알 수 없는 오류가 발생했습니다." %}';
+                    showModal('{% trans "업그레이드 오류" %}', errorMessage);
+                }
+            } catch (error) {
+                showModal('{% trans "네트워크 오류" %}', '{% trans "서버와 통신할 수 없습니다. 잠시 후 다시 시도해주세요." %}');
+            }
+        });
+    });
+});
+</script>
 {% endblock %}

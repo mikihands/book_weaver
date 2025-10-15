@@ -10,7 +10,8 @@ from rest_framework.response import Response
 from rest_framework.throttling import ScopedRateThrottle
 from datetime import datetime
 from uuid import uuid4
-from typing import Dict
+from typing import Dict, Any
+import jwt
 
 from django.conf import settings
 from django.core.mail import EmailMessage
@@ -29,8 +30,8 @@ from django.http import FileResponse
 from .serializers import (
     FileUploadSerializer, RegisterSerializer, LoginSerializer, 
     RetranslateRequestSerializer, StartTranslationSerializer, 
-    BookSettingsSerializer, ContactSerializer, PageEditSerializer,
-    BulkDeleteSerializer, PublishRequestSerializer
+    BookSettingsSerializer, ContactSerializer, PageEditSerializer, SubscriptionSerializer,
+    BulkDeleteSerializer, PublishRequestSerializer, PaymentWebhookUpdateSerializer
 )
 from .models import Book, BookPage, PageImage, TranslatedPage, UserProfile
 from .utils.font_scaler import FontScaler
@@ -40,6 +41,7 @@ from .utils.html_inject import inject_sources
 from .utils.pdf_sanitizer import sanitize_pdf_active_content # 새 임포트
 from .utils.pdf_inspector import inspect_pdf, choose_processing_mode
 from .utils.delete_dir_files import safe_remove
+from .utils.membership_updater import MembershipUpdater
 from .tasks import translate_book_pages, retranslate_single_page, translate_book_pages_born_digital
 from .permissions import IsBookOwner
 from common.mixins.hmac_sign_mixin import HmacSignMixin
@@ -879,6 +881,78 @@ class BookshelfView(APIView):
 
         return render(request, 'mybook/bookshelf.html', {'books': books_for_template})
 
+class ProfileView(APIView):
+    """
+    사용자 프로필(계정 관리) 페이지를 렌더링합니다.
+    구독 정보, 결제 내역 등을 표시합니다.
+    """
+    permission_classes = [IsAuthenticated]
+
+    def get(self, request, *args, **kwargs):
+        # --- 최신 구독 정보 동기화 ---
+        updater = MembershipUpdater()
+        success, message = updater.fetch_and_update(request)
+        if not success:
+            # 동기화 실패 시 사용자에게 알릴 수 있지만, 우선은 로깅만 처리합니다.
+            logger.warning(f"'{request.user.username}'의 프로필 페이지에서 구독 정보 동기화 실패: {message}")
+        # --------------------------
+
+        user_profile = request.user
+
+        # TODO: 향후 결제 서버와 통신하여 실제 결제 내역을 가져옵니다.
+        # 지금은 임시 데이터로 UI를 구성합니다.
+        payment_history = [
+        ]
+
+        context = {
+            'user_profile': user_profile,
+            'payment_history': payment_history,
+        }
+        return render(request, 'mybook/profile.html', context)
+
+class CancelSubscriptionView(HmacSignMixin, APIView):
+    """
+    사용자의 구독 해지를 처리합니다.
+    POST /api/payments/cancel-subscription/
+    """
+    permission_classes = [IsAuthenticated]
+
+    def post(self, request, *args, **kwargs):
+        user_profile = request.user
+        if not user_profile.is_paid_member:
+            return Response({"error": _("활성화된 구독이 없습니다.")}, status=status.HTTP_400_BAD_REQUEST)
+        
+        if user_profile.cancel_requested:
+            return Response({"error": _("이미 구독 해지가 신청된 상태입니다.")}, status=status.HTTP_400_BAD_REQUEST)
+
+        endpoint = "/api/payments/cancel-subscription/"
+        payload = {"service_name": "weaver"}
+
+        try:
+            resp = self.hmac_post(endpoint, payload, request=request)
+            resp.raise_for_status()
+            response_data = resp.json()
+
+            # 결제 서버로부터 받은 만료일로 UserProfile 업데이트
+            if response_data.get('success') and response_data.get('end_date'):
+                user_profile.end_date = response_data['end_date']
+                user_profile.cancel_requested = True
+                # is_paid_member는 구독 만료 웹훅을 통해 False로 변경되므로 여기서는 변경하지 않습니다.
+                user_profile.save(update_fields=['end_date', 'cancel_requested'])
+                
+                logger.info(f"Subscription cancellation requested for user {user_profile.username}. Service remains active until {response_data['end_date']}.")
+                return Response({
+                    "message": _("구독 해지 신청이 완료되었습니다. 서비스는 만료일까지 유지됩니다."),
+                    "end_date": response_data['end_date']
+                }, status=status.HTTP_200_OK)
+            else:
+                raise Exception(response_data.get('error', 'Unknown error from payment server.'))
+
+        except Exception as e:
+            logger.exception(f"Failed to cancel subscription for user {user_profile.username}. Error: {e}")
+            error_message = _("구독 해지 중 오류가 발생했습니다. 잠시 후 다시 시도해주세요.")
+            return Response({"error": error_message}, status=status.HTTP_503_SERVICE_UNAVAILABLE)
+
 
 def user_logout(request):
     """
@@ -1235,3 +1309,308 @@ class PublishBookAPIView(APIView):
         # 성공 → 파일 스트리밍
         response = FileResponse(open(out_pdf, "rb"), as_attachment=True, filename=out_pdf.name)
         return response
+
+class CreateSubscriptionView(HmacSignMixin, APIView):
+    """
+    사용자가 선택한 요금제(plan_type)로 결제 서버에 결제 페이지를 요청하고,
+    반환된 URL로 사용자를 리디렉션 시킵니다.
+    """
+    permission_classes = [IsAuthenticated]
+
+    def post(self, request, *args, **kwargs):
+        serializer = SubscriptionSerializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+        plan_type = serializer.validated_data['plan_type'] # type: ignore
+        username = request.user.username
+
+        # LANGUAGE_CODE에 따라 결제 게이트웨이 분기
+        lang_code = request.LANGUAGE_CODE.split('-')[0]
+        if lang_code == 'ko':
+            endpoint = "/api/payments/toss-payment-page/"
+        else:
+            endpoint = "/api/payments/paypal-payment-page/"
+
+        payload = {
+            "username": username,
+            "plan_type": plan_type,
+            "service_name": "weaver"
+        }
+
+        try:
+            resp = self.hmac_post(endpoint, payload, request=request)
+            resp.raise_for_status() # 2xx 이외의 상태 코드에 대해 예외 발생
+            
+            response_data = resp.json()
+            approval_url = response_data.get("approval_url")
+
+            if not approval_url:
+                logger.error(f"Approval URL not found in response from {endpoint}. Response: {response_data}")
+                return Response({"error": _("결제 페이지 URL을 받지 못했습니다.")}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+
+            return Response({"approval_url": approval_url}, status=status.HTTP_200_OK)
+
+        except Exception as e:
+            logger.exception(f"Failed to create subscription for user {username} with plan {plan_type}. Error: {e}")
+            err_msg = _("결제 서버와 통신 중 오류가 발생했습니다: {e}").format(e=e)
+            return Response({"error":err_msg }, status=status.HTTP_503_SERVICE_UNAVAILABLE)
+
+
+class TossPaymentSuccessView(APIView):
+    """
+    Toss 결제 성공 후 최종 리디렉션되는 페이지.
+    GET /payment/toss/success/?pt=...&sd=...&ed=...
+    결제 서버에서 전달된 쿼리 파라미터를 바탕으로 사용자에게 성공 결과를 보여줍니다.
+    실제 사용자 정보 업데이트는 웹훅을 통해 비동기로 처리될 것을 기대합니다.
+    """
+    permission_classes = [IsAuthenticated]
+
+    def get(self, request, *args, **kwargs):
+        plan_type = request.GET.get('pt')
+        end_date = request.GET.get('ed')
+
+        context = {
+            'status': 'success',
+            'message': _("구독이 성공적으로 활성화되었습니다!"),
+            'plan_type': plan_type,
+            'end_date': end_date,
+        }
+        # 사용자가 계정 페이지로 돌아가서 최신 상태를 확인할 수 있도록 안내합니다.
+        # --- 최신 구독 정보 동기화 ---
+        updater = MembershipUpdater()
+        success, message = updater.fetch_and_update(request)
+        if not success:
+            # 동기화 실패 시 사용자에게 알릴 수 있지만, 우선은 로깅만 처리합니다.
+            logger.warning(f"'{request.user.username}'의 프로필 페이지에서 구독 정보 동기화 실패: {message}")
+        # --------------------------
+        return render(request, 'mybook/payment_result.html', context)
+
+
+class TossPaymentFailView(APIView):
+    """
+    Toss 결제 실패 후 최종 리디렉션되는 페이지.
+    GET /payment/toss/fail/?code=...&message=...
+    """
+    permission_classes = [IsAuthenticated]
+
+    def get(self, request, *args, **kwargs):
+        error_code = request.GET.get('code')
+        error_message = request.GET.get('message', _("알 수 없는 오류가 발생했습니다."))
+
+        context = {
+            'status': 'error',
+            'message': _("결제에 실패했습니다."),
+            'error_code': error_code,
+            'error_message': error_message,
+        }
+        return render(request, 'mybook/payment_result.html', context)
+
+
+class PayPalSuccessView(HmacSignMixin, APIView):
+    """
+    PayPal 결제 성공 후 리디렉션되는 URL.
+    GET /payment/paypal_success/?info=...
+    PayPal에서 받은 쿼리 파라미터를 결제 서버로 전달하여 최종 승인을 요청합니다.
+    성공 시 UserProfile을 업데이트하고 결과 페이지를 렌더링합니다.
+    """
+    permission_classes = [IsAuthenticated]
+
+    def get(self, request, *args, **kwargs):
+        info = request.query_params.get('info')
+        if not info:
+            logger.error("PayPal success redirect but 'info' query parameter is missing.")
+            context = {
+                'status': 'error',
+                'message': _("결제 정보를 확인하는데 필요한 정보가 누락되었습니다.")
+            }
+            return render(request, 'mybook/payment_result.html', context)
+
+        endpoint = "/api/payments/paypal-success/"
+        payload = {"info": info}
+
+        try:
+            resp = self.hmac_post(endpoint, payload, request=request)
+            resp.raise_for_status()
+            response_data = resp.json()
+
+            if not response_data.get('success'):
+                raise Exception(response_data.get('message', 'Unknown error from payment server.'))
+
+            # --- UserProfile 업데이트 ---
+            try:
+                user_profile = request.user
+                user_profile.plan_type = response_data.get('plan_type', user_profile.plan_type)
+                user_profile.is_paid_member = True
+                user_profile.start_date = response_data.get('start_date')
+                user_profile.end_date = response_data.get('end_date')
+                user_profile.save(update_fields=['plan_type', 'is_paid_member', 'start_date', 'end_date'])
+                
+                logger.info(f"PayPal payment executed and UserProfile updated for {user_profile.username}.")
+
+                context = {
+                    'status': 'success',
+                    'message': _("구독이 성공적으로 활성화되었습니다!"),
+                    'plan_type': user_profile.plan_type,
+                    'end_date': user_profile.end_date.strftime('%Y-%m-%d') if user_profile.end_date else None,
+                }
+                return render(request, 'mybook/payment_result.html', context)
+
+            except Exception as db_error:
+                logger.exception(f"DB update failed for {request.user.username} after successful payment. Error: {db_error}")
+                # 결제는 성공했으나 서비스 활성화에 실패한 심각한 경우입니다.
+                # 사용자에게는 고객센터 문의를 유도합니다.
+                context = {
+                    'status': 'error',
+                    'message': _("결제는 완료되었으나 구독 정보를 업데이트하는 데 실패했습니다. 즉시 고객센터로 문의해주세요.")
+                }
+                return render(request, 'mybook/payment_result.html', context, status=500)
+
+        except Exception as e:
+            logger.exception(f"PayPal payment execution failed for user {request.user.username}. Error: {e}")
+            
+            error_message = _("결제를 최종 승인하는 중 오류가 발생했습니다. 잠시 후 다시 시도해주세요.")
+            context = {
+                'status': 'error',
+                'message': error_message
+            }
+            return render(request, 'mybook/payment_result.html', context)
+
+
+class PayPalCancelView(HmacSignMixin, APIView):
+    """
+    PayPal 결제 취소 후 리디렉션되는 URL.
+    GET /payment/paypal/cancel/?info=...
+    사용자가 결제를 취소했음을 결제 서버에 알립니다.
+    """
+    permission_classes = [IsAuthenticated]
+
+    def get(self, request, *args, **kwargs):
+        info = request.query_params.get('info')
+
+        if info:
+            endpoint = "/api/payments/paypal-cancel/"
+            payload = {"info": info}
+            try:
+                # 결제 서버에 취소 사실을 알립니다. 실패해도 사용자 흐름은 계속 진행합니다.
+                resp = self.hmac_post(endpoint, payload, request=request)
+                resp.raise_for_status()
+                logger.info(f"Successfully notified payment server of cancellation for user {request.user.username}.")
+            except Exception as e:
+                logger.error(f"Failed to notify payment server of cancellation for user {request.user.username}. Error: {e}")
+        
+        context = {
+            'status': 'cancel',
+            'message': _("결제가 취소되었습니다.")
+        }
+        return render(request, 'mybook/payment_result.html', context)
+
+class UpgradeSubscriptionView(HmacSignMixin, APIView):
+    """
+    플랜 업그레이드를 시작하고 결제 서버에 차액 결제 페이지를 요청합니다.
+    POST /api/payments/upgrade-subscription/
+    """
+    permission_classes = [IsAuthenticated]
+
+    def post(self, request, *args, **kwargs):
+        new_plan = request.data.get('new_plan')
+        if not new_plan:
+            return Response({"error": _("업그레이드할 플랜을 선택해주세요.")}, status=status.HTTP_400_BAD_REQUEST)
+
+        # API 변경 사항: 최종 성공/취소 URL을 생성하여 전달합니다.
+        final_success_url = request.build_absolute_uri(reverse('mybook:upgrade_complete'))
+        final_cancel_url = request.build_absolute_uri(reverse('mybook:upgrade_failed'))
+
+        endpoint = "/api/payments/upgrade-subscription/"
+        payload = {
+            "service_name": "weaver",
+            "new_plan": new_plan,
+            "final_success_url": final_success_url,
+            "final_cancel_url": final_cancel_url,
+        }
+
+        try:
+            resp = self.hmac_post(endpoint, payload, request=request)
+            resp.raise_for_status()
+            response_data = resp.json()
+
+            # Toss Payments (동기 처리) vs PayPal (비동기 처리) 분기
+            if response_data.get("payment_approval_url"):
+                # PayPal: 승인 URL로 리디렉션
+                return Response({
+                    "payment_approval_url": response_data["payment_approval_url"]
+                }, status=status.HTTP_200_OK)
+            elif response_data.get("success"):
+                # Toss Payments: 즉시 업그레이드 완료
+                return Response({
+                    "upgraded": True,
+                    "message": response_data.get("message", _("플랜이 성공적으로 업그레이드되었습니다."))
+                }, status=status.HTTP_200_OK)
+            else:
+                raise Exception("Invalid response from payment server")
+
+        except Exception as e:
+            logger.exception(f"Failed to upgrade subscription for user {request.user.username}. Error: {e}")
+            error_message = _("플랜 업그레이드 중 오류가 발생했습니다.")
+            try:
+                error_detail = e.response.json().get('error', '') # type: ignore
+                if error_detail:
+                    error_message = f"{error_message} ({error_detail})"
+            except:
+                pass
+            return Response({"error": error_message}, status=status.HTTP_503_SERVICE_UNAVAILABLE)
+
+class UpgradeCompleteView(APIView):
+    """
+    플랜 업그레이드 최종 성공 후 리디렉션되는 페이지.
+    GET /payment/upgrade-complete/
+    """
+    permission_classes = [IsAuthenticated]
+
+    def get(self, request, *args, **kwargs):
+        # TODO: 필요 시, 쿼리 파라미터로 전달된 정보를 바탕으로 UserProfile을 한번 더 동기화할 수 있습니다.
+        # 현재는 웹훅을 통해 최종 상태가 업데이트될 것을 기대합니다.
+        context = {
+            'status': 'success',
+            'message': _("플랜 업그레이드가 성공적으로 완료되었습니다. 잠시 후 계정 정보가 업데이트됩니다.")
+        }
+        return render(request, 'mybook/payment_result.html', context)
+
+class UpgradeFailedView(APIView):
+    """
+    플랜 업그레이드 최종 취소/실패 후 리디렉션되는 페이지.
+    GET /payment/upgrade-failed/
+    """
+    def get(self, request, *args, **kwargs):
+        context = {
+            'status': 'cancel', # 또는 'error'
+            'message': _("플랜 업그레이드가 취소되었거나 실패했습니다.")
+        }
+        return render(request, 'mybook/payment_result.html', context)
+
+class PaymentWebhookView(APIView):
+    permission_classes = [AllowAny]
+
+    def post(self, request, *args, **kwargs):
+        # 1) username로 대상 인스턴스 식별
+        username = request.data.get("username")
+        if not username:
+            return Response(
+                {"username": ["This field is required."]},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
+        profile = get_object_or_404(UserProfile, username=username)
+
+        # 2) 부분 업데이트
+        serializer = PaymentWebhookUpdateSerializer(
+            instance=profile,
+            data=request.data,
+            partial=True,                 # 온 것만 반영
+            context={"request": request}, # 헤더 검증용
+        )
+        serializer.is_valid(raise_exception=True)
+        #logger.debug(f"serializer.validated_data: {serializer.validated_data}")
+
+        updated_fields = serializer.save()  # update_fields 리스트를 반환하도록 구현해 둠
+        logger.debug(f"[VIEW-웹훅 수신] user:{username}, updated_fields: {updated_fields}")
+
+        return Response(status=status.HTTP_204_NO_CONTENT)

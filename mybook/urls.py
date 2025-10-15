@@ -24,6 +24,9 @@ from .views import (
     BulkDeleteBooksAPIView,
     PublishBookAPIView,
     BookPageEditView,
+    ProfileView, 
+    UpgradeCompleteView,
+    UpgradeFailedView,
 )
 
 app_name = 'mybook'
@@ -53,7 +56,10 @@ urlpatterns = [
     path('auth/logout/', user_logout, name='logout'),  # 로그아웃 URL 추가
     path('bookshelf/', BookshelfView.as_view(), name='bookshelf'),
     path("api/contact/", ContactAPIView.as_view(), name="api_contact"),
+    path('profile/', ProfileView.as_view(), name='profile'),
     path("contact/", TemplateView.as_view(template_name="contact_us.html"), name="contact"),
     path("books/bulk-delete/", BulkDeleteBooksAPIView.as_view(), name="bulk_delete_books"),
     path("books/<int:book_id>/publish/", PublishBookAPIView.as_view(), name="publish_book"),
+    path('payment/upgrade-complete/', UpgradeCompleteView.as_view(), name='upgrade_complete'),
+    path('payment/upgrade-failed/', UpgradeFailedView.as_view(), name='upgrade_failed'),
 ]

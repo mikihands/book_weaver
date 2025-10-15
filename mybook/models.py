@@ -8,11 +8,11 @@ class UserProfile(models.Model):
     secret_key = models.CharField(max_length=256, unique=True, help_text="인증 서버와의 통신에서 사용할 secret_key, 인증서버에서 제공함")
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
-    plan_type = models.CharField(max_length=50, default='None', help_text='사용자의 서비스 요금제 유형') # 인증서버에서 받아오는 값을 그대로 저장
+    plan_type = models.CharField(max_length=50, default='Free', help_text='사용자의 서비스 요금제 유형') # 인증서버에서 받아오는 값을 그대로 저장
     is_paid_member = models.BooleanField(default=False, help_text='유료 회원 여부')
     start_date = models.DateTimeField(null=True, blank=True)
     end_date = models.DateTimeField(null=True, blank=True, help_text='유료 구독 만료일')
-    cancel_requrest = models.BooleanField(default=False)
+    cancel_requested = models.BooleanField(default=False, help_text="사용자가 구독 해지를 요청했는지 여부")
     pdf_download_count = models.IntegerField(
         default=0,
         help_text='PDF 다운로드 횟수 (무료 회원 제한용)'
@@ -127,7 +127,7 @@ class BookPage(models.Model):
     meta = models.JSONField(null=True, blank=True, help_text="페이지 normalize 이후의 메타정보")
 
     def __str__(self):
-        return f"Page {self.page_no} of {self.book.title or self.book.original_file.name}"
+        return f"Page {self.page_no} of {self.book.title or self.book.original_file.name}" # type: ignore
     
     class Meta:
         unique_together = ('book', 'page_no')
@@ -135,7 +135,7 @@ class BookPage(models.Model):
 class PageImage(models.Model):
     book = models.ForeignKey(Book, on_delete=models.CASCADE, related_name="images")
     page_no = models.IntegerField(help_text="이미지가 속한 페이지 번호")
-    xref = models.IntegerField(db_index=True, help_text=" OCR처리된 PDF 내 이미지 객체의 xref 번호", null=True, blank=True)
+    xref = models.IntegerField(db_index=True, help_text="OCR처리된 PDF 내 이미지 객체의 xref 번호", null=True, blank=True)
     ref = models.CharField(max_length=64, db_index=True, help_text="이미지 참조 ID (예: img_p1_1)")
     path = models.CharField(max_length=512, help_text="서버에 저장된 이미지 파일 경로")
     bbox = models.JSONField(help_text="페이지 내 이미지 위치 및 크기 [x, y, w, h]")
@@ -149,7 +149,7 @@ class PageImage(models.Model):
     origin_h = models.IntegerField(null=True, blank=True, help_text="원본 이미지 높이")
 
     def __str__(self):
-        return f"Image '{self.ref}' on page {self.page_no} of {self.book.title or self.book.original_file.name}"
+        return f"Image '{self.ref}' on page {self.page_no} of {self.book.title or self.book.original_file.name}" # type: ignore
     
     class Meta:
         unique_together = ('book', 'ref')
@@ -175,7 +175,7 @@ class TranslatedPage(models.Model):
     created_at = models.DateTimeField(auto_now_add=True)
 
     def __str__(self):
-        return f"Translated Page {self.page_no} ({self.lang}, {self.mode}) of {self.book.title or self.book.original_file.name}"
+        return f"Translated Page {self.page_no} ({self.lang}, {self.mode}) of {self.book.title or self.book.original_file.name}" # type: ignore
 
     class Meta:
         unique_together = ('book', 'page_no', 'lang', 'mode')

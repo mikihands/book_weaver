@@ -1,0 +1,50 @@
+{% extends 'base.html' %}
+{% load i18n %}
+
+{% block title %}{% trans "결제 결과" %}{% endblock %}
+
+{% block content %}
+<section class="mx-auto max-w-2xl px-6 py-14 md:py-20 text-center">
+  <div id="result-container">
+    {% if status == 'success' %}
+      <div class="mx-auto flex items-center justify-center h-12 w-12 rounded-full bg-green-100">
+        <svg class="h-6 w-6 text-green-600" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"></path></svg>
+      </div>
+      <h1 class="mt-4 text-2xl font-bold text-green-700">{{ message }}</h1>
+      
+      {% if plan_type and end_date %}
+      <div class="mt-6 text-left text-sm text-slate-700 bg-slate-50 rounded-lg p-6 border border-slate-200">
+        <dl class="grid grid-cols-1 md:grid-cols-2 gap-x-4 gap-y-2">
+          <dt class="font-semibold text-slate-500">{% trans "적용된 플랜" %}</dt>
+          <dd class="font-bold text-blue-600">{{ plan_type }}</dd>
+          <dt class="font-semibold text-slate-500">{% trans "다음 결제일" %}</dt>
+          <dd>{{ end_date }}</dd>
+        </dl>
+      </div>
+      {% endif %}
+
+    {% else %} {# error or cancel #}
+      <div class="mx-auto flex items-center justify-center h-12 w-12 rounded-full bg-red-100">
+        <svg class="h-6 w-6 text-red-600" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"></path></svg>
+      </div>
+      <h1 class="mt-4 text-2xl font-bold text-red-700">{{ message }}</h1>
+
+      {% if error_message %}
+      <div class="mt-4 text-sm text-slate-600 bg-red-50 rounded-lg p-4">
+        <p><strong>{% trans "오류 상세" %}:</strong> {{ error_message }} {% if error_code %}({{ error_code }}){% endif %}</p>
+      </div>
+      {% endif %}
+
+    {% endif %}
+
+    <div class="mt-10">
+      <a href="{% url 'mybook:profile' %}" class="rounded-md bg-blue-600 px-5 py-3 text-sm font-semibold text-white shadow-sm hover:bg-blue-700">
+        {% trans "내 계정으로 이동" %}
+      </a>
+      <a href="{% url 'mybook:pricing' %}" class="ml-4 rounded-md bg-white px-5 py-3 text-sm font-semibold text-slate-700 shadow-sm ring-1 ring-inset ring-slate-300 hover:bg-slate-50">
+        {% trans "요금제 페이지로 돌아가기" %}
+      </a>
+    </div>
+  </div>
+</section>
+{% endblock %}

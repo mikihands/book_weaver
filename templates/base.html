@@ -56,7 +56,7 @@
                 </button>
                 <div id="user-menu" class="hidden absolute right-0 mt-2 w-40 bg-white border border-slate-200 rounded-md shadow-lg py-1 z-50">
                     <a href="{% url 'mybook:bookshelf' %}" class="block sm:hidden px-3 py-2 text-sm text-slate-700 text-center hover:bg-slate-50">{% trans "내 서재" %}</a>
-                    <a href="#" class="block px-3 py-2 text-sm text-slate-700 text-center hover:bg-slate-50">{% trans "계정관리" %}</a>
+                    <a href="{% url 'mybook:profile' %}" class="block px-3 py-2 text-sm text-slate-700 text-center hover:bg-slate-50">{% trans "계정관리" %}</a>
                     <a href="{% url 'mybook:logout' %}" class="block px-3 py-2 text-sm text-slate-700 text-center hover:bg-slate-50">{% trans "로그아웃" %}</a>
                 </div>
             </div>

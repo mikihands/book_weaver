@@ -8,6 +8,7 @@ env = environ.Env()
 environ.Env.read_env(os.path.join(BASE_DIR, ".env"))
 
 environment = env('DJANGO_ENV', default='dev') # type:ignore
+
 print(f"Loading settings for: {environment}")
 
 if environment == "prod":

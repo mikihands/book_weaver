@@ -1,5 +1,16 @@
 from django.contrib import admin
-from .models import Book, BookPage, PageImage, TranslatedPage, ApiUsageLog
+from .models import Book, BookPage, PageImage, TranslatedPage, ApiUsageLog, UserProfile
+
+@admin.register(UserProfile)
+class UserProfileAdmin(admin.ModelAdmin):
+    list_display = (
+        'id', 'username', 'email', 'plan_type', 'is_paid_member', 
+        'pdf_download_count', 'total_uploaded_files', 'created_at', 'last_activity'
+    )
+    list_filter = ('plan_type', 'is_paid_member', 'created_at')
+    search_fields = ('username', 'email')
+    readonly_fields = ('secret_key', 'created_at', 'updated_at', 'last_activity')
+    ordering = ('-created_at',)
 
 @admin.register(Book)
 class BookAdmin(admin.ModelAdmin):
