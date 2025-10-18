@@ -58,20 +58,39 @@
                 <thead class="bg-slate-50 text-slate-500">
                   <tr>
                     <th class="p-3 text-left">{% trans "결제일" %}</th>
+                    <th class="p-3 text-left">{% trans "이벤트" %}</th>
                     <th class="p-3 text-left">{% trans "플랜" %}</th>
                     <th class="p-3 text-right">{% trans "금액" %}</th>
-                    <th class="p-3 text-right">{% trans "상태" %}</th>
+                    <th class="p-3 text-right">{% trans "결제수단" %}</th>
                   </tr>
                 </thead>
                 <tbody class="divide-y divide-slate-100">
                   {% for item in payment_history %}
-                    <tr>
-                      <td class="p-3">{{ item.date }}</td>
-                      <td class="p-3">{{ item.plan }}</td>
-                      <td class="p-3 text-right">{{ item.amount }}</td>
-                      <td class="p-3 text-right">
-                        {% if item.status == 'Paid' %}<span class="text-green-600">{% trans "성공" %}</span>
-                        {% else %}<span class="text-red-600">{% trans "실패" %}</span>{% endif %}
+                    <tr class="text-slate-800">
+                      <td class="p-3 whitespace-nowrap utc-datetime" data-utc-date="{{ item.occurred_at }}">
+                        {{ item.occurred_at }}
+                      </td>
+                      <td class="p-3">
+                        {% if 'REFUND' in item.event_type %}
+                          <span class="font-medium text-orange-600">{% trans "환불" %}</span>
+                        {% elif 'UPGRADE' in item.event_type %}
+                          <span class="font-medium text-indigo-600">{% trans "업그레이드" %}</span>
+                        {% else %}
+                          <span class="font-medium text-slate-700">{% trans "정기결제" %}</span>
+                        {% endif %}
+                      </td>
+                      <td class="p-3">
+                        {{ item.plan_type }}
+                      </td>
+                      <td class="p-3 text-right font-mono whitespace-nowrap">
+                        {% if item.currency == 'KRW' %}
+                          {{ item.amount_gross|floatformat:"-2" }}
+                        {% else %}
+                          {{ item.amount_gross }}
+                        {% endif %} {{ item.currency }}
+                      </td>
+                      <td class="p-3 text-right text-slate-500">
+                        {{ item.payment_method }}
                       </td>
                     </tr>
                   {% empty %}
@@ -109,6 +128,21 @@
 
 {% block extra_js %}
 <script>
+document.addEventListener('DOMContentLoaded', () => {
+    // UTC 날짜를 브라우저의 현지 시간으로 변환하여 표시합니다.
+    document.querySelectorAll('.utc-datetime').forEach(el => {
+        const utcDateString = el.dataset.utcDate;
+        if (utcDateString) {
+            const date = new Date(utcDateString);
+            // YYYY-MM-DD 형식으로 포맷팅합니다.
+            const year = date.getFullYear();
+            const month = String(date.getMonth() + 1).padStart(2, '0');
+            const day = String(date.getDate()).padStart(2, '0');
+            el.textContent = `${year}-${month}-${day}`;
+        }
+    });
+});
+
 document.addEventListener('DOMContentLoaded', () => {
     const cancelBtn = document.getElementById('cancel-subscription-btn');
     if (!cancelBtn) return;

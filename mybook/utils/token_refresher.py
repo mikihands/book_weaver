@@ -72,7 +72,8 @@ class TokenRefresher:
         # 토큰이 만료되었을 경우 갱신 시도
         if not TokenRefresher.is_token_valid(access_token):
             logger.info(
-                f"access_token이 만료되었으므로 refresh를 이용하여 재발급을 시도합니다. refresh: {refresh_token}"
+                #f"access_token이 만료되었으므로 refresh를 이용하여 재발급을 시도합니다. refresh: {refresh_token}"
+                "access_token이 만료되었으므로 refresh를 이용하여 재발급을 시도합니다."
             )
             result, message = TokenRefresher.refresh_access_token(request.session)
             if result:
@@ -85,5 +86,6 @@ class TokenRefresher:
                 return False, message
 
         # 토큰이 유효한 경우, 기존의 access_token을 반환
-        logger.info(f"access_token이 유효하므로 재발급없이 사용합니다.재사용토큰: {access_token}")
+        #logger.debug(f"access_token이 유효하므로 재발급없이 사용합니다.재사용토큰: {access_token}")
+        logger.debug(f"[refresh_access_token_if_needed] access_token이 유효하므로 재발급없이 사용함")
         return True, access_token

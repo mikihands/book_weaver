@@ -881,7 +881,7 @@ class BookshelfView(APIView):
 
         return render(request, 'mybook/bookshelf.html', {'books': books_for_template})
 
-class ProfileView(APIView):
+class ProfileView(HmacSignMixin, APIView):
     """
     사용자 프로필(계정 관리) 페이지를 렌더링합니다.
     구독 정보, 결제 내역 등을 표시합니다.
@@ -899,11 +899,20 @@ class ProfileView(APIView):
 
         user_profile = request.user
 
-        # TODO: 향후 결제 서버와 통신하여 실제 결제 내역을 가져옵니다.
-        # 지금은 임시 데이터로 UI를 구성합니다.
-        payment_history = [
-        ]
-
+        # --- 결제 내역 조회 ---
+        payment_history = []
+        try:
+            history_endpoint = "/api/payments/history/"
+            params = {"service_name": "weaver"}
+            resp = self.hmac_get(history_endpoint, request=request, params=params)
+            resp.raise_for_status()
+            payment_history = resp.json()
+        except Exception as e:
+            logger.error(
+                f"Failed to fetch payment history for user {user_profile.username}. Error: {e}"
+            )
+            # API 호출에 실패해도 페이지는 정상적으로 렌더링되도록 빈 리스트를 전달합니다.
+        logger.debug(f"Payment history for user {user_profile.username}: {payment_history}")
         context = {
             'user_profile': user_profile,
             'payment_history': payment_history,
