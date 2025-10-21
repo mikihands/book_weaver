@@ -5,6 +5,7 @@ from .views import (
     UpgradeSubscriptionView, TossPaymentSuccessView,
     TossPaymentFailView, CancelSubscriptionView,
     UpdateEmailView, UpdatePasswordView, DeleteAccountView,
+    StartEmailVerificationView,CheckEmailVerificationStatusView,
 )
 
 app_name = 'mybook_api'
@@ -22,4 +23,6 @@ urlpatterns = [
     path('accounts/update-email/', UpdateEmailView.as_view(), name='update_email'),
     path('accounts/update-password/', UpdatePasswordView.as_view(), name='update_password'),
     path('accounts/delete/', DeleteAccountView.as_view(), name='delete_account'),
+    path('email/verification/start/', StartEmailVerificationView.as_view(), name='start_email_verification'),
+    path('email/verificattion/status/', CheckEmailVerificationStatusView.as_view(), name='check_email_verification_status'),
 ]

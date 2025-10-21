@@ -33,10 +33,14 @@ class StartTranslationSerializer(serializers.Serializer):
     model_type = serializers.CharField(max_length=16, required=False, default="standard")
     thinking_level = serializers.CharField(max_length=16, required=False, default="medium")
 
+class EmailVerificationStartSerializer(serializers.Serializer):
+    email = serializers.EmailField()
+
 class RegisterSerializer(serializers.Serializer):
     username = serializers.CharField(max_length=150)
     email = serializers.EmailField()
     password = serializers.CharField(write_only=True)
+    verified_id = serializers.CharField(max_length=255)
 
 
 class LoginSerializer(serializers.Serializer):

@@ -30,7 +30,7 @@ from django.http import FileResponse
 from .serializers import (
     FileUploadSerializer, RegisterSerializer, LoginSerializer, 
     RetranslateRequestSerializer, StartTranslationSerializer, 
-    BookSettingsSerializer, ContactSerializer, PageEditSerializer, SubscriptionSerializer, 
+    BookSettingsSerializer, ContactSerializer, PageEditSerializer, SubscriptionSerializer, EmailVerificationStartSerializer,
     UpdateEmailSerializer, UpdatePasswordSerializer,
     BulkDeleteSerializer, PublishRequestSerializer, PaymentWebhookUpdateSerializer
 )
@@ -746,10 +746,10 @@ class UploadPage(APIView):
 
 
 class RegisterView(HmacSignMixin, APIView):
+    permission_classes = [AllowAny]
     def post(self, request, *args, **kwargs):
         serializer = RegisterSerializer(data=request.data)
         AUTH_REGISTER_ENDPOINT = "/api/accounts/register/"
-
         if not serializer.is_valid():
             return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
 
@@ -773,12 +773,52 @@ class RegisterView(HmacSignMixin, APIView):
 
         # 실패를 그대로 전달
         try:
-            print(f"Server response status code: {resp.status_code}")
-            print(f"Server response text: {resp.text}")
             return Response(resp.json(), status=resp.status_code)
         except ValueError:
             return Response({"error": "Auth server returned non-JSON error."}, status=resp.status_code)
 
+
+class StartEmailVerificationView(HmacSignMixin, APIView):
+    """
+    회원가입을 위한 이메일 검증을 시작합니다.
+    POST /auth/email-verification/start/
+    """
+    permission_classes = [AllowAny]
+
+    def post(self, request, *args, **kwargs):
+        serializer = EmailVerificationStartSerializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+        
+        endpoint = "/api/accounts/email/verification/start"
+        payload = {
+            "email": serializer.validated_data['email'],
+            "service_name": "weaver"
+        }
+
+        try:
+            resp = self.hmac_post(endpoint, payload)
+            resp.raise_for_status()
+            return Response(resp.json(), status=resp.status_code)
+        except Exception as e:
+            logger.error(f"Failed to start email verification. Error: {e}")
+            try:
+                return Response(e.response.json(), status=e.response.status_code) # type: ignore
+            except:
+                return Response({"error": _("인증 서버와 통신 중 오류가 발생했습니다.")}, status=status.HTTP_503_SERVICE_UNAVAILABLE)
+
+
+class CheckEmailVerificationStatusView(HmacSignMixin, APIView):
+    """
+    이메일 검증 상태를 확인합니다.
+    GET /auth/email-verification/status/?request_id=...
+    """
+    permission_classes = [AllowAny]
+
+    def get(self, request, *args, **kwargs):
+        request_id = request.query_params.get('request_id')
+        endpoint = f"/api/accounts/email/verification/status?request_id={request_id}"
+        resp = self.hmac_get(endpoint)
+        return Response(resp.json(), status=resp.status_code)
     
 class RegisterSuccessView(APIView):
     def get(self, request, *args, **kwargs):

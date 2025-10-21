@@ -1,6 +1,7 @@
 {% extends 'base.html' %}
 {% load static i18n tailwind_tags %}
 
+{% block title %} {% trans "회원가입" %} {% endblock %}
 {% block content %}
 <div class="flex items-center justify-center min-h-screen-minus-nav-footer p-4">
     <div class="bg-white p-8 rounded-xl shadow-2xl w-full max-w-xl mx-auto">
@@ -18,19 +19,46 @@
             
             <div class="flex flex-col space-y-2">
                 <label for="email" class="text-gray-700 font-medium">{% trans "이메일" %}</label>
-                <input type="email" id="email" name="email" required
-                       class="px-4 py-2 text-gray-700 bg-gray-50 border border-gray-300 rounded-md focus:ring-blue-500 focus:border-blue-500">
+                <div class="flex items-center space-x-2">
+                    <input type="email" id="email" name="email" required
+                           class="flex-grow px-4 py-2 text-gray-700 bg-gray-50 border border-gray-300 rounded-md focus:ring-blue-500 focus:border-blue-500">
+                    <button type="button" id="btn-start" class="px-4 py-2 text-sm font-semibold text-white bg-gray-600 rounded-md hover:bg-gray-700">{% trans "검증요청" %}</button>
+                    <button type="button" id="btn-check" class="hidden px-4 py-2 text-sm font-semibold text-white bg-indigo-600 rounded-md hover:bg-indigo-700">{% trans "확인완료" %}</button>
+                    <div id="badge" class="hidden flex items-center space-x-1 text-green-600">
+                        <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" viewBox="0 0 20 20" fill="currentColor">
+                            <path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clip-rule="evenodd" />
+                        </svg>
+                        <span class="text-sm font-medium">{% trans "인증완료" %}</span>
+                    </div>
+                </div>
             </div>
 
             <div class="flex flex-col space-y-2">
                 <label for="password" class="text-gray-700 font-medium">{% trans "비밀번호" %}</label>
-                <input type="password" id="password" name="password" required
-                       class="px-4 py-2 text-gray-700 bg-gray-50 border border-gray-300 rounded-md focus:ring-blue-500 focus:border-blue-500">
+                <div class="relative">
+                    <input type="password" id="password" name="password" required
+                           class="w-full px-4 py-2 text-gray-700 bg-gray-50 border border-gray-300 rounded-md focus:ring-blue-500 focus:border-blue-500">
+                    <button type="button" class="password-toggle absolute inset-y-0 right-0 px-3 flex items-center text-gray-500 hover:text-gray-700">
+                        <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" viewBox="0 0 20 20" fill="currentColor"><path d="M10 12a2 2 0 100-4 2 2 0 000 4z" /><path fill-rule="evenodd" d="M.458 10C1.732 5.943 5.522 3 10 3s8.268 2.943 9.542 7c-1.274 4.057-5.022 7-9.542 7S1.732 14.057.458 10zM14 10a4 4 0 11-8 0 4 4 0 018 0z" clip-rule="evenodd" /></svg>
+                    </button>
+                </div>
             </div>
 
-            <button type="submit"
+            <div class="flex flex-col space-y-2">
+                <label for="password-confirm" class="text-gray-700 font-medium">{% trans "비밀번호 확인" %}</label>
+                <div class="relative">
+                    <input type="password" id="password-confirm" name="password_confirm" required
+                           class="w-full px-4 py-2 text-gray-700 bg-gray-50 border border-gray-300 rounded-md focus:ring-blue-500 focus:border-blue-500">
+                    <button type="button" class="password-toggle absolute inset-y-0 right-0 px-3 flex items-center text-gray-500 hover:text-gray-700">
+                        <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" viewBox="0 0 20 20" fill="currentColor"><path d="M10 12a2 2 0 100-4 2 2 0 000 4z" /><path fill-rule="evenodd" d="M.458 10C1.732 5.943 5.522 3 10 3s8.268 2.943 9.542 7c-1.274 4.057-5.022 7-9.542 7S1.732 14.057.458 10zM14 10a4 4 0 11-8 0 4 4 0 018 0z" clip-rule="evenodd" /></svg>
+                    </button>
+                </div>
+            </div>
+
+            <button type="submit" id="btn-submit" disabled
                     class="w-full px-4 py-2 text-lg font-bold text-white bg-blue-600 rounded-md
-                           hover:bg-blue-700 transition duration-300 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2">
+                           hover:bg-blue-700 transition duration-300 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2
+                           disabled:bg-gray-400 disabled:cursor-not-allowed">
                 {% trans "계정 생성" %}
             </button>
         </form>
@@ -43,6 +71,19 @@
 <script>
     const form = document.getElementById('registerForm');
     const messageDiv = document.getElementById('message');
+    const emailInput = document.getElementById('email');
+    const usernameInput = document.getElementById('username');
+    const passwordInput = document.getElementById('password');
+    const passwordConfirmInput = document.getElementById('password-confirm');
+    const startBtn = document.getElementById('btn-start');
+    const checkBtn = document.getElementById('btn-check');
+    const badge = document.getElementById('badge');
+    const submitBtn = document.getElementById('btn-submit');
+
+    let verifReqId = null;
+    let verifiedOk = false;
+
+    // --- Helper Functions ---
 
     function getCookie(name) {
         let cookieValue = null;
@@ -60,22 +101,143 @@
     }
     const csrftoken = getCookie('csrftoken');
 
-    form.addEventListener('submit', async (e) => {
-        e.preventDefault();
+    function setFormState(state) {
+        messageDiv.innerHTML = '';
+        if (state === 'initial') {
+            startBtn.style.display = 'inline-block';
+            checkBtn.style.display = 'none';
+            badge.style.display = 'none';
+            emailInput.disabled = false;
+            usernameInput.disabled = false;
+            passwordInput.disabled = false;
+            passwordConfirmInput.disabled = false;
+            submitBtn.disabled = true;
+        } else if (state === 'pending_verification') {
+            startBtn.style.display = 'none';
+            checkBtn.style.display = 'inline-block';
+            badge.style.display = 'none';
+            emailInput.disabled = true;
+        } else if (state === 'verified') {
+            startBtn.style.display = 'none';
+            checkBtn.style.display = 'none';
+            badge.style.display = 'flex';
+            emailInput.disabled = true;
+            usernameInput.disabled = false;
+            passwordInput.disabled = false;
+            passwordConfirmInput.disabled = false;
+            submitBtn.disabled = false;
+        }
+    }
 
-        const formData = new FormData(form);
-        const data = Object.fromEntries(formData.entries());
+    /**
+     * 서버에서 받은 에러 객체를 사용자 친화적인 HTML 문자열로 변환합니다.
+     * @param {object|string} errorData - 서버 응답으로 받은 에러 데이터.
+     * @returns {string} - 포맷팅된 HTML 문자열.
+     */
+    function formatError(errorData) {
+        if (!errorData) return '{% trans "알 수 없는 오류가 발생했습니다." %}';
+        if (typeof errorData === 'string') return errorData;
 
-        messageDiv.innerHTML = '<span class="text-blue-600">{% trans "회원가입 처리 중..." %}</span>';
+        if (typeof errorData === 'object') {
+            const messages = [];
+            // DRF validation error 형식: { "field": ["message1", "message2"], ... }
+            for (const key in errorData) {
+                if (Array.isArray(errorData[key])) {
+                    messages.push(...errorData[key]);
+                }
+            }
+            if (messages.length > 0) {
+                return `<ul class="list-disc list-inside text-left max-w-md mx-auto">${messages.map(msg => `<li>${msg}</li>`).join('')}</ul>`;
+            }
+        }
+        return JSON.stringify(errorData); // 최후의 수단
+    }
+
+    // --- Event Handlers ---
+
+    startBtn.addEventListener('click', async () => {
+        const email = emailInput.value.trim();
+        if (!email) {
+            messageDiv.innerHTML = `<span class="text-red-600">{% trans "이메일을 입력해주세요." %}</span>`;
+            return;
+        }
+        
+        messageDiv.innerHTML = `<span class="text-blue-600">{% trans "인증 메일을 보내는 중..." %}</span>`;
+        startBtn.disabled = true;
 
         try {
-            const response = await fetch('/auth/register/', {
+            const response = await fetch("{% url 'mybook_api:start_email_verification' %}", {
                 method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json',
-                    'X-CSRFToken': csrftoken,
-                },
-                body: JSON.stringify(data),
+                headers: { 'Content-Type': 'application/json', 'X-CSRFToken': csrftoken },
+                body: JSON.stringify({ email: email })
+            });
+            const data = await response.json();
+            if (!response.ok) throw data;
+
+            verifReqId = data.request_id;
+            setFormState('pending_verification');
+            messageDiv.innerHTML = `<span class="text-green-600">{% trans "인증 메일을 보냈습니다. 메일함의 링크를 클릭한 후 '확인완료' 버튼을 눌러주세요." %}</span>`;
+        } catch (error) {
+            const errorMsg = error.email || error.detail || JSON.stringify(error);
+            messageDiv.innerHTML = `<span class="text-red-600">{% trans "오류" %}: ${errorMsg}</span>`;
+        } finally {
+            startBtn.disabled = false;
+        }
+    });
+
+    checkBtn.addEventListener('click', async () => {
+        if (!verifReqId) return;
+        
+        messageDiv.innerHTML = `<span class="text-blue-600">{% trans "인증 상태를 확인 중..." %}</span>`;
+        checkBtn.disabled = true;
+
+        try {
+            const response = await fetch(`{% url 'mybook_api:check_email_verification_status' %}?request_id=${verifReqId}`);
+            const data = await response.json();
+            if (!response.ok) throw data;
+
+            if (data.verified) {
+                verifiedOk = true;
+                setFormState('verified');
+                messageDiv.innerHTML = `<span class="text-green-600">{% trans "이메일 인증이 완료되었습니다. 나머지 정보를 입력해주세요." %}</span>`;
+            } else {
+                messageDiv.innerHTML = `<span class="text-orange-600">{% trans "아직 인증되지 않았습니다. 이메일의 링크를 먼저 클릭해주세요." %}</span>`;
+            }
+        } catch (error) {
+            messageDiv.innerHTML = `<span class="text-red-600">{% trans "오류" %}: ${error.detail || JSON.stringify(error)}</span>`;
+        } finally {
+            checkBtn.disabled = false;
+        }
+    });
+
+    form.addEventListener('submit', async (e) => {
+        e.preventDefault();
+        if (!verifiedOk) {
+            messageDiv.innerHTML = `<span class="text-red-600">{% trans "이메일 인증을 먼저 완료해주세요." %}</span>`;
+            return;
+        }
+
+        if (passwordInput.value !== passwordConfirmInput.value) {
+            messageDiv.innerHTML = `<span class="text-red-600">{% trans "비밀번호가 일치하지 않습니다." %}</span>`;
+            passwordConfirmInput.focus();
+            return;
+        }
+
+        const payload = {
+            username: usernameInput.value.trim(),
+            password: passwordInput.value,
+            email: emailInput.value.trim(),
+            verified_id: verifReqId
+        };
+
+        messageDiv.innerHTML = '<span class="text-blue-600">{% trans "회원가입 처리 중..." %}</span>';
+        submitBtn.disabled = true;
+
+        try {
+            const response = await fetch('{% url "mybook:auth_register" %}', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json', 'X-CSRFToken': csrftoken },
+                body: JSON.stringify(payload),
             });
 
             const responseData = await response.json();
@@ -83,13 +245,38 @@
             if (response.ok) {
                 window.location.href = '{% url "mybook:register_success" %}';
             } else {
-                messageDiv.innerHTML = `<span class="text-red-600">{% trans "오류" %}: ${responseData.error || JSON.stringify(responseData.non_field_errors)}</span>`;
+                // 오류 메시지를 사용자 친화적으로 포맷팅합니다.
+                const formattedError = formatError(responseData.error || responseData.detail || responseData);
+                messageDiv.innerHTML = `<div class="text-red-600 space-y-2">
+                                            <p>{% trans "오류가 발생했습니다:" %}</p>
+                                            ${formattedError}</div>`;
                 console.error('Error:', responseData);
             }
         } catch (error) {
             messageDiv.innerHTML = '<span class="text-red-600">{% trans "네트워크 오류가 발생했습니다." %}</span>';
             console.error('Error:', error);
+        } finally {
+            submitBtn.disabled = false;
         }
     });
+
+    // --- 비밀번호 보기/숨기기 기능 ---
+    document.querySelectorAll('.password-toggle').forEach(button => {
+        const input = button.previousElementSibling;
+        if (input.type === 'password') {
+            button.addEventListener('mousedown', () => {
+                input.type = 'text';
+            });
+            button.addEventListener('mouseup', () => {
+                input.type = 'password';
+            });
+            button.addEventListener('mouseleave', () => { // 버튼 밖으로 마우스가 나가도 숨김 처리
+                input.type = 'password';
+            });
+        }
+    });
+
+    // Initialize form state
+    setFormState('initial');
 </script>
 {% endblock %}
