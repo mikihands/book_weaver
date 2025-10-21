@@ -1,0 +1,44 @@
+{% extends 'base.html' %}
+{% load i18n %}
+
+{% block title %}{% trans "이메일 변경 결과" %} — Weaver{% endblock %}
+
+{% block content %}
+<section class="mx-auto max-w-7xl px-6 py-14 md:py-20">
+  <div class="mx-auto max-w-2xl text-center">
+    {% if status == 'success' %}
+      <div class="mx-auto flex h-12 w-12 items-center justify-center rounded-full bg-green-100">
+        <svg class="h-6 w-6 text-green-600" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" aria-hidden="true">
+          <path stroke-linecap="round" stroke-linejoin="round" d="M4.5 12.75l6 6 9-13.5" />
+        </svg>
+      </div>
+      <h1 class="mt-4 text-3xl font-bold tracking-tight text-slate-900 sm:text-4xl">{% trans "이메일 변경 완료" %}</h1>
+      <p class="mt-4 text-lg leading-8 text-slate-600">
+        {% blocktrans with new_email=new_email %}
+        회원님의 이메일 주소가 <strong>{{ new_email }}</strong> (으)로 성공적으로 변경되었습니다.
+        {% endblocktrans %}
+      </p>
+    {% else %}
+      <div class="mx-auto flex h-12 w-12 items-center justify-center rounded-full bg-red-100">
+        <svg class="h-6 w-6 text-red-600" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" aria-hidden="true">
+          <path stroke-linecap="round" stroke-linejoin="round" d="M12 9v3.75m-9.303 3.376c-.866 1.5.217 3.374 1.948 3.374h14.71c1.73 0 2.813-1.874 1.948-3.374L13.949 3.378c-.866-1.5-3.032-1.5-3.898 0L2.697 16.126zM12 15.75h.007v.008H12v-.008z" />
+        </svg>
+      </div>
+      <h1 class="mt-4 text-3xl font-bold tracking-tight text-slate-900 sm:text-4xl">{% trans "이메일 변경 실패" %}</h1>
+      <p class="mt-4 text-lg leading-8 text-slate-600">
+        {% if error_message %}
+          {{ error_message }}
+        {% else %}
+          {% trans "링크가 만료되었거나 잘못되었습니다. 계정 관리 페이지에서 다시 시도해주세요." %}
+        {% endif %}
+      </p>
+    {% endif %}
+
+    <div class="mt-10">
+      <a href="{% url 'mybook:profile' %}" class="rounded-md bg-slate-800 px-5 py-3 text-sm font-semibold text-white shadow-sm hover:bg-slate-900 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-slate-600">
+        {% trans "계정 관리로 돌아가기" %}
+      </a>
+    </div>
+  </div>
+</section>
+{% endblock %}

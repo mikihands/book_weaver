@@ -114,11 +114,49 @@
       </div>
     </div>
 
-    <!-- 3. 계정 설정 (Placeholder) -->
+    <!-- 3. 계정 설정 -->
     <div id="account-settings">
       <h2 class="text-2xl font-bold border-b border-slate-200 pb-3">{% trans "계정 설정" %}</h2>
-      <div class="mt-6 rounded-xl border border-dashed border-slate-300 bg-slate-50 p-8 text-center text-slate-500">
-        <p>{% trans "비밀번호 변경, 이메일 주소 변경, 회원 탈퇴 기능이 여기에 추가될 예정입니다." %}</p>
+      <div class="mt-6 space-y-8">
+        <!-- 이메일 변경 -->
+        <form id="email-change-form" class="grid md:grid-cols-3 gap-4 items-start">
+          <div class="md:col-span-1">
+            <h3 class="font-semibold text-lg">{% trans "이메일 주소" %}</h3>
+            <p class="text-sm text-slate-500">{% trans "현재 이메일" %}: {{ user_profile.email }}</p>
+          </div>
+          <div class="md:col-span-2 space-y-3">
+            <input type="email" id="new-email" name="email" required class="w-full rounded-md border-slate-300" placeholder="{% trans '새 이메일 주소' %}">
+            <button type="submit" class="rounded-md bg-slate-800 px-4 py-2 text-sm font-semibold text-white hover:bg-slate-900">{% trans "이메일 변경" %}</button>
+          </div>
+        </form>
+
+        <!-- 비밀번호 변경 -->
+        <form id="password-change-form" class="grid md:grid-cols-3 gap-4 items-start border-t border-slate-100 pt-8">
+          <div class="md:col-span-1">
+            <h3 class="font-semibold text-lg">{% trans "비밀번호 변경" %}</h3>
+          </div>
+          <div class="md:col-span-2 space-y-3">
+            <input type="password" id="current-password" name="current_password" required class="w-full rounded-md border-slate-300" placeholder="{% trans '현재 비밀번호' %}">
+            <input type="password" id="new-password" name="new_password" required class="w-full rounded-md border-slate-300" placeholder="{% trans '새 비밀번호' %}">
+            <input type="password" id="new-password-confirm" name="new_password_confirm" required class="w-full rounded-md border-slate-300" placeholder="{% trans '새 비밀번호 확인' %}">
+            <button type="submit" class="rounded-md bg-slate-800 px-4 py-2 text-sm font-semibold text-white hover:bg-slate-900">{% trans "비밀번호 변경" %}</button>
+          </div>
+        </form>
+
+        <!-- 계정 탈퇴 -->
+        <div class="grid md:grid-cols-3 gap-4 items-start border-t border-slate-100 pt-8">
+          <div class="md:col-span-1">
+            <h3 class="font-semibold text-lg text-red-600">{% trans "계정 탈퇴" %}</h3>
+            <p class="text-sm text-slate-500">{% trans "계정을 영구적으로 삭제합니다. 이 작업은 되돌릴 수 없습니다." %}</p>
+          </div>
+          <div class="md:col-span-2 space-y-3">
+            <p class="text-sm">{% trans "계정을 삭제하려면 아래 입력칸에 '탈퇴'라고 입력한 후 버튼을 클릭하세요." %}</p>
+            <input type="text" id="delete-confirm-input" class="w-full rounded-md border-slate-300" placeholder="{% trans '탈퇴' %}">
+            <button id="delete-account-btn" disabled class="rounded-md bg-red-200 text-red-500 px-4 py-2 text-sm font-semibold cursor-not-allowed">
+              {% trans "계정 영구 삭제" %}
+            </button>
+          </div>
+        </div>
       </div>
     </div>
 
@@ -127,6 +165,44 @@
 {% endblock %}
 
 {% block extra_js %}
+<script>
+function getCookie(name) {
+    let cookieValue = null;
+    if (document.cookie && document.cookie !== '') {
+        const cookies = document.cookie.split(';');
+        for (let i = 0; i < cookies.length; i++) {
+            const cookie = cookies[i].trim();
+            if (cookie.substring(0, name.length + 1) === (name + '=')) {
+                cookieValue = decodeURIComponent(cookie.substring(name.length + 1));
+                break;
+            }
+        }
+    }
+    return cookieValue;
+}
+const csrftoken = getCookie('csrftoken');
+
+/**
+ * 버튼의 로딩 상태를 설정/해제하는 헬퍼 함수
+ * @param {HTMLButtonElement} button - 대상 버튼
+ * @param {boolean} isLoading - 로딩 상태 여부
+ * @param {string} originalText - 로딩 해제 시 복원할 원래 텍스트
+ */
+function setButtonLoading(button, isLoading, originalText) {
+    if (isLoading) {
+        button.disabled = true;
+        button.innerHTML = `
+            <svg class="animate-spin -ml-1 mr-3 h-5 w-5 text-white" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+                <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+            </svg>
+            {% trans "처리 중..." %}`;
+    } else {
+        button.disabled = false;
+        button.innerHTML = originalText;
+    }
+}
+</script>
 <script>
 document.addEventListener('DOMContentLoaded', () => {
     // UTC 날짜를 브라우저의 현지 시간으로 변환하여 표시합니다.
@@ -145,42 +221,151 @@ document.addEventListener('DOMContentLoaded', () => {
 
 document.addEventListener('DOMContentLoaded', () => {
     const cancelBtn = document.getElementById('cancel-subscription-btn');
-    if (!cancelBtn) return;
-
-    cancelBtn.addEventListener('click', () => {
-        modalManager.showConfirm(
-            '{% trans "구독 해지 확인" %}',
-            '{% trans "정말로 구독을 해지하시겠습니까? 현재 플랜은 만료일까지 유지됩니다." %}',
-            async () => {
-                function getCookie(name) {
-                    let cookieValue = null;
-                    if (document.cookie && document.cookie !== '') {
-                        const cookies = document.cookie.split(';');
-                        for (let i = 0; i < cookies.length; i++) {
-                            const cookie = cookies[i].trim();
-                            if (cookie.substring(0, name.length + 1) === (name + '=')) {
-                                cookieValue = decodeURIComponent(cookie.substring(name.length + 1));
-                                break;
-                            }
+    
+    // 구독 해지 버튼이 존재할 때만 이벤트 리스너를 등록합니다.
+    if (cancelBtn) {
+        cancelBtn.addEventListener('click', () => {
+            modalManager.showConfirm(
+                '{% trans "구독 해지 확인" %}',
+                '{% trans "정말로 구독을 해지하시겠습니까? 현재 플랜은 만료일까지 유지됩니다." %}',
+                async () => {
+                    try {
+                        // 구독 해지 요청은 모달의 확인 버튼이므로, 직접 비활성화 처리
+                        const confirmBtn = document.getElementById('modalConfirmBtn');
+                        confirmBtn.disabled = true;
+                        const response = await fetch("{% url 'mybook_api:cancel_subscription' %}", {
+                            method: 'POST',
+                            headers: { 'Content-Type': 'application/json', 'X-CSRFToken': csrftoken },
+                        });
+                        const data = await response.json();
+                        confirmBtn.disabled = false; // 응답 후 다시 활성화
+                        modalManager.showAlert(response.ok ? '{% trans "처리 완료" %}' : '{% trans "오류" %}', data.message || data.error, response.ok ? 'success' : 'warning');
+                        if (response.ok) {
+                            document.getElementById('modalCloseBtn').onclick = () => window.location.reload();
                         }
+                    } catch (error) {
+                        modalManager.showAlert('{% trans "네트워크 오류" %}', '{% trans "서버와 통신 중 오류가 발생했습니다. 잠시 후 다시 시도해주세요." %}', 'warning');
                     }
-                    return cookieValue;
                 }
-                const csrftoken = getCookie('csrftoken');
+            );
+        });
+    }
 
+    // --- 계정 설정 핸들러 ---
+
+    // 이메일 변경
+    const emailForm = document.getElementById('email-change-form');
+    emailForm.addEventListener('submit', async (e) => {
+        e.preventDefault();
+        const submitBtn = emailForm.querySelector('button[type="submit"]');
+        const originalBtnText = submitBtn.innerHTML;
+        const newEmail = document.getElementById('new-email').value;
+        if (!newEmail) return;
+
+        setButtonLoading(submitBtn, true);
+        try {
+            const response = await fetch("{% url 'mybook_api:update_email' %}", {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json', 'X-CSRFToken': csrftoken },
+                body: JSON.stringify({ email: newEmail }),
+            });
+            const data = await response.json();
+            if (response.ok) {
+                // API 사양 변경: 이제 즉시 변경되지 않고 확인 메일이 발송됩니다.
+                // 따라서 페이지를 새로고침하는 대신, 메일을 확인하라는 안내를 보여줍니다.
+                modalManager.showAlert('{% trans "확인 메일 발송" %}', data.message, 'success');
+                document.getElementById('email-change-form').reset(); // 폼 초기화
+            } else {
+                const errorMsg = data.email || data.error || '{% trans "알 수 없는 오류" %}';
+                modalManager.showAlert('{% trans "오류" %}', errorMsg, 'warning');
+            }
+        } catch (error) {
+            modalManager.showAlert('{% trans "네트워크 오류" %}', '{% trans "네트워크 오류가 발생했습니다." %}', 'warning');
+        } finally {
+            setButtonLoading(submitBtn, false, originalBtnText);
+        }
+    });
+
+    // 비밀번호 변경
+    const passwordForm = document.getElementById('password-change-form');
+    passwordForm.addEventListener('submit', async (e) => {
+        e.preventDefault();
+        const submitBtn = passwordForm.querySelector('button[type="submit"]');
+        const originalBtnText = submitBtn.innerHTML;
+        const currentPassword = document.getElementById('current-password').value;
+        const newPassword = document.getElementById('new-password').value;
+        const newPasswordConfirm = document.getElementById('new-password-confirm').value;
+
+        if (newPassword !== newPasswordConfirm) {
+            modalManager.showAlert('{% trans "오류" %}', '{% trans "새 비밀번호가 일치하지 않습니다." %}', 'warning');
+            return;
+        }
+
+        setButtonLoading(submitBtn, true);
+        try {
+            const response = await fetch("{% url 'mybook_api:update_password' %}", {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json', 'X-CSRFToken': csrftoken },
+                body: JSON.stringify({
+                    current_password: currentPassword,
+                    new_password: newPassword
+                }),
+            });
+            const data = await response.json();
+            if (response.ok) {
+                modalManager.showAlert('{% trans "성공" %}', data.message, 'success');
+                e.target.reset(); // 폼 초기화
+            } else {
+                const errorMsg = data.current_password || data.new_password || data.error || '{% trans "알 수 없는 오류" %}';
+                modalManager.showAlert('{% trans "오류" %}', errorMsg, 'warning');
+            }
+        } catch (error) {
+            modalManager.showAlert('{% trans "네트워크 오류" %}', '{% trans "네트워크 오류가 발생했습니다." %}', 'warning');
+        } finally {
+            setButtonLoading(submitBtn, false, originalBtnText);
+        }
+    });
+
+    // 계정 탈퇴
+    const deleteConfirmInput = document.getElementById('delete-confirm-input');
+    const deleteBtn = document.getElementById('delete-account-btn');
+    const deleteKeyword = '{% trans "탈퇴" %}';
+
+    deleteConfirmInput.addEventListener('input', () => {
+        if (deleteConfirmInput.value === deleteKeyword) {
+            deleteBtn.disabled = false;
+            deleteBtn.classList.remove('bg-red-200', 'text-red-500', 'cursor-not-allowed');
+            deleteBtn.classList.add('bg-red-600', 'text-white', 'hover:bg-red-700');
+        } else {
+            deleteBtn.disabled = true;
+            deleteBtn.classList.add('bg-red-200', 'text-red-500', 'cursor-not-allowed');
+            deleteBtn.classList.remove('bg-red-600', 'text-white', 'hover:bg-red-700');
+        }
+    });
+
+    deleteBtn.addEventListener('click', () => {
+        modalManager.showConfirm(
+            '{% trans "계정 영구 삭제" %}',
+            '{% trans "정말로 계정을 삭제하시겠습니까? 모든 책과 번역 데이터가 영구적으로 삭제되며, 이 작업은 되돌릴 수 없습니다." %}',
+            async () => {
                 try {
-                    const response = await fetch("{% url 'mybook_api:cancel_subscription' %}", {
-                        method: 'POST',
+                    const confirmBtn = document.getElementById('modalConfirmBtn');
+                    confirmBtn.disabled = true;
+                    const response = await fetch("{% url 'mybook_api:delete_account' %}", {
+                        method: 'POST', // API가 DELETE를 요구하면 변경 필요
                         headers: { 'Content-Type': 'application/json', 'X-CSRFToken': csrftoken },
+                        body: JSON.stringify({ username: '{{ user_profile.username }}' })
                     });
                     const data = await response.json();
-                    modalManager.showAlert(response.ok ? '{% trans "처리 완료" %}' : '{% trans "오류" %}', data.message || data.error, response.ok ? 'success' : 'warning');
+                    confirmBtn.disabled = false;
                     if (response.ok) {
-                        // 모달의 닫기 버튼을 누르면 새로고침 되도록 이벤트를 재설정합니다.
-                        document.getElementById('modalCloseBtn').onclick = () => window.location.reload();
+                        modalManager.showAlert('{% trans "계정 삭제 완료" %}', data.message, 'success');
+                        document.getElementById('modalCloseBtn').onclick = () => window.location.href = "{% url 'mybook:upload_page' %}";
+                    } else {
+                        modalManager.showAlert('{% trans "오류" %}', data.error || '{% trans "알 수 없는 오류" %}', 'warning');
                     }
                 } catch (error) {
-                    modalManager.showAlert('{% trans "네트워크 오류" %}', '{% trans "네트워크 오류가 발생했습니다. 잠시 후 다시 시도해주세요." %}', 'warning');
+                    modalManager.showAlert('{% trans "네트워크 오류" %}', '{% trans "서버와 통신 중 오류가 발생했습니다. 잠시 후 다시 시도해주세요." %}', 'warning');
                 }
             }
         );

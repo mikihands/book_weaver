@@ -1,32 +1,15 @@
 from django.urls import path
 from django.views.generic import TemplateView
 from .views import (
-    BookUploadView, 
-    BookPageView, 
-    RetranslatePageView,
-    BookPrepareView,
-    UpdateBookSettingsView,
-    StartTranslationView,
-    RetryTranslationView,
-    TranslatedPageStatusView,
-    UploadPage, 
-    RegisterView, 
-    RegisterSuccessView, 
-    RegisterPage,
-    LoginView,
-    LoginPage,
-    PricingPage,
-    FeaturesPage,
-    user_logout,
-    BookshelfView,
-    BookSearchAPIView,
-    ContactAPIView,
-    BulkDeleteBooksAPIView,
-    PublishBookAPIView,
-    BookPageEditView,
-    ProfileView, 
-    UpgradeCompleteView,
-    UpgradeFailedView,
+    BookUploadView, BookPageView, RetranslatePageView,
+    BookPrepareView, UpdateBookSettingsView, StartTranslationView,
+    RetryTranslationView, TranslatedPageStatusView, UploadPage, 
+    RegisterView, RegisterSuccessView, RegisterPage,
+    LoginView, LoginPage, PricingPage,
+    FeaturesPage, user_logout, BookshelfView,
+    BookSearchAPIView, ContactAPIView, BulkDeleteBooksAPIView,
+    PublishBookAPIView, BookPageEditView, ProfileView, 
+    UpgradeCompleteView, UpgradeFailedView, EmailChangeResultView
 )
 
 app_name = 'mybook'
@@ -62,4 +45,5 @@ urlpatterns = [
     path("books/<int:book_id>/publish/", PublishBookAPIView.as_view(), name="publish_book"),
     path('payment/upgrade-complete/', UpgradeCompleteView.as_view(), name='upgrade_complete'),
     path('payment/upgrade-failed/', UpgradeFailedView.as_view(), name='upgrade_failed'),
+    path('account/email-change-result/', EmailChangeResultView.as_view(), name='email_change_result'),
 ]

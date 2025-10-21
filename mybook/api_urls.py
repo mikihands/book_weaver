@@ -1,13 +1,10 @@
 from django.urls import path
 from .views import (
-    CreateSubscriptionView,
-    PaymentWebhookView,
-    PayPalSuccessView,
-    PayPalCancelView,
-    UpgradeSubscriptionView,
-    TossPaymentSuccessView,
-    TossPaymentFailView,
-    CancelSubscriptionView,
+    CreateSubscriptionView, PaymentWebhookView,
+    PayPalSuccessView, PayPalCancelView,
+    UpgradeSubscriptionView, TossPaymentSuccessView,
+    TossPaymentFailView, CancelSubscriptionView,
+    UpdateEmailView, UpdatePasswordView, DeleteAccountView,
 )
 
 app_name = 'mybook_api'
@@ -22,4 +19,7 @@ urlpatterns = [
     path('payment/paypal/cancel/', PayPalCancelView.as_view(), name='paypal_cancel'),
     path('api/payments/upgrade-subscription/', UpgradeSubscriptionView.as_view(), name='upgrade_subscription'),
     path('api/payments/cancel-subscription/', CancelSubscriptionView.as_view(), name='cancel_subscription'),
+    path('accounts/update-email/', UpdateEmailView.as_view(), name='update_email'),
+    path('accounts/update-password/', UpdatePasswordView.as_view(), name='update_password'),
+    path('accounts/delete/', DeleteAccountView.as_view(), name='delete_account'),
 ]

@@ -44,6 +44,15 @@ class LoginSerializer(serializers.Serializer):
     password = serializers.CharField(write_only=True)
 
 
+class UpdateEmailSerializer(serializers.Serializer):
+    email = serializers.EmailField()
+
+
+class UpdatePasswordSerializer(serializers.Serializer):
+    current_password = serializers.CharField(write_only=True)
+    new_password = serializers.CharField(write_only=True)
+
+
 class ContactSerializer(serializers.Serializer):
     name = serializers.CharField(max_length=80)
     email = serializers.EmailField()

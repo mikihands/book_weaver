@@ -17,11 +17,11 @@ class MembershipUpdater(HmacSignMixin):
     """
     MEMBERSHIP_ENDPOINT = "/api/payments/membership/"
 
-    def fetch_and_update(self, request: Any) -> Tuple[bool, str]:
+    def fetch_and_update(self, request: Any, params: Optional[Dict[str, Any]] = None) -> Tuple[bool, str]:
         """
         결제 서버에서 현재 사용자의 구독 정보를 가져와 UserProfile을 업데이트합니다.
-
         :param request: Django의 request 객체
+        :param params: GET 요청 파라미터
         :return: (성공 여부, 메시지) 튜플
         """
         user_profile = request.user
@@ -31,14 +31,14 @@ class MembershipUpdater(HmacSignMixin):
         try:
             # JWT와 HMAC 서명을 모두 포함하여 GET 요청을 보냅니다.
             resp = self.hmac_get(
-                path=self.MEMBERSHIP_ENDPOINT, request=request, timeout=self.DEFAULT_TIMEOUT
+                path=self.MEMBERSHIP_ENDPOINT, params=params, request=request, timeout=self.DEFAULT_TIMEOUT
             )
             resp.raise_for_status()
             data = resp.json()
 
             # --- UserProfile 업데이트 ---
             update_fields = []
-            for field in ['plan_type', 'is_paid_member', 'start_date', 'end_date', 'cancel_requested']:
+            for field in ['email', 'plan_type', 'is_paid_member', 'start_date', 'end_date', 'cancel_requested']:
                 if field in data:
                     current_value = getattr(user_profile, field)
                     new_value = data[field]

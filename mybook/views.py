@@ -30,7 +30,8 @@ from django.http import FileResponse
 from .serializers import (
     FileUploadSerializer, RegisterSerializer, LoginSerializer, 
     RetranslateRequestSerializer, StartTranslationSerializer, 
-    BookSettingsSerializer, ContactSerializer, PageEditSerializer, SubscriptionSerializer,
+    BookSettingsSerializer, ContactSerializer, PageEditSerializer, SubscriptionSerializer, 
+    UpdateEmailSerializer, UpdatePasswordSerializer,
     BulkDeleteSerializer, PublishRequestSerializer, PaymentWebhookUpdateSerializer
 )
 from .models import Book, BookPage, PageImage, TranslatedPage, UserProfile
@@ -912,7 +913,7 @@ class ProfileView(HmacSignMixin, APIView):
                 f"Failed to fetch payment history for user {user_profile.username}. Error: {e}"
             )
             # API 호출에 실패해도 페이지는 정상적으로 렌더링되도록 빈 리스트를 전달합니다.
-        logger.debug(f"Payment history for user {user_profile.username}: {payment_history}")
+        #logger.debug(f"Payment history for user {user_profile.username}: {payment_history}")
         context = {
             'user_profile': user_profile,
             'payment_history': payment_history,
@@ -1594,6 +1595,132 @@ class UpgradeFailedView(APIView):
             'message': _("플랜 업그레이드가 취소되었거나 실패했습니다.")
         }
         return render(request, 'mybook/payment_result.html', context)
+
+class UpdateEmailView(HmacSignMixin, APIView):
+    """
+    사용자의 이메일 주소를 변경합니다.
+    """
+    permission_classes = [IsAuthenticated]
+
+    ENDPOINT = "/api/accounts/update-email/"
+
+    def post(self, request, *args, **kwargs):
+        serializer = UpdateEmailSerializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+        new_email = serializer.validated_data['email'] # type: ignore
+
+        # API 사양 변경: 성공/실패 시 리디렉션될 프론트엔드 URL을 생성하여 전달
+        success_url = request.build_absolute_uri(reverse('mybook:email_change_result'))
+        fail_url = request.build_absolute_uri(reverse('mybook:email_change_result'))
+
+        payload = {
+            "email": new_email,
+            "success_url": success_url,
+            "fail_url": fail_url,
+        }
+
+        try:
+            resp = self.hmac_post(self.ENDPOINT, payload, request=request)
+            resp.raise_for_status()
+
+            # API 사양 변경: 이제 즉시 이메일을 변경하지 않고, 확인 메일 발송 요청만 보냅니다.
+            # 로컬 DB의 이메일은 사용자가 링크를 클릭한 후, 프로필 페이지에 다시 방문했을 때
+            # MembershipUpdater와 유사한 메커니즘을 통해 동기화되어야 합니다. (추후 구현)
+            # 우선은 인증 서버의 응답을 그대로 반환합니다.
+            logger.info(f"Email change verification sent for user {request.user.username} to {new_email}.")
+
+            return Response({"message": _("새 이메일 주소로 확인 메일이 발송되었습니다. 메일을 확인하여 변경을 완료해주세요.")}, status=status.HTTP_200_OK)
+
+        except Exception as e:
+            logger.error(f"Failed to update email for user {request.user.username}. Error: {e}")
+            try:
+                return Response(e.response.json(), status=e.response.status_code) # type: ignore
+            except:
+                return Response({"error": _("이메일 변경 중 오류가 발생했습니다.")}, status=status.HTTP_503_SERVICE_UNAVAILABLE)
+
+class EmailChangeResultView(APIView):
+    """
+    이메일 변경 확인 링크 클릭 후 리디렉션되는 페이지.
+    성공/실패 결과를 쿼리 파라미터로 받아 표시합니다.
+    """
+    permission_classes = [AllowAny] # 누구나 접근 가능해야 함
+
+    def get(self, request, *args, **kwargs):
+        # API 서버가 `message`나 `new_email`을 주면 성공, `error`를 주면 실패로 간주합니다.
+        new_email = request.GET.get('new_email')
+        error_message = request.GET.get('error')
+        status = 'success' if new_email or request.GET.get('message') else 'fail'
+
+        # 사용자가 로그인 상태라면, 최신 프로필 정보를 가져오기 위해 동기화를 시도합니다.
+        if request.user.is_authenticated:
+            updater = MembershipUpdater()
+            updater.fetch_and_update(request, params={'req_fields':'email'})
+
+        context = {
+            'status': status,
+            'new_email': new_email,
+            'error_message': error_message,
+        }
+        return render(request, 'mybook/email_change_result.html', context)
+
+
+class UpdatePasswordView(HmacSignMixin, APIView):
+    """
+    사용자의 비밀번호를 변경합니다.
+    """
+    permission_classes = [IsAuthenticated]
+    ENDPOINT = "/api/accounts/update-password/"
+    
+    def post(self, request, *args, **kwargs):
+        logger.debug("-----updatepassword view ------")
+        serializer = UpdatePasswordSerializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+       
+        try:
+            logger.debug(f"serializer.validated_data: {serializer.validated_data}")
+            logger.debug(f"request.data: {request.data}")
+            resp = self.hmac_post(self.ENDPOINT, serializer.validated_data, request=request) # type: ignore
+            resp.raise_for_status()
+            return Response(resp.json(), status=resp.status_code)
+        except Exception as e:
+            logger.error(f"Failed to update password for user {request.user.username}. Error: {e}")
+            try:
+                return Response(e.response.json(), status=e.response.status_code) # type: ignore
+            except:
+                return Response({"error": _("비밀번호 변경 중 오류가 발생했습니다.")}, status=status.HTTP_503_SERVICE_UNAVAILABLE)
+
+class DeleteAccountView(HmacSignMixin, APIView):
+    """
+    사용자 계정을 삭제합니다.
+    """
+    permission_classes = [IsAuthenticated]
+
+    def post(self, request, *args, **kwargs):
+        user_profile = request.user
+        
+        # 보안을 위해 요청 본문에 username이 포함되어 있는지 한번 더 확인 (선택사항)
+        # if request.data.get('username') != user_profile.username:
+        #     return Response({"error": "Invalid request."}, status=status.HTTP_400_BAD_REQUEST)
+
+        endpoint = "/api/accounts/delete/"
+        payload = {"username": user_profile.username}
+
+        try:
+            # DELETE 메소드를 사용해야 하지만, hmac_post는 내부적으로 username을 추가해주므로 사용
+            # 인증 서버 API가 DELETE 메소드를 요구한다면 hmac_delete 메소드를 만들어야 함
+            # 여기서는 POST로 가정하고 진행
+            resp = self.hmac_post(endpoint, payload, request=request)
+            resp.raise_for_status()
+
+            # 인증 서버에서 성공적으로 삭제되면 로컬 DB에서도 삭제
+            user_profile.delete()
+            request.session.flush() # 세션 정보 완전히 삭제
+            logger.info(f"User account {user_profile.username} deleted successfully.")
+            
+            return Response(resp.json(), status=resp.status_code)
+        except Exception as e:
+            logger.error(f"Failed to delete account for user {user_profile.username}. Error: {e}")
+            return Response({"error": _("계정 삭제 중 오류가 발생했습니다.")}, status=status.HTTP_503_SERVICE_UNAVAILABLE)
 
 class PaymentWebhookView(APIView):
     permission_classes = [AllowAny]
