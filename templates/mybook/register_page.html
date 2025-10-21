@@ -178,8 +178,13 @@
             setFormState('pending_verification');
             messageDiv.innerHTML = `<span class="text-green-600">{% trans "인증 메일을 보냈습니다. 메일함의 링크를 클릭한 후 '확인완료' 버튼을 눌러주세요." %}</span>`;
         } catch (error) {
-            const errorMsg = error.email || error.detail || JSON.stringify(error);
-            messageDiv.innerHTML = `<span class="text-red-600">{% trans "오류" %}: ${errorMsg}</span>`;
+            // 이메일 중복 에러 특별 처리
+            if (error && error.email && Array.isArray(error.email) && error.email.includes("This email address is already registered.")) {
+                messageDiv.innerHTML = `<span class="text-red-600">{% trans "입력하신 이메일은 이미 사용 중입니다." %} <a href="{% url 'mybook:login_page' %}" class="underline">{% trans "로그인" %}</a></span>`;
+            } else {
+                const errorMsg = error.email || error.detail || JSON.stringify(error);
+                messageDiv.innerHTML = `<span class="text-red-600">{% trans "오류" %}: ${errorMsg}</span>`;
+            }
         } finally {
             startBtn.disabled = false;
         }

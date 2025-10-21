@@ -140,6 +140,39 @@ class HmacSignMixin:
         # GET은 params로 쿼리를 전달하되, 서명 대상에는 포함하지 않는다.
         return requests.get(url, headers=headers, params=params, timeout=timeout or self.DEFAULT_TIMEOUT)
 
+    def jwt_delete(
+        self,
+        path: str,
+        payload: Optional[Dict[str, Any]] = None,
+        request: Optional[Any] = None,
+        *,
+        timeout: Optional[int] = None,
+        extra_headers: Optional[Dict[str, str]] = None,
+    ) -> requests.Response:
+        """
+        Sends a DELETE request to the auth server with only the user's JWT for authentication.
+        No HMAC signature is applied.
+        """
+        assert self.AUTH_SERVER_URL, "settings.AUTH_SERVER_URL 가 필요합니다."
+
+        headers = {
+            "Content-Type": "application/json; charset=utf-8",
+            "Referer": self.WEAVER_BASE_URL,
+        }
+        if extra_headers:
+            headers.update(extra_headers)
+
+        if request and hasattr(request, "session"):
+            is_valid, token_or_message = TokenRefresher.refresh_access_token_if_needed(request)
+            if is_valid:
+                headers["Authorization"] = f"Bearer {token_or_message}"
+            else:
+                logger.warning(f"Could not refresh token for user. Reason: {token_or_message}. Proceeding without JWT.")
+
+        url = f"{self.AUTH_SERVER_URL.rstrip('/')}/{path.lstrip('/')}"
+        body = self._to_body_bytes(payload) if payload else None
+        return requests.delete(url, headers=headers, data=body, timeout=timeout or self.DEFAULT_TIMEOUT)
+
 
     # (선택) 공용 세션: 재시도/연결 재사용 등 붙이고 싶다면 사용
     _session: Optional[requests.Session] = None

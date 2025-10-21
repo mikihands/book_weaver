@@ -791,7 +791,7 @@ class StartEmailVerificationView(HmacSignMixin, APIView):
         
         endpoint = "/api/accounts/email/verification/start"
         payload = {
-            "email": serializer.validated_data['email'],
+            "email": serializer.validated_data['email'], # type: ignore
             "service_name": "weaver"
         }
 
@@ -1737,30 +1737,24 @@ class DeleteAccountView(HmacSignMixin, APIView):
 
     def post(self, request, *args, **kwargs):
         user_profile = request.user
-        
-        # 보안을 위해 요청 본문에 username이 포함되어 있는지 한번 더 확인 (선택사항)
-        # if request.data.get('username') != user_profile.username:
-        #     return Response({"error": "Invalid request."}, status=status.HTTP_400_BAD_REQUEST)
-
         endpoint = "/api/accounts/delete/"
-        payload = {"username": user_profile.username}
 
         try:
-            # DELETE 메소드를 사용해야 하지만, hmac_post는 내부적으로 username을 추가해주므로 사용
-            # 인증 서버 API가 DELETE 메소드를 요구한다면 hmac_delete 메소드를 만들어야 함
-            # 여기서는 POST로 가정하고 진행
-            resp = self.hmac_post(endpoint, payload, request=request)
+            # HMAC 서명 없이 JWT만으로 DELETE 요청
+            resp = self.jwt_delete(endpoint, request=request)
             resp.raise_for_status()
 
             # 인증 서버에서 성공적으로 삭제되면 로컬 DB에서도 삭제
             user_profile.delete()
             request.session.flush() # 세션 정보 완전히 삭제
+
             logger.info(f"User account {user_profile.username} deleted successfully.")
-            
             return Response(resp.json(), status=resp.status_code)
+
         except Exception as e:
             logger.error(f"Failed to delete account for user {user_profile.username}. Error: {e}")
             return Response({"error": _("계정 삭제 중 오류가 발생했습니다.")}, status=status.HTTP_503_SERVICE_UNAVAILABLE)
+
 
 class PaymentWebhookView(APIView):
     permission_classes = [AllowAny]
