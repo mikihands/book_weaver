@@ -10,6 +10,7 @@ from rest_framework.response import Response
 from rest_framework.throttling import ScopedRateThrottle
 from datetime import datetime
 from uuid import uuid4
+from django.db.models import Count, Q
 from typing import Dict, Any
 import jwt
 
@@ -34,7 +35,7 @@ from .serializers import (
     UpdateEmailSerializer, UpdatePasswordSerializer,
     BulkDeleteSerializer, PublishRequestSerializer, PaymentWebhookUpdateSerializer
 )
-from .models import Book, BookPage, PageImage, TranslatedPage, UserProfile
+from .models import Book, BookPage, PageImage, TranslatedPage, UserProfile, ApiUsageLog
 from .utils.font_scaler import FontScaler
 from .utils.extract_image import extract_images_and_bboxes, is_fullpage_background
 from .utils.layout_norm import normalize_pages_layout
@@ -956,9 +957,50 @@ class ProfileView(HmacSignMixin, APIView):
             # API 호출에 실패해도 페이지는 정상적으로 렌더링되도록 빈 리스트를 전달합니다.
         #logger.debug(f"Payment history for user {user_profile.username}: {payment_history}")
         context = {
-            'user_profile': user_profile,
-            'payment_history': payment_history,
+            'user_profile': user_profile, # type: ignore
+            'payment_history': payment_history, # type: ignore
         }
+
+        # --- 사용량 계산 ---
+        if user_profile.is_paid_member and user_profile.start_date and user_profile.end_date:
+            plan_limits = {
+                "Starter": {"eco": 1000, "precision": 100},
+                "Growth": {"eco": 2000, "precision": 200},
+                "Pro": {"eco": 5000, "precision": 500},
+                "Enterprise": {"eco": 10000, "precision": 1000},
+            }
+            
+            current_plan_limit = plan_limits.get(user_profile.plan_type, {"eco": 0, "precision": 0})
+            
+            # 현재 청구 주기 내의 사용량 집계
+            usage_stats = ApiUsageLog.objects.filter(
+                user=user_profile,
+                created_at__gte=user_profile.start_date,
+                created_at__lte=user_profile.end_date,
+                request_type__in=['translate_page', 'retranslate_single_page']
+            ).aggregate(
+                eco_usage=Count('id', filter=Q(model_name='gemini-2.5-flash-lite')),
+                precision_usage=Count('id', filter=Q(model_name='gemini-2.5-flash'))
+            )
+
+            eco_usage = usage_stats.get('eco_usage', 0)
+            precision_usage = usage_stats.get('precision_usage', 0)
+
+            # 잔여량 계산 (가중치 적용)
+            # Eco 1p = 1 credit, Precision 1p = 6 credits
+            total_limit_credits = current_plan_limit['eco']
+            used_credits = eco_usage + (precision_usage * 6)
+            remaining_credits = max(0, total_limit_credits - used_credits)
+
+            context['usage_info'] = {
+                'limit_eco': current_plan_limit['eco'],
+                'limit_precision': current_plan_limit['precision'],
+                'used_eco': eco_usage,
+                'used_precision': precision_usage,
+                'remaining_credits': remaining_credits,
+                'total_limit_credits': total_limit_credits,
+            }
+
         return render(request, 'mybook/profile.html', context)
 
 class CancelSubscriptionView(HmacSignMixin, APIView):

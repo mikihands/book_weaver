@@ -37,7 +37,7 @@ class SessionAuthWithToken(authentication.BaseAuthentication):
             if not username:
                 raise exceptions.AuthenticationFailed('Authentication failed: Username not found in session.')
             
-            # Django에서 request.user에 할당할 UserProfile 객체 조회
+            # Django에서 request.user에 할당할 UserProfile 객체 조회, request.user == UserProfile(...), request.auth == new_token
             try:
                 user_profile = UserProfile.objects.get(username=username)
                 return (user_profile, new_token)

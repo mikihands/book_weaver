@@ -1,5 +1,5 @@
 {% extends 'base.html' %}
-{% load i18n %}
+{% load i18n my_filters %}
 
 {% block title %}{% trans "계정 관리" %} — Weaver{% endblock %}
 
@@ -106,12 +106,64 @@
       </div>
     </div>
 
-    <!-- 2. 사용량 관리 (Placeholder) -->
+    <!-- 2. 사용량 관리 -->
     <div id="usage">
       <h2 class="text-2xl font-bold border-b border-slate-200 pb-3">{% trans "사용량 관리" %}</h2>
-      <div class="mt-6 rounded-xl border border-dashed border-slate-300 bg-slate-50 p-8 text-center text-slate-500">
-        <p>{% trans "번역 사용량 및 잔여량 표시 기능이 여기에 추가될 예정입니다." %}</p>
-      </div>
+      {% if user_profile.is_paid_member and usage_info %}
+        <div class="mt-6 rounded-xl border border-slate-200 bg-white p-6">
+          <div class="md:flex justify-between items-center">
+            <div>
+              <h3 class="font-semibold text-lg">{% trans "이번 달 사용량" %}</h3>
+              <p class="text-sm text-slate-500 mt-1">
+                {% blocktrans with start_date=user_profile.start_date|date:"Y.m.d" end_date=user_profile.end_date|date:"Y.m.d" %}
+                청구 기간: {{ start_date }} ~ {{ end_date }}
+                {% endblocktrans %}
+              </p>
+            </div>
+            <div class="mt-4 md:mt-0 text-right">
+              <p class="text-sm text-slate-500">{% trans "잔여 크레딧" %}</p>
+              <p class="text-2xl font-bold text-blue-600">{{ usage_info.remaining_credits|floatformat:"0" }} <span class="text-lg font-medium text-slate-400">/ {{ usage_info.total_limit_credits|floatformat:"0" }}</span></p>
+            </div>
+          </div>
+
+          <div class="mt-4">
+            {% with progress_percentage=usage_info.remaining_credits|div:usage_info.total_limit_credits|mul:100 %}
+              {% with used_percentage=100|sub:progress_percentage %}
+                <div class="w-full bg-slate-200 rounded-full h-2.5">
+                  <div class="h-2.5 rounded-full {% if progress_percentage > 50 %}bg-green-600{% elif progress_percentage > 10 %}bg-yellow-500{% else %}bg-red-600{% endif %}" 
+                       style="width: {{ used_percentage }}%">
+                  </div>
+                </div>
+                <div class="flex justify-between text-xs text-slate-500 mt-1">
+                  <span>{% trans "사용" %} {{ used_percentage|floatformat:"0" }}%</span>
+                  <span>{% trans "잔여" %} {{ progress_percentage|floatformat:"0" }}%</span>
+                </div>
+              {% endwith %}
+            {% endwith %}
+          </div>
+
+          <div class="mt-6 overflow-x-auto">
+            <table class="w-full text-sm text-left">
+              <thead class="text-slate-500">
+                <tr>
+                  <th class="p-3 font-medium">{% trans "모델" %}</th>
+                  <th class="p-3 font-medium text-right">{% trans "사용량 (페이지)" %}</th>
+                  <th class="p-3 font-medium text-right">{% trans "플랜 한도 (페이지)" %}</th>
+                </tr>
+              </thead>
+              <tbody class="divide-y divide-slate-100">
+                <tr class="text-slate-800"><td class="p-3">Eco</td><td class="p-3 text-right font-mono">{{ usage_info.used_eco }}</td><td class="p-3 text-right font-mono">{{ usage_info.limit_eco }}</td></tr>
+                <tr class="text-slate-800"><td class="p-3">Precision</td><td class="p-3 text-right font-mono">{{ usage_info.used_precision }}</td><td class="p-3 text-right font-mono">{{ usage_info.limit_precision }}</td></tr>
+              </tbody>
+            </table>
+            <p class="text-xs text-slate-400 mt-2 text-right">*{% trans "차감 규칙: Eco 1p = 1 크레딧, Precision 1p = 6 크레딧" %}</p>
+          </div>
+        </div>
+      {% else %}
+        <div class="mt-6 rounded-xl border border-dashed border-slate-300 bg-slate-50 p-8 text-center text-slate-500">
+          <p>{% trans "유료 구독 사용자에게 사용량 정보가 제공됩니다." %}</p>
+        </div>
+      {% endif %}
     </div>
 
     <!-- 3. 계정 설정 -->
