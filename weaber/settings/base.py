@@ -10,6 +10,7 @@ env = environ.Env()
 environ.Env.read_env(os.path.join(BASE_DIR, ".env"))
 
 SECRET_KEY = 'django-insecure-mtub!&&klk@af)cys=%&9juoubr8c=@y3j@ai@-mz3e@cu!5)+'
+ADMIN_URL = env('ADMIN_URL', default='admin/') # type:ignore
 
 INSTALLED_APPS = [
     'django.contrib.admin',
@@ -22,7 +23,6 @@ INSTALLED_APPS = [
     'mybook',
     'tailwind',
     'theme',
-    "django_celery_results",
     "django_celery_beat",
     "redisboard",  
 ]

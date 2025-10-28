@@ -29,7 +29,6 @@ django-environ==0.12.0
 django-redisboard==9.0.0
 django-tailwind==4.2.0
 django-timezone-field==7.1
-django_celery_results==2.6.0
 djangorestframework==3.16.1
 fonttools==4.59.2
 google-ai-generativelanguage==0.6.15

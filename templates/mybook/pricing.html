@@ -32,12 +32,14 @@
         <li>PDF {% trans "다운로드 가능" %}</li>
         <li>{% trans "보관 제한 해제" %}</li>
       </ul>
-      {% if user.is_authenticated and user.is_paid_member and not user.cancel_requested %}
+      {% if user.is_authenticated and user.is_paid_member and not user.cancel_requested %} {# 유료 사용자 #}
         {% if plan_levels.Starter > user_plan_level %}
           <button data-plan="Starter" class="upgrade-btn mt-auto block text-center rounded-lg bg-green-600 text-white py-3 font-semibold hover:bg-green-700">{% trans "업그레이드" %}</button>
         {% else %}
           <button disabled class="mt-auto block text-center rounded-lg bg-slate-300 text-slate-500 py-3 font-semibold cursor-not-allowed">{% if plan_levels.Starter == user_plan_level %}{% trans "현재 플랜" %}{% else %}{% trans "업그레이드 불가" %}{% endif %}</button>
         {% endif %}
+      {% elif user.cancel_requested %} {# 구독 해지 요청 사용자 #}
+        <button disabled class="mt-auto block w-full text-center rounded-lg bg-slate-300 text-slate-500 py-3 font-semibold cursor-not-allowed">{% trans "구독 만료 예정" %}</button>
       {% else %}
         <button data-plan="Starter" class="subscribe-btn mt-auto block text-center rounded-lg bg-blue-600 text-white py-3 font-semibold hover:bg-blue-700">{% trans "시작하기" %}</button>
       {% endif %}
@@ -56,12 +58,14 @@
         <li>PDF {% trans "다운로드 가능" %}</li>
         <li>{% trans "보관 제한 해제" %}</li>
       </ul>
-      {% if user.is_authenticated and user.is_paid_member and not user.cancel_requested %}
+      {% if user.is_authenticated and user.is_paid_member and not user.cancel_requested %} {# 유료 사용자 #}
         {% if plan_levels.Growth > user_plan_level %}
           <button data-plan="Growth" class="upgrade-btn mt-auto block text-center rounded-lg bg-green-600 text-white py-3 font-semibold hover:bg-green-700">{% trans "업그레이드" %}</button>
         {% else %}
           <button disabled class="mt-auto block text-center rounded-lg bg-slate-300 text-slate-500 py-3 font-semibold cursor-not-allowed">{% if plan_levels.Growth == user_plan_level %}{% trans "현재 플랜" %}{% else %}{% trans "업그레이드 불가" %}{% endif %}</button>
         {% endif %}
+      {% elif user.cancel_requested %} {# 구독 해지 요청 사용자 #}
+        <button disabled class="mt-auto block w-full text-center rounded-lg bg-slate-300 text-slate-500 py-3 font-semibold cursor-not-allowed">{% trans "구독 만료 예정" %}</button>
       {% else %}
         <button data-plan="Growth" class="subscribe-btn mt-auto block text-center rounded-lg bg-blue-600 text-white py-3 font-semibold hover:bg-blue-700">{% trans "시작하기" %}</button>
       {% endif %}
@@ -82,12 +86,14 @@
         <li>PDF {% trans "다운로드, 보관 무제한" %}</li>
         <li>{% trans "연간 전환 시 1개월 무료" %}</li>
       </ul>
-      {% if user.is_authenticated and user.is_paid_member and not user.cancel_requested %}
+      {% if user.is_authenticated and user.is_paid_member and not user.cancel_requested %} {# 유료 사용자 #}
         {% if plan_levels.Pro > user_plan_level %}
           <button data-plan="Pro" class="upgrade-btn mt-auto block text-center rounded-lg bg-green-600 text-white py-3 font-semibold hover:bg-green-700">{% trans "업그레이드" %}</button>
         {% else %}
           <button disabled class="mt-auto block text-center rounded-lg bg-slate-300 text-slate-500 py-3 font-semibold cursor-not-allowed">{% if plan_levels.Pro == user_plan_level %}{% trans "현재 플랜" %}{% else %}{% trans "업그레이드 불가" %}{% endif %}</button>
         {% endif %}
+      {% elif user.cancel_requested %} {# 구독 해지 요청 사용자 #}
+        <button disabled class="mt-auto block w-full text-center rounded-lg bg-slate-300 text-slate-500 py-3 font-semibold cursor-not-allowed">{% trans "구독 만료 예정" %}</button>
       {% else %}
         <button data-plan="Pro" class="subscribe-btn mt-auto block text-center rounded-lg bg-blue-600 text-white py-3 font-semibold hover:bg-blue-700">{% trans "시작하기" %}</button>
       {% endif %}
@@ -108,19 +114,21 @@
         <li>SLA 99.5% {% trans "목표 + 서비스 크레딧" %}</li>
         <li>{% trans "연간 전환 시 1개월 무료" %}</li>
       </ul>
-      {% if user.is_authenticated and user.is_paid_member and not user.cancel_requested %}
+      {% if user.is_authenticated and user.is_paid_member and not user.cancel_requested %} {# 유료 사용자 #}
         {% if plan_levels.Enterprise > user_plan_level %}
           <button data-plan="Enterprise" class="upgrade-btn mt-auto block text-center rounded-lg bg-green-600 text-white py-3 font-semibold hover:bg-green-700">{% trans "업그레이드" %}</button>
         {% else %}
           <button disabled class="mt-auto block text-center rounded-lg bg-slate-300 text-slate-500 py-3 font-semibold cursor-not-allowed">{% if plan_levels.Enterprise == user_plan_level %}{% trans "현재 플랜" %}{% else %}{% trans "업그레이드 불가" %}{% endif %}</button>
         {% endif %}
+      {% elif user.cancel_requested %} {# 구독 해지 요청 사용자 #}
+        <button disabled class="mt-auto block w-full text-center rounded-lg bg-slate-300 text-slate-500 py-3 font-semibold cursor-not-allowed">{% trans "구독 만료 예정" %}</button>
       {% else %}
         <button data-plan="Enterprise" class="subscribe-btn mt-auto block text-center rounded-lg bg-blue-600 text-white py-3 font-semibold hover:bg-blue-700">{% trans "시작하기" %}</button>
       {% endif %}
     </div>
   </div>
 
-  <p class="mx-auto max-w-7xl px-6 mt-4 text-sm text-slate-500">{% trans "차감 규칙:" %} <strong>Eco 1p = 1</strong> · <strong>Precision 1p = 6</strong></p>
+  <p class="mx-auto max-w-7xl px-6 mt-4 mb-12 text-sm text-slate-500">{% trans "차감 규칙:" %} <strong>Eco 1p = 1</strong> · <strong>Precision 1p = 6</strong></p>
 </section>
 
 <section class="border-t border-slate-100 bg-slate-50/50">

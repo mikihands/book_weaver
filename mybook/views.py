@@ -43,6 +43,7 @@ from .utils.pdf_sanitizer import sanitize_pdf_active_content # 새 임포트
 from .utils.pdf_inspector import inspect_pdf, choose_processing_mode
 from .utils.delete_dir_files import safe_remove
 from .utils.membership_updater import MembershipUpdater
+from django.utils.dateparse import parse_datetime
 from .tasks import translate_book_pages, retranslate_single_page, translate_book_pages_born_digital
 from .permissions import IsBookOwner
 from common.mixins.hmac_sign_mixin import HmacSignMixin
@@ -1489,9 +1490,15 @@ class PayPalSuccessView(HmacSignMixin, APIView):
             try:
                 user_profile = request.user
                 user_profile.plan_type = response_data.get('plan_type', user_profile.plan_type)
-                user_profile.is_paid_member = True
-                user_profile.start_date = response_data.get('start_date')
-                user_profile.end_date = response_data.get('end_date')
+                user_profile.is_paid_member = True # PayPal 성공 시 유료 회원으로 설정
+                
+                # 날짜 필드는 datetime 객체로 변환
+                start_date_str = response_data.get('start_date')
+                end_date_str = response_data.get('end_date')
+
+                user_profile.start_date = parse_datetime(start_date_str) if start_date_str else None
+                user_profile.end_date = parse_datetime(end_date_str) if end_date_str else None
+
                 user_profile.save(update_fields=['plan_type', 'is_paid_member', 'start_date', 'end_date'])
                 
                 logger.info(f"PayPal payment executed and UserProfile updated for {user_profile.username}.")

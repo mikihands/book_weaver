@@ -30,13 +30,14 @@ if DEBUG:
 
 # Celery 기본 연결
 CELERY_BROKER_URL = "redis://localhost:6479/0"
-CELERY_RESULT_BACKEND = "django-db"  # django_celery_results 사용
+CELERY_RESULT_BACKEND = "redis://localhost:6479/1"
 CELERY_ACCEPT_CONTENT = ["json"]
 CELERY_TASK_SERIALIZER = "json"
 CELERY_RESULT_SERIALIZER = "json"
 CELERY_TIMEZONE = TIME_ZONE
 CELERY_TASK_TRACK_STARTED = True
 CELERY_TASK_TIME_LIMIT = 60 * 15  # 15분 타임아웃 예시
+CELERY_RESULT_EXPIRES = 3600 # 결과저장시간 기본 86400:24시간
 
 # (옵션) Beat 스케줄 저장소(장고 DB)
 CELERY_BEAT_SCHEDULER = "django_celery_beat.schedulers:DatabaseScheduler"
