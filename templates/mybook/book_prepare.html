@@ -106,6 +106,12 @@
                     <option value="deep" {% if book.thinking_level == "deep" %}selected{% endif %}>{% trans "깊은 생각" %}</option>
                 </select>
             </div>
+            <div class="flex justify-end mb-4">
+                <a href="{% url 'pdfstudio:editor' book.id %}"
+                    class="inline-flex items-center px-3 py-2 text-sm font-semibold rounded-lg bg-slate-800 text-white hover:bg-slate-900">
+                    {% trans "업로드한 Book 보기/편집" %}
+                </a>
+            </div>
 
             <div class="flex flex-col sm:flex-row space-y-4 sm:space-y-0 sm:space-x-4 pt-4">
                 <button type="button" id="saveSettingsButton"

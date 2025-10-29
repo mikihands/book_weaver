@@ -102,6 +102,15 @@ class Book(models.Model):
     avg_score = models.FloatField(null=True, blank=True)
     median_score = models.FloatField(null=True, blank=True)
 
+    # ==== pdfstudio에서 사용할 편집기능 관련 필드 ====
+    # 편집 상태(비파괴): {"order":[1,3,2,...], "deleted":[4,9], "version":1}
+    edit_manifest = models.JSONField(null=True, blank=True, help_text="PDF 편집 상태(삭제/재정렬)")
+    # 커밋본(재생성된 PDF)
+    edited_file = models.FileField(upload_to=book_upload_to, null=True, blank=True,
+                                   help_text="편집 커밋 후 생성된 PDF")
+    previews_ready = models.BooleanField(default=False, help_text="썸네일 생성 완료 여부")
+
+    # === 각종 메서드와 메타 ===
     def __str__(self):
         return self.title or self.original_file.name
 

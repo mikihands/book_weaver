@@ -24,7 +24,8 @@ INSTALLED_APPS = [
     'tailwind',
     'theme',
     "django_celery_beat",
-    "redisboard",  
+    "redisboard",
+    "pdfstudio",
 ]
 
 MIDDLEWARE = [
@@ -180,6 +181,11 @@ LOGGING = {
             "propagate": False,
         },
         "mybook": {
+            "handlers": ["debug_file", "error_file", "console"],
+            "level": "DEBUG",
+            "propagate": False,
+        },
+        "pdfstudio": {
             "handlers": ["debug_file", "error_file", "console"],
             "level": "DEBUG",
             "propagate": False,

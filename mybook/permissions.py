@@ -1,6 +1,7 @@
 # mybook/permissions.py
 from rest_framework import permissions
 from mybook.core.plans import PLAN_LEVELS
+from django.utils.translation import gettext_lazy as _
 
 class IsBookOwner(permissions.BasePermission):
     """
@@ -15,7 +16,7 @@ class PlanPermission(permissions.BasePermission):
     """
     사용자의 구독 플랜 레벨이 특정 작업 수행에 필요한 최소 레벨을 충족하는지 확인합니다.
     """
-    message = "Your current plan does not allow this operation."
+    message = _("죄송합니다. 현재 기능은 상위 플랜이 필요합니다. 상위 플랜으로 업그레이드 해주세요.")
 
     def has_permission(self, request, view):
         # staff/superuser 우회

@@ -44,9 +44,10 @@ from .utils.pdf_sanitizer import sanitize_pdf_active_content # 새 임포트
 from .utils.pdf_inspector import inspect_pdf, choose_processing_mode
 from .utils.delete_dir_files import safe_remove
 from .utils.membership_updater import MembershipUpdater
+from .utils.pdf_previews import ensure_previews
 from django.utils.dateparse import parse_datetime
 from .tasks import translate_book_pages, retranslate_single_page, translate_book_pages_born_digital
-from .permissions import IsBookOwner
+from .permissions import IsBookOwner, PlanPermission
 from common.mixins.hmac_sign_mixin import HmacSignMixin
 
 logger = logging.getLogger(__name__)
@@ -244,6 +245,9 @@ class BookUploadView(APIView):
                 book.page_count = len(norm_pages)
                 book.status = "uploaded" # Extraction is done, now ready for translation prep
                 book.save(update_fields=["page_count", "status"])
+
+                # Preview 이미지 만들기
+                ensure_previews(pdf_path=pdf_path, book_id=book.id) # type: ignore
 
             prepare_url = request.build_absolute_uri(
                 reverse("mybook:book_prepare", kwargs={"book_id": book.id}) # type: ignore
@@ -1204,7 +1208,7 @@ class BulkDeleteBooksAPIView(APIView):
                 # 본문내 이미지 추출파일 제거
                 extracted_images = Path(settings.MEDIA_ROOT) / "extracted_images" / f"{book.id}" #type:ignore
                 safe_remove(extracted_images)
-                # 원본파일
+                # 원본파일 (edited.pdf 도 동일한 디렉토리 이므로 함께 삭제됨)
                 original_files = Path(settings.MEDIA_ROOT) / "original" / f"book_{book.id}" #type:ignore
                 safe_remove(original_files)
 
@@ -1230,7 +1234,8 @@ class PublishBookAPIView(APIView):
     - 기본: faithful.
     - 즉시 동기 PDF 생성(WeasyPrint 설치 권장). 미설치 시 400 반환.
     """
-    permission_classes = [IsAuthenticated, IsBookOwner]
+    permission_classes = [IsAuthenticated, IsBookOwner, PlanPermission]
+    min_plan ="Starter"
 
     def _get_publish_params(self, request_data, book_id):
         ser = PublishRequestSerializer(data=request_data)

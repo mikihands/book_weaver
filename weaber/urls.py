@@ -17,5 +17,6 @@ if settings.DEBUG:
     ]
 
 urlpatterns += i18n_patterns(
-    path("", include("mybook.urls", namespace="mybook")),  # mybook 앱의 URL 포함
+    path("", include("mybook.urls", namespace="mybook")),
+    path("", include("pdfstudio.urls", namespace="pdfstudio")),
 )

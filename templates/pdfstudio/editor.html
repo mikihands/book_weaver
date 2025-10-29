@@ -1,0 +1,580 @@
+{% extends "base.html" %}
+{% load i18n %}
+{% load static tailwind_tags %}
+
+{% block title %}PDF 편집기 · {{ book.title }}{% endblock %}
+
+{% block additional_head %}
+  <!-- SortableJS (썸네일 드래그 앤 드롭) -->
+  <script src="https://cdn.jsdelivr.net/npm/sortablejs@1.15.2/Sortable.min.js" defer></script>
+
+  <!-- PDF.js (오른쪽 미리보기) -->
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/2.16.105/pdf.min.js" defer></script>
+  <script>
+    // PDF.js 워커 설정 (CDN)
+    document.addEventListener('DOMContentLoaded', function() {
+      if (window['pdfjsLib']) {
+        pdfjsLib.GlobalWorkerOptions.workerSrc = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/2.16.105/pdf.worker.min.js';
+      }
+    });
+  </script>
+
+  <style>
+    .editor-wrap {
+      display: grid;
+      grid-template-columns: 320px 1fr;
+      gap: 16px;
+      height: calc(100vh - 160px);
+      min-height: 640px;
+    }
+    .panel {
+      background: var(--bs-body-bg, #fff);
+      border: 1px solid var(--bs-border-color, #e5e7eb);
+      border-radius: 12px;
+      box-shadow: 0 1px 2px rgba(0,0,0,.04);
+      overflow: hidden;
+      display: flex;
+      flex-direction: column;
+      min-height: 0;
+    }
+    .panel-header {
+      padding: 10px 12px;
+      border-bottom: 1px solid var(--bs-border-color, #e5e7eb);
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 8px;
+    }
+    .panel-body {
+      padding: 8px;
+      overflow: auto;
+      min-height: 0;
+      height: 100%;
+    }
+    /* 썸네일 리스트 */
+    .thumb-list {
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
+    }
+    .thumb {
+      display: grid;
+      grid-template-columns: 56px 1fr auto;
+      align-items: center;
+      gap: 8px;
+      padding: 8px;
+      border: 1px solid #e5e7eb;
+      border-radius: 10px;
+      background: #fff;
+      cursor: grab;
+      user-select: none;
+    }
+    .thumb.dragging {
+      opacity: .6;
+    }
+    .thumb.selected {
+      outline: 2px solid #2563eb; /* blue-600 */
+    }
+    .thumb.deleted {
+      opacity: .45;
+      background: #f8fafc;
+    }
+    .thumb img {
+      width: 56px;
+      height: 72px;
+      object-fit: cover;
+      border-radius: 6px;
+      border: 1px solid #e5e7eb;
+      background: #fafafa;
+    }
+    .thumb-title {
+      font-size: 13px;
+      color: #334155;
+    }
+    .thumb-badge {
+      font-size: 11px;
+      padding: 2px 6px;
+      border-radius: 999px;
+      border: 1px solid #e5e7eb;
+      color: #475569;
+      background: #f8fafc;
+    }
+    .thumb .checkbox {
+      transform: scale(1.1);
+    }
+    /* 우측 캔버스 */
+    .viewer-canvas-wrap {
+      display: grid;
+      place-items: center;
+      height: 100%;
+      background: repeating-linear-gradient(
+        45deg,
+        #fafafa,
+        #fafafa 10px,
+        #f6f7f9 10px,
+        #f6f7f9 20px
+      );
+    }
+    .viewer-canvas-inner {
+      padding: 12px;
+      background: #fff;
+      border: 1px solid #e5e7eb;
+      border-radius: 12px;
+      max-height: 100%;
+      overflow: auto;
+    }
+    #pdfCanvas {
+      max-width: min(100%, 1200px);
+      height: auto;
+      display: block;
+      box-shadow: 0 8px 20px rgba(0,0,0,.08);
+      border-radius: 6px;
+    }
+
+    /* 상단 바 */
+    .topbar {
+      display: flex;
+      align-items: center;
+      justify-content: space-between; /* This will be overridden by Tailwind, but keep for context */
+      gap: 12px;
+      margin-bottom: 12px;
+      flex-wrap: wrap;
+      padding: 8px;
+      border-radius: 12px;
+      background-color: #f8fafc; /* bg-slate-50 */
+      border: 1px solid #e2e8f0; /* border-slate-200 */
+    }
+    @media (max-width: 1024px) {
+      .editor-wrap {
+        grid-template-columns: 1fr;
+      }
+    }
+  </style>
+{% endblock %}
+
+{% block content %}
+<div class="container-fluid">
+  <div class="topbar flex flex-wrap items-center justify-between gap-4">
+    <!-- Left: Navigation -->
+    <div class="flex items-center gap-3">
+      <a href="{% url 'mybook:book_prepare' book.id %}" class="inline-flex items-center gap-2 px-3 py-2 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-lg shadow-sm hover:bg-gray-50">
+        <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" viewBox="0 0 20 20" fill="currentColor"><path fill-rule="evenodd" d="M12.707 5.293a1 1 0 010 1.414L9.414 10l3.293 3.293a1 1 0 01-1.414 1.414l-4-4a1 1 0 010-1.414l4-4a1 1 0 011.414 0z" clip-rule="evenodd" /></svg>
+        {% trans "돌아가기" %}
+      </a>
+      <h1 class="text-lg font-semibold text-gray-800">
+        {% trans "PDF 편집기" %} <span class="font-normal text-gray-500">· {{ book.title }}</span>
+      </h1>
+    </div>
+
+    <!-- Center: Actions -->
+    <div class="flex items-center gap-2 rounded-lg bg-white border border-gray-200 p-1 shadow-sm">
+      <button id="btnRestore" class="inline-flex items-center gap-2 px-3 py-1.5 text-sm font-medium text-gray-700 rounded-md hover:bg-gray-100" type="button" title="{% trans '선택 복원' %}">
+        <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" viewBox="0 0 20 20" fill="currentColor"><path fill-rule="evenodd" d="M15.328 6.328a.75.75 0 01.328 1.036l-7.5 10.5a.75.75 0 01-1.33.074l-3.5-7.5a.75.75 0 011.33-.62l2.962 6.348 6.8-9.522a.75.75 0 011.01-.076z" clip-rule="evenodd" /></svg>
+        {% trans "선택 복원" %}
+      </button>
+      <button id="btnDelete" class="inline-flex items-center gap-2 px-3 py-1.5 text-sm font-medium text-red-600 rounded-md hover:bg-red-50" type="button" title="{% trans '선택 삭제' %}">
+        <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" viewBox="0 0 20 20" fill="currentColor"><path fill-rule="evenodd" d="M8.75 1A2.75 2.75 0 006 3.75v.443c-1.157.234-2.13.86-2.827 1.758L.702 8.422a.75.75 0 001.06 1.06l2.47-2.47A3.233 3.233 0 016 6.75h8c.29 0 .57.04.84.115l3.218-3.218a.75.75 0 00-1.06-1.06L14.53 5.053A3.25 3.25 0 0011.25 3H8.75zM4.5 8.25a.75.75 0 000 1.5h11a.75.75 0 000-1.5h-11zM3 12.75a.75.75 0 01.75-.75h12.5a.75.75 0 010 1.5H3.75a.75.75 0 01-.75-.75zM3.75 16a.75.75 0 000 1.5h7.5a.75.75 0 000-1.5h-7.5z" clip-rule="evenodd" /></svg>
+        {% trans "선택 삭제" %}
+      </button>
+    </div>
+
+    <!-- Right: Global Controls -->
+    <div class="flex items-center gap-3">
+      <div class="flex items-center gap-2 text-sm text-gray-600">
+        <input id="toggleShowDeleted" type="checkbox" class="h-4 w-4 rounded border-gray-300 text-blue-600 focus:ring-blue-500" checked>
+        <label for="toggleShowDeleted" class="cursor-pointer">{% trans "삭제 페이지 표시" %}</label>
+      </div>
+      <button id="btnReset" class="px-3 py-2 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-lg shadow-sm hover:bg-gray-50" type="button" title="{% trans '모든 편집 초기화' %}">
+        {% trans "초기화" %}
+      </button>
+      <button id="btnCommit" class="inline-flex items-center gap-2 px-4 py-2 text-sm font-semibold text-white bg-blue-600 border border-transparent rounded-lg shadow-sm hover:bg-blue-700" type="button">
+        {% trans "커밋(편집 적용)" %}
+        <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" viewBox="0 0 20 20" fill="currentColor"><path fill-rule="evenodd" d="M7.293 14.707a1 1 0 010-1.414L10.586 10 7.293 6.707a1 1 0 011.414-1.414l4 4a1 1 0 010 1.414l-4 4a1 1 0 01-1.414 0z" clip-rule="evenodd" /></svg>
+      </button>
+    </div>
+  </div>
+
+  <div class="editor-wrap">
+    <!-- 좌측: 썸네일 -->
+    <div class="panel">
+      <div class="panel-header">
+        <div class="d-flex align-items-center gap-2">
+          <strong>{% trans "페이지" %}</strong>
+          <span class="text-muted" id="pageCounter">0</span>
+        </div>
+        <div class="d-flex align-items-center gap-2">
+          <input id="searchInput" type="text" class="form-control form-control-sm" style="width:140px" placeholder="{% trans '페이지 검색 (예: 12)' %}">
+          <button id="btnClearSel" class="btn btn-outline-secondary btn-sm" type="button">{% trans "선택 해제" %}</button>
+        </div>
+      </div>
+      <div class="panel-body">
+        <div id="thumbList" class="thumb-list"></div>
+      </div>
+    </div>
+
+    <!-- 우측: 큰 미리보기 (PDF.js 캔버스) -->
+    <div class="panel">
+      <div class="panel-header">
+        <div class="d-flex align-items-center gap-2">
+          <strong>{% trans "미리보기" %}</strong>
+          <span id="currentPageLabel" class="text-muted">-</span>
+        </div>
+        <div class="d-flex align-items-center gap-2">
+          <div class="btn-group btn-group-sm" role="group">
+            <button id="btnPrev" class="btn btn-outline-secondary" type="button">‹</button>
+            <button id="btnNext" class="btn btn-outline-secondary" type="button">›</button>
+          </div>
+          <div class="input-group input-group-sm" style="width: 140px;">
+            <span class="input-group-text">{% trans "확대" %}</span>
+            <input id="zoomRange" type="range" class="form-range" min="50" max="200" value="100" step="10"
+                   style="width: 92px;">
+          </div>
+        </div>
+      </div>
+      <div class="panel-body viewer-canvas-wrap">
+        <div class="viewer-canvas-inner">
+          <canvas id="pdfCanvas"></canvas>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+(function(){
+  // ------------ 설정/상태 ------------
+  const bookId = {{ book.id }};
+  const endpoints = {
+    list: "{% url 'pdfstudio:list_pages' book.id %}",
+    reorder: "{% url 'pdfstudio:reorder' book.id %}",
+    del: "{% url 'pdfstudio:delete' book.id %}",
+    restore: "{% url 'pdfstudio:restore' book.id %}",
+    commit: "{% url 'pdfstudio:commit' book.id %}",
+    reset: "{% url 'pdfstudio:reset' book.id %}",
+    pdfStream: "{% url 'pdfstudio:stream_original' book.id %}",
+  };
+
+  const state = {
+    pages: [],          // [{page_no, width, height, preview_url, deleted}]
+    selected: new Set(),// 선택된 page_no 집합
+    order: [],          // 현재 순서 (page_no 배열)
+    currentPage: null,  // 우측 캔버스에서 보는 page_no
+    showDeleted: true,
+    pdf: null,          // PDF.js 문서
+    pdfScale: 1.0,      // 렌더 배율
+  };
+
+  // ------------ 유틸 ------------
+  function getCookie(name) {
+    const m = document.cookie.match('(^|;)\\s*' + name + '\\s*=\\s*([^;]+)');
+    return m ? m.pop() : '';
+  }
+  const csrftoken = getCookie('csrftoken');
+
+  function byId(id){ return document.getElementById(id); }
+  const elThumbList = byId('thumbList');
+  const elPageCounter = byId('pageCounter');
+  const elCurrentPageLabel = byId('currentPageLabel');
+  const elZoomRange = byId('zoomRange');
+
+  function toast(msg){
+    // 가벼운 안내
+    console.log('[editor]', msg);
+  }
+
+  function renderPageCount(){
+    const total = state.pages.length;
+    const deleted = state.pages.filter(p => p.deleted).length;
+    elPageCounter.textContent = `${total} / -${deleted}`;
+  }
+
+  function pageItemHTML(p){
+    const delClass = p.deleted ? 'deleted' : '';
+    const selectedClass = state.selected.has(p.page_no) ? 'selected' : '';
+    return `
+      <div class="thumb ${delClass} ${selectedClass}" data-page="${p.page_no}">
+        <img src="${p.preview_url}" alt="p${p.page_no}">
+        <div class="thumb-title">
+          <div class="fw-semibold">#${p.page_no}</div>
+          <div class="text-muted" style="font-size:12px">${Math.round(p.width)}×${Math.round(p.height)}</div>
+        </div>
+        <div class="d-flex align-items-center gap-2">
+          ${p.deleted ? `<span class="thumb-badge">{% trans "삭제됨" %}</span>` : ``}
+          <input type="checkbox" class="checkbox" ${state.selected.has(p.page_no) ? 'checked' : ''} />
+        </div>
+      </div>
+    `;
+  }
+
+  function rebuildThumbList(){
+    const showDeleted = state.showDeleted;
+    const html = state.order
+      .map(pno => state.pages.find(p => p.page_no === pno))
+      .filter(p => !!p)
+      .filter(p => showDeleted ? true : !p.deleted)
+      .map(pageItemHTML)
+      .join('');
+    elThumbList.innerHTML = html;
+  }
+
+  function syncSelectedFromDOM(){
+    const cards = elThumbList.querySelectorAll('.thumb');
+    state.selected.clear();
+    cards.forEach(card => {
+      const chk = card.querySelector('.checkbox');
+      if (chk && chk.checked) {
+        state.selected.add(Number(card.dataset.page));
+      }
+    });
+  }
+
+  function setSelected(pno, on){
+    if (on) state.selected.add(pno);
+    else state.selected.delete(pno);
+    rebuildThumbList();
+  }
+
+  function ensureCurrentPage(){
+    // 현재 페이지가 없거나 삭제되어 있으면 다음 유효 페이지로
+    if (!state.currentPage || state.pages.find(p => p.page_no === state.currentPage)?.deleted){
+      const candidate = state.order.find(pno => !state.pages.find(p => p.page_no === pno)?.deleted);
+      state.currentPage = candidate || state.order[0];
+    }
+    elCurrentPageLabel.textContent = state.currentPage ? `#${state.currentPage}` : '-';
+  }
+
+  // ------------ PDF.js 렌더 ------------
+  async function loadPdfOnce(){
+    if (state.pdf) return state.pdf;
+    const loadingTask = pdfjsLib.getDocument(endpoints.pdfStream);
+    state.pdf = await loadingTask.promise;
+    return state.pdf;
+  }
+
+  async function renderPdfPage(pageNo){
+    const pdf = await loadPdfOnce();
+    const page = await pdf.getPage(pageNo);
+    const viewport = page.getViewport({ scale: state.pdfScale });
+    const canvas = byId('pdfCanvas');
+    const ctx = canvas.getContext('2d');
+    canvas.width = viewport.width;
+    canvas.height = viewport.height;
+    const renderContext = { canvasContext: ctx, viewport };
+    await page.render(renderContext).promise;
+  }
+
+  async function jumpTo(pageNo){
+    state.currentPage = pageNo;
+    elCurrentPageLabel.textContent = `#${pageNo}`;
+    await renderPdfPage(pageNo);
+    // 썸네일에 선택 반영
+    state.selected = new Set([pageNo]);
+    rebuildThumbList();
+  }
+
+  // ------------ 서버 통신 ------------
+  async function apiGET(url){
+    const res = await fetch(url, { credentials: 'same-origin' });
+    if (!res.ok) throw new Error(`GET ${url} ${res.status}`);
+    return await res.json();
+  }
+  async function apiJSON(url, method, bodyObj){
+    const res = await fetch(url, {
+      method,
+      headers: {
+        'Content-Type': 'application/json',
+        'X-CSRFToken': csrftoken,
+      },
+      credentials: 'same-origin',
+      body: JSON.stringify(bodyObj)
+    });
+    const data = await res.json().catch(()=> ({}));
+    if (!res.ok) {
+      const msg = data?.detail || `${method} ${url} ${res.status}`;
+      throw new Error(msg);
+    }
+    return data;
+  }
+
+  async function fetchPages(){
+    const data = await apiGET(endpoints.list);
+    state.pages = data.pages.slice();
+    state.order = data.pages.map(p => p.page_no);
+    renderPageCount();
+    rebuildThumbList();
+    ensureCurrentPage();
+    await jumpTo(state.currentPage);
+  }
+
+  async function sendReorder(){
+    await apiJSON(endpoints.reorder, 'PATCH', { order: state.order });
+    toast('reordered');
+  }
+
+  async function sendDelete(pages){
+    await apiJSON(endpoints.del, 'POST', { pages });
+    // 로컬 상태 업데이트
+    state.pages.forEach(p => { if (pages.includes(p.page_no)) p.deleted = true; });
+    renderPageCount(); rebuildThumbList(); ensureCurrentPage();
+  }
+
+  async function sendRestore(pages){
+    await apiJSON(endpoints.restore, 'POST', { pages });
+    state.pages.forEach(p => { if (pages.includes(p.page_no)) p.deleted = false; });
+    renderPageCount(); rebuildThumbList(); ensureCurrentPage();
+  }
+
+  async function sendCommit(){
+    const data = await apiJSON(endpoints.commit, 'POST', {});
+    // 커밋 성공 → book_prepare로 이동
+    if (data.prepare_url) {
+      window.location.href = data.prepare_url;
+    } else {
+      // prepare_url이 없다면 새 편집본 기준으로 다시 로드
+      state.pdf = null;
+      await fetchPages();
+      toast('committed');
+    }
+  }
+
+  async function sendReset(){
+    await apiJSON(endpoints.reset, 'POST', {});
+    state.pdf = null;
+    await fetchPages();
+  }
+
+  // ------------ 이벤트 바인딩 ------------
+  function bindThumbEvents(){
+    // 클릭(체크박스/카드) 처리
+    elThumbList.addEventListener('click', async (e) => {
+      const card = e.target.closest('.thumb');
+      if (!card) return;
+      const pno = Number(card.dataset.page);
+      if (e.target.classList.contains('checkbox')) {
+        // 체크만 토글
+        syncSelectedFromDOM();
+        return;
+      }
+      // 카드 클릭 시 단일 선택 + 미리보기 이동
+      state.selected = new Set([pno]);
+      rebuildThumbList();
+      await jumpTo(pno);
+    });
+
+    // 드래그 앤 드롭 정렬
+    new Sortable(elThumbList, {
+      animation: 150,
+      handle: '.thumb',
+      onStart: (evt) => {
+        evt.item.classList.add('dragging');
+      },
+      onEnd: async (evt) => {
+        evt.item.classList.remove('dragging');
+        // DOM 순서를 읽어 order 재생성
+        const items = elThumbList.querySelectorAll('.thumb');
+        const newOrder = Array.from(items).map(el => Number(el.dataset.page));
+        state.order = newOrder;
+        try {
+          await sendReorder();
+        } catch (err){ alert(err.message); }
+      }
+    });
+  }
+
+  function bindToolbarEvents(){
+    byId('btnDelete').addEventListener('click', async () => {
+      const pages = Array.from(state.selected);
+      if (!pages.length) return alert('{% trans "선택된 페이지가 없습니다." %}');
+      try {
+        await sendDelete(pages);
+        // 현재 페이지가 삭제되면 다음 유효 페이지로 이동
+        ensureCurrentPage();
+        await jumpTo(state.currentPage);
+      } catch (err){ alert(err.message); }
+    });
+
+    byId('btnRestore').addEventListener('click', async () => {
+      const pages = Array.from(state.selected);
+      if (!pages.length) return alert('{% trans "선택된 페이지가 없습니다." %}');
+      try {
+        await sendRestore(pages);
+        await jumpTo(state.currentPage);
+      } catch (err){ alert(err.message); }
+    });
+
+    byId('btnCommit').addEventListener('click', async () => {
+      if (!confirm('{% trans "편집 내용을 커밋하여 새 PDF를 생성합니다. 진행하시겠습니까?" %}')) return;
+      try {
+        await sendCommit();
+      } catch (err){ alert(err.message); }
+    });
+
+    byId('btnReset').addEventListener('click', async () => {
+      if (!confirm('{% trans "모든 편집 상태를 초기화합니다. 진행하시겠습니까?" %}')) return;
+      try {
+        await sendReset();
+      } catch (err){ alert(err.message); }
+    });
+
+    byId('btnClearSel').addEventListener('click', () => {
+      state.selected.clear();
+      rebuildThumbList();
+    });
+
+    // 삭제 표시 토글
+    byId('toggleShowDeleted').addEventListener('change', (e) => {
+      state.showDeleted = e.target.checked;
+      rebuildThumbList();
+    });
+
+    // 검색
+    byId('searchInput').addEventListener('input', (e)=>{
+      const q = (e.target.value || '').trim();
+      if (!q) {
+        rebuildThumbList();
+        return;
+      }
+      const num = Number(q);
+      if (Number.isInteger(num)) {
+        // 해당 번호만 위로 보이도록 정렬된 가짜 목록 생성
+        const first = state.order.filter(p => p === num);
+        const rest  = state.order.filter(p => p !== num);
+        const save = state.order.slice();
+        state.order = first.concat(rest);
+        rebuildThumbList();
+        state.order = save;
+      }
+    });
+
+    // 미리보기 컨트롤
+    byId('btnPrev').addEventListener('click', async ()=>{
+      const idx = state.order.indexOf(state.currentPage);
+      if (idx > 0) await jumpTo(state.order[idx-1]);
+    });
+    byId('btnNext').addEventListener('click', async ()=>{
+      const idx = state.order.indexOf(state.currentPage);
+      if (idx < state.order.length-1) await jumpTo(state.order[idx+1]);
+    });
+    elZoomRange.addEventListener('input', async (e)=>{
+      const v = Number(e.target.value);
+      state.pdfScale = v / 100.0;
+      await renderPdfPage(state.currentPage);
+    });
+  }
+
+  // ------------ 초기화 ------------
+  document.addEventListener('DOMContentLoaded', async function(){
+    bindThumbEvents();
+    bindToolbarEvents();
+    try {
+      await fetchPages();
+    } catch (err){
+      console.error(err);
+      alert('{% trans "페이지 정보를 불러오지 못했습니다." %}');
+    }
+  });
+})();
+</script>
+{% endblock %}

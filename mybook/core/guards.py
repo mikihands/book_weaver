@@ -2,14 +2,14 @@
 from functools import wraps
 from rest_framework.exceptions import PermissionDenied
 from .plans import is_plan_at_least
-from django.utils.translation import gettext
+from django.utils.translation import gettext_lazy as _
 
 def require_plan(min_plan: str):
     def deco(func):
         @wraps(func)
         def wrapper(self, request, *args, **kwargs):
             if not is_plan_at_least(request.user, min_plan):
-                raise PermissionDenied(gettext("상위 플랜이 필요합니다."))
+                raise PermissionDenied(_("상위 플랜이 필요합니다."))
             return func(self, request, *args, **kwargs)
         return wrapper
     return deco

@@ -170,7 +170,7 @@ def translate_book_pages(self, book_id: int, target_lang: str, page_numbers_to_p
                 if data.get("has_figures"):
                     page_no_from_data = data["page"]["page_no"]
                     norm_w, norm_h = data["page"]["page_w"], data["page"]["page_h"]
-                    pdf_path = book.original_file.path
+                    pdf_path = book.edited_file.path if book.edited_file else book.original_file.path
 
                     # 1. HTML에서 실제 data-ref를 추출하고, 설명 레이블과 매핑합니다.
                     soup = BeautifulSoup(data.get("html_stage", ""), "html.parser")
@@ -285,12 +285,12 @@ def translate_book_pages_born_digital(self, book_id: int, target_lang: str, page
 
         # [OPTIMIZATION] 모든 페이지의 레이아웃을 미리 읽어 메모리에 캐싱합니다.
         # 이렇게 하면 다음 페이지 컨텍스트를 위해 PDF를 반복적으로 읽는 것을 방지할 수 있습니다.
-        raw_layouts = {p.page_no: collect_page_layout(book.original_file.path, p.page_no) for p in pages}
+        pdf_path = book.edited_file.path if book.edited_file else book.original_file.path
+        raw_layouts = {p.page_no: collect_page_layout(pdf_path, p.page_no) for p in pages}
         # 이전 페이지의 번역 결과를 저장할 캐시
         translated_results_cache = {}
 
         total_job_pages = len(pages)
-        pdf_path = book.original_file.path
 
         for i, page in enumerate(pages, start=1):
             pno = page.page_no
@@ -400,15 +400,15 @@ def translate_book_pages_born_digital(self, book_id: int, target_lang: str, page
 
                 # 서버에서 original_text를 재구성합니다.
                 for para in layout_and_translation_data:
-                    indices = para.get("span_indices", [])
+                    indices = para.get("span_indices", []) # type: ignore
                     original_text = " ".join(spans[i]['text'] for i in indices if i < len(spans))
-                    para['original_text'] = original_text.strip()
+                    para['original_text'] = original_text.strip() # type: ignore
 
                 # [REVISED] Gemini가 반환한 문단별 span_indices를 사용하여 직접 line-height를 계산하고 주입합니다.
                 # 이렇게 하면 로컬의 휴리스틱 문단 감지 로직에 의존하지 않고 안정적으로 줄간격을 계산할 수 있습니다.
                 for para_from_gemini in layout_and_translation_data:
-                    para_from_gemini['line_height'] = calculate_line_height_for_paragraph(
-                        span_indices=para_from_gemini.get('span_indices', []),
+                    para_from_gemini['line_height'] = calculate_line_height_for_paragraph( # type: ignore
+                        span_indices=para_from_gemini.get('span_indices', []),  # type: ignore
                         all_spans=spans
                     )
 
@@ -509,7 +509,8 @@ def retranslate_single_page(self, book_id: int, page_no: int, target_lang: str, 
             try:
                 next_page = BookPage.objects.get(book=book, page_no=page_no + 1)
                 if next_page:
-                    raw_layout = collect_page_layout(book.original_file.path, page_no + 1)
+                    raw_pdf_path = book.edited_file.path if book.edited_file else book.original_file.path
+                    raw_layout = collect_page_layout(raw_pdf_path, page_no + 1)
                     next_page_spans = raw_layout.get("spans", [])
                     if next_page_spans:
                         next_page_span_texts = [
@@ -556,7 +557,8 @@ def retranslate_single_page(self, book_id: int, page_no: int, target_lang: str, 
                     para['translated_text'] = newly_translated_texts[i]
                 
                 # Re-build HTML with the new translations
-                raw_layout_data = collect_page_layout(book.original_file.path, page_no)
+                raw_pdf_path = book.edited_file.path if book.edited_file else book.original_file.path
+                raw_layout_data = collect_page_layout(raw_pdf_path, page_no)
                 image_src_map = _inject_images_from_db(raw_layout_data, book, page_no)
                 html_faithful = build_faithful_html(raw_layout_data, paragraphs, image_src_map=image_src_map)
                 html_readable = build_readable_html(paragraphs)
@@ -644,7 +646,7 @@ def retranslate_single_page(self, book_id: int, page_no: int, target_lang: str, 
             if data.get("has_figures"):
                 page_no_from_data = data["page"]["page_no"]
                 norm_w, norm_h = data["page"]["page_w"], data["page"]["page_h"]
-                pdf_path = book.original_file.path
+                pdf_path = book.edited_file.path if book.edited_file else book.original_file.path
 
                 # 1. HTML에서 실제 data-ref를 추출하고, 설명 레이블과 매핑합니다.
                 soup = BeautifulSoup(data.get("html_stage", ""), "html.parser")

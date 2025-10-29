@@ -55,13 +55,15 @@ class GeminiFileRefManager:
         """
         Extracts a single page from the book's PDF and returns it as a `Part`.
         """
+        pdf_path = book.edited_file.path if book.edited_file else book.original_file.path
         logger.debug(f"Creating inline Part for book {book.id}, page {page_no}")
-        return self._create_pdf_part_from_pages(book.original_file.path, [page_no])
+        return self._create_pdf_part_from_pages(pdf_path, [page_no])
 
     def get_page_parts(self, book, page_nos: List[int]) -> types.Part:
         """
         Extracts multiple pages from the book's PDF, combines them into a
         single new PDF, and returns it as a `Part`.
         """
+        pdf_path = book.edited_file.path if book.edited_file else book.original_file.path
         logger.debug(f"Creating combined inline Part for book {book.id}, pages {page_nos}")
-        return self._create_pdf_part_from_pages(book.original_file.path, page_nos)
+        return self._create_pdf_part_from_pages(pdf_path, page_nos)
