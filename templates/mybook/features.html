@@ -3,7 +3,7 @@
 {% block title %}Weaver — {% trans "기능 소개" %}{% endblock %}
 
 {% block content %}
-<section class="flex flex-col items-center justify-center x-auto max-w-7xl px-6 py-14 md:py-20">
+<section class="mx-auto flex flex-col items-center justify-center x-auto max-w-7xl px-6 py-14 md:py-20">
   <h1 class="text-3xl md:text-5xl text-center font-extrabold">{% blocktrans %}레이아웃을 지키는 번역, <span class="text-blue-600">더 읽기 쉽게</span>{% endblocktrans %}</h1>
   <p class="mt-5 text-lg text-slate-600 max-w-3xl">{% trans "PDF의 구조(문단/표/이미지/각주 등)를 이해하고 번역합니다. Faithful(정밀, Booky)과 Readable(가독) 두 가지 출력 모드로 목적에 맞게 활용하세요." %}</p>
 </section>
@@ -20,7 +20,7 @@
     </div>
     <div class="rounded-2xl border border-slate-200 p-6">
       <h3 class="font-semibold">{% trans "이미지·표·도형 보존" %}</h3>
-      <p class="text-sm text-slate-600 mt-2">{% trans "차트/표/캡션 위치를 반영. 스캔본도 피겨로 구성." %}</p>
+      <p class="text-sm text-slate-600 mt-2">{% trans "차트/표/캡션 위치를 반영. 스캔본도 이미지추출 후 재구성." %}</p>
     </div>
     <div class="rounded-2xl border border-slate-200 p-6">
       <h3 class="font-semibold">{% trans "문단 재번역" %}</h3>
@@ -50,8 +50,7 @@
         {% trans "요금제 비교하기" %}<svg class="w-4 h-4" viewBox="0 0 24 24"><path d="M9 5l7 7-7 7" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg>
       </a>
     </div>
-    <div class="rounded-2xl border border-slate-200 bg-white p-6">
-      <h3 class="font-semibold">{% trans "곧 제공(Coming Soon)" %}</h3>
+    <div class="my-auto">
       <ul class="mt-4 space-y-2 text-slate-700">
         <li class="flex gap-3"><span class="text-blue-600">•</span>{% trans "PDF 편집기(페이지 이동/삭제)" %}</li>
         <li class="flex gap-3"><span class="text-blue-600">•</span>{% trans "이미지(JPG/PNG) 업로드 자동 PDF 변환" %}</li>

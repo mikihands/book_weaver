@@ -484,7 +484,7 @@ class BookPageView(APIView):
 
         ctx.update({"css_vars": css_vars})
 
-        return render(request, "mybook/book_page_v2.html", ctx)
+        return render(request, "mybook/book_page.html", ctx)
     
     def _measure_html(self, html: str) -> tuple[int, int]:
         soup = BeautifulSoup(html, 'html.parser')
