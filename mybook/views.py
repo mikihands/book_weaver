@@ -26,7 +26,7 @@ from django.utils.encoding import smart_str
 from django.utils.translation import gettext as _
 from django.utils.text import get_valid_filename
 from django.urls import reverse
-from django.http import FileResponse
+from django.http import FileResponse, Http404, HttpResponse
 
 from .serializers import (
     FileUploadSerializer, RegisterSerializer, LoginSerializer, 
@@ -45,6 +45,7 @@ from .utils.pdf_inspector import inspect_pdf, choose_processing_mode
 from .utils.delete_dir_files import safe_remove
 from .utils.membership_updater import MembershipUpdater
 from .utils.pdf_previews import ensure_previews
+from .utils.original_page_image import ensure_page_image, get_page_image_path
 from django.utils.dateparse import parse_datetime
 from .tasks import translate_book_pages, retranslate_single_page, translate_book_pages_born_digital
 from .permissions import IsBookOwner, PlanPermission
@@ -332,7 +333,6 @@ class BookPageView(APIView):
     def get(self, request, book_id: int, page_no: int, *args, **kwargs):
         mode = request.GET.get("mode", "faithful")
         lang = request.GET.get("lang")
-        bg_mode = request.GET.get("bg", "off")  # auto|on|off
 
         book = get_object_or_404(Book, id=book_id, owner=request.user)
         page = get_object_or_404(BookPage, book=book, page_no=page_no)
@@ -364,33 +364,6 @@ class BookPageView(APIView):
             except Exception:
                 url = settings.MEDIA_URL.rstrip("/") + "/" + rel.replace("\\", "/")
             image_url_map[im["ref"]] = url
-
-        # 2) 배경 이미지 결정 로직
-        #    - auto: "페이지 전체를 덮는 이미지가 1장만 있고, 그 외 figure 후보가 없을 때"만 채택
-        #    - on : 가장 큰 fullpage 후보가 있으면 사용
-        #    - off: 항상 사용 안 함
-        background_url = ""
-        if imgs:
-            # fullpage 후보 추출
-            fullpage_candidates = [
-                im for im in imgs if is_fullpage_background(im["bbox"], page.width, page.height)
-            ]
-            # fullpage 외의 일반 figure 후보
-            figure_candidates = [im for im in imgs if im not in fullpage_candidates]
-
-            use_bg = False
-            if bg_mode == "on":
-                use_bg = len(fullpage_candidates) >= 1
-            elif bg_mode == "off":
-                use_bg = False
-            else:  # auto
-                # 스캔 PDF 전형: fullpage 1장 & 나머지 없음 → 배경으로만 사용
-                use_bg = (len(fullpage_candidates) == 1 and len(figure_candidates) == 0)
-
-            if use_bg:
-                # 여러 개라면 첫 번째만 사용(일반적으로 1개)
-                bg_ref = fullpage_candidates[0]["ref"]
-                background_url = image_url_map.get(bg_ref, "")
 
         # 3) v2.schema 처리
         html_stage_final = ""
@@ -473,13 +446,11 @@ class BookPageView(APIView):
             "status": status_flag,
             "page_w": int(page_w),
             "page_h": int(page_h),
-            "background_url": background_url,
             "html_stage_final": html_stage_final,  # ⬅️ 템플릿에 그대로 삽입
             "base_font_scale": base_font_scale,
             "prev_url": prev_url,
             "next_url": next_url,
             "mode": mode,
-            "bg_mode": bg_mode,
         }
 
         ctx.update({"css_vars": css_vars})
@@ -491,6 +462,28 @@ class BookPageView(APIView):
         para_like = soup.find_all(["p","li","blockquote","h1","h2","h3","h4","h5","h6"])
         text_len = len(soup.get_text(" ", strip=True))
         return text_len, max(1, len(para_like))
+    
+class OriginalPageImageView(APIView):
+    permission_classes = [IsAuthenticated, IsBookOwner]
+
+    def get(self, request, book_id, page_no):
+        book = get_object_or_404(Book, id=book_id)
+        self.check_object_permissions(request, book)
+
+        dpi = int(request.GET.get("dpi", 144))
+        pdf_file = book.edited_file or book.original_file
+        if not pdf_file or not pdf_file.path:
+            raise Http404
+
+        # 1) 생성 보장
+        abs_path = ensure_page_image(pdf_file.path, book.id, int(page_no), dpi=dpi) # type:ignore
+
+        # 2) 정적 URL 구성 (Nginx가 /media/를 직접 서빙하고 있다는 전제)
+        media_rel = Path(abs_path).relative_to(Path(settings.MEDIA_ROOT))
+        url = settings.MEDIA_URL.rstrip("/") + "/" + str(media_rel).replace("\\", "/")
+
+        # 권한을 통과한 순간, 이미지 자체는 민감하지 않으므로 그대로 URL을 반환
+        return HttpResponse(url, content_type="text/plain")
 
 class BookPageEditView(APIView):
     """

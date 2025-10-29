@@ -1,5 +1,5 @@
 {% extends "page_base.html" %}
-{% load static tailwind_tags %}
+{% load static tailwind_tags i18n %}
 {% load weaver_extras %}
 {% block title %} {{ book.title }} - p{{ page_no }} {% endblock %}
 
@@ -14,6 +14,12 @@
   .toolbar .group{display:flex;gap:8px;align-items:center}
   .toolbar button, .toolbar select{
     font:inherit;padding:6px 10px;border:1px solid #e5e7eb;border-radius:8px;background:#fff;cursor:pointer}
+  .toolbar button.active {
+    background-color: #eef2ff; /* indigo-50 */
+    border-color: #a5b4fc; /* indigo-200 */
+    color: #4338ca; /* indigo-800 */
+    font-weight: 600;
+  }
   .toolbar button:hover{background:#f3f4f6}
 
   .stage{
@@ -24,6 +30,25 @@
     justify-content: center;
     align-items: flex-start; /* 페이지를 상단에 정렬 */
     padding: 20px 0; /* 뷰어의 상하 여백 */
+  }
+  .split-view {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 16px;
+    align-items: flex-start;
+  }
+  .pdf-viewer-container {
+    display: flex;
+    justify-content: center;
+    align-items: flex-start;
+    width: 100%;
+    height: 100%;
+    overflow: auto;
+    padding: 20px 0;
+  }
+  #original-page-image {
+    border: 1px solid #e5e7eb;
+    max-width: 100%;
   }
   .page-viewport {
     background: white;
@@ -39,9 +64,6 @@
     position:relative;
     width:{{ page_w }}px;
     height:{{ page_h }}px;
-    {% if background_url %}
-      background-image:url('{{ background_url }}'); background-size:contain; background-repeat:no-repeat; background-position:center;
-    {% endif %}
     transform-origin: top left;
   }
 
@@ -71,7 +93,7 @@
 {% endblock %}
 
 {% block content %}
-<div class="content" 
+<div id="translation-container" class="content" 
     style="
     --font-base: {{ css_vars|dict_get:'--font-base' }};
     --leading: {{ css_vars|dict_get:'--leading' }};
@@ -81,6 +103,10 @@
     --pad: {{ css_vars|dict_get:'--pad' }};
 ">
   {{ html_stage_final|safe }}
+</div>
+
+<div id="originalPane" class="d-none">
+    <img id="origImg" alt="원본 페이지" style="max-width:100%;height:auto;border:1px solid #e5e7eb;border-radius:8px;">
 </div>
 {% endblock %}
 
@@ -98,14 +124,6 @@
   const fitHBtn = document.getElementById('fitH');
   const zoomIn  = document.getElementById('zoomIn');
   const zoomOut = document.getElementById('zoomOut');
-  const bgModeSel = document.getElementById('bgMode');
-
-  const params = new URLSearchParams(location.search);
-  bgModeSel.addEventListener('change', ()=>{
-    const p = new URLSearchParams(location.search);
-    p.set('bg', bgModeSel.value);
-    location.search = p.toString();
-  });
 
   let scale = 1.0;
   let zoomMode = 'fitWidth'; // 'fitWidth', 'fitHeight', 'custom' 중 하나를 저장
@@ -187,4 +205,186 @@
   })();
 })();
 </script>
+
+<script>
+/**
+ * 원본보기 / 함께보기 (Option B: 페이지 이미지 캐싱)
+ * - 번역본: #translation-container
+ * - 원본:   #originalPane (내부 img#origImg)
+ * - 버튼:   #btnToggleOriginal, #btnSideBySide
+ * - 뷰모드: 'translated' | 'original' | 'sbs'
+ * 
+ * 핵심: 'sbs' 모드에서 #pageViewport 폭을 2장 기준으로 재계산해야
+ *       오른쪽 원본이 실제로 보입니다.
+ */
+(function(){
+  // -------- DOM --------
+  const btnToggleOriginal = document.getElementById('btnToggleOriginal');
+  const btnSideBySide     = document.getElementById('btnSideBySide');
+  const translatedPane    = document.getElementById('translation-container');
+  const originalPane      = document.getElementById('originalPane');
+  const origImg           = document.getElementById('origImg');
+  const pageEl            = document.getElementById('page');          // 확대/축소 transform 대상
+  const pageViewport      = document.getElementById('pageViewport');  // 실제 크기 박스
+  const stageEl           = document.getElementById('stage');         // 스크롤 컨테이너
+
+  if (!btnToggleOriginal || !btnSideBySide || !translatedPane || !originalPane || !origImg || !pageEl || !pageViewport || !stageEl) {
+    return;
+  }
+
+  // -------- 서버에서 내려줘야 하는 값 --------
+  const bookId = {{ book.id }};
+  const pageNo = {{ page_no }};
+
+  // 두 장 레이아웃 계산에 사용할 기준 페이지 크기(확대/축소 전에)
+  const BASE_PAGE_W = {{ page_w|default:800 }};
+  const BASE_PAGE_H = {{ page_h|default:1200 }};
+
+  // 엔드포인트: mybook:original_page_image(book_id, page_no)
+  const ORIGINAL_IMG_ENDPOINT = "{% url 'mybook:original_page_image' book.id 1 %}".replace(/1\/original-image\/$/, pageNo + "/original-image/");
+
+  // -------- 상태 --------
+  let mode = 'translated'; // 'translated' | 'original' | 'sbs'
+  let originalLoaded = false;
+
+  // -------- 유틸 --------
+  function show(el){ el.classList.remove('hidden','d-none'); }
+  function hide(el){ el.classList.add('hidden','d-none'); }
+
+  // 현재 scale을 #page의 transform 매트릭스에서 추정
+  function getCurrentScale() {
+    const m = getComputedStyle(pageEl).transform; // e.g. "matrix(a, b, c, d, tx, ty)"
+    if (!m || m === 'none') return 1;
+    const nums = m.match(/matrix\(([^)]+)\)/);
+    if (!nums) return 1;
+    const parts = nums[1].split(',').map(parseFloat);
+    // a=parts[0], d=parts[3] (x,y 스케일)
+    const a = parts[0] || 1, d = parts[3] || 1;
+    // 비등방 스케일은 거의 없으니 a를 사용
+    return a || 1;
+  }
+
+  // 함께보기 버튼 표시 정책(lg 이상)
+  function updateSbsButtonVisibility() {
+    if (window.innerWidth >= 1024) {
+      show(btnSideBySide);
+    } else {
+      hide(btnSideBySide);
+      if (mode === 'sbs') setMode('translated'); // 좁은 화면이면 sbs 강제 해제
+    }
+  }
+
+  async function loadOriginalImageIfNeeded() {
+    if (originalLoaded) return;
+    const dpi = (window.devicePixelRatio && window.devicePixelRatio >= 1.5) ? 192 : 144;
+    const url = ORIGINAL_IMG_ENDPOINT + "?dpi=" + dpi;
+    const res = await fetch(url, { credentials: 'same-origin' });
+    if (!res.ok) throw new Error("original image url fetch failed: " + res.status);
+    origImg.src = (await res.text()).trim();
+    originalLoaded = true;
+  }
+
+  // ***** 핵심: 모드에 맞춰 #pageViewport, #stage 크기 재계산 *****
+  function adjustViewportForMode() {
+    const scale = getCurrentScale();
+    const pad = 24;               // 기존 확대 스크립트가 쓰는 여백과 일치
+    const gap = 24;               // sbs 그리드 갭
+    const oneW = BASE_PAGE_W * scale;
+    const oneH = BASE_PAGE_H * scale;
+
+    if (mode === 'sbs') {
+      // 2장 + 갭 + 패딩
+      const vw = Math.round(oneW * 2 + gap + pad);
+      const vh = Math.round(oneH + pad);
+      pageViewport.style.width  = vw + 'px';
+      pageViewport.style.height = vh + 'px';
+      stageEl.style.height      = vh + 'px';
+    } else {
+      // 단일 장(번역 또는 원본)
+      const vw = Math.round(oneW + pad);
+      const vh = Math.round(oneH + pad);
+      pageViewport.style.width  = vw + 'px';
+      pageViewport.style.height = vh + 'px';
+      stageEl.style.height      = vh + 'px';
+    }
+  }
+
+  // 확대/축소 스크립트가 #page 스타일을 바꿀 때(=transform 변경) 자동 추적
+  const mo = new MutationObserver(() => {
+    adjustViewportForMode();
+  });
+  mo.observe(pageEl, { attributes: true, attributeFilter: ['style'] });
+
+  // 모드 전환
+  function setMode(next) {
+    mode = next;
+
+    if (mode === 'sbs') {
+      // 그리드 2열
+      pageEl.style.display = 'grid';
+      pageEl.style.gridTemplateColumns = '1fr 1fr';
+      pageEl.style.columnGap = '24px';
+      show(translatedPane);
+      show(originalPane);
+      btnToggleOriginal.textContent = "{% trans '번역본' %}";
+    } else if (mode === 'original') {
+      // 단일: 원본만
+      pageEl.style.display = '';
+      pageEl.style.gridTemplateColumns = '';
+      hide(translatedPane);
+      show(originalPane);
+      btnToggleOriginal.textContent = "{% trans '번역본' %}";
+    } else {
+      // 단일: 번역본만
+      pageEl.style.display = '';
+      pageEl.style.gridTemplateColumns = '';
+      show(translatedPane);
+      hide(originalPane);
+      btnToggleOriginal.textContent = "{% trans '원본 보기' %}";
+    }
+
+    // 모드 바뀔 때마다 뷰포트 보정
+    adjustViewportForMode();
+  }
+
+  // 이벤트
+  btnToggleOriginal.addEventListener('click', async () => {
+    if (mode === 'translated') {
+      try { await loadOriginalImageIfNeeded(); } catch(e){ console.error(e); alert("{% trans '원본 이미지를 불러오지 못했습니다.' %}"); return; }
+      setMode('original');
+    } else {
+      setMode('translated');
+    }
+  });
+
+  btnSideBySide.addEventListener('click', async () => {
+    try { await loadOriginalImageIfNeeded(); } catch(e){ console.error(e); alert("{% trans '원본 이미지를 불러오지 못했습니다.' %}"); return; }
+    setMode('sbs');
+  });
+
+  // 초기화
+  (function init(){
+    // 기본: 번역본
+    setMode('translated');
+    // 반응형 버튼 표시
+    updateSbsButtonVisibility();
+    window.addEventListener('resize', debounce(() => {
+      updateSbsButtonVisibility();
+      adjustViewportForMode();
+    }, 120));
+
+    // 혹시 초기 스케일이 적용된 상태라면 한 번 더 보정
+    adjustViewportForMode();
+  })();
+
+  function debounce(fn, wait){
+    let t=null;
+    return function(){
+      clearTimeout(t);
+      t=setTimeout(fn, wait);
+    }
+  }
+})();
+</script>
+
 {% endblock %}

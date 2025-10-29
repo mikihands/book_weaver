@@ -163,14 +163,13 @@
         </div>
 
         <div class="group">
-            <label>{% trans "배경" %}:
-                <select id="bgMode">
-                <option value="auto" {% if bg_mode == "auto" %}selected{% endif %}>auto</option>
-                <option value="on"   {% if bg_mode == "on" %}selected{% endif %}>on</option>
-                <option value="off"  {% if bg_mode == "off" %}selected{% endif %}>off</option>
-                </select>
-            </label>
-            
+            <button id="btnToggleOriginal" class="px-3 py-1.5 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-md shadow-sm hover:bg-gray-100">
+                {% trans "원본 보기" %}
+            </button>
+            <button id="btnSideBySide" class="hidden px-3 py-1.5 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-md shadow-sm hover:bg-gray-100">
+                {% trans "함께 보기" %}
+            </button>
+
             <div class="flex items-center space-x-4 p-4">
                 <button id="edit-mode-btn" class="px-4 py-2 bg-blue-500 rounded hover:bg-blue-600">
                     {% trans "편집 모드" %}

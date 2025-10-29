@@ -8,8 +8,9 @@ from .views import (
     LoginView, LoginPage, PricingPage,
     FeaturesPage, user_logout, BookshelfView,
     BookSearchAPIView, ContactAPIView, BulkDeleteBooksAPIView,
-    PublishBookAPIView, BookPageEditView, ProfileView, 
-    UpgradeCompleteView, UpgradeFailedView, EmailChangeResultView
+    PublishBookAPIView, BookPageEditView, ProfileView,
+    UpgradeCompleteView, UpgradeFailedView, EmailChangeResultView,
+    OriginalPageImageView
 )
 
 app_name = 'mybook'
@@ -25,6 +26,7 @@ urlpatterns = [
     path('books/<int:book_id>/translate/', StartTranslationView.as_view(), name='start_translation'),
     path('books/<int:book_id>/pages/<int:page_no>/retranslate/', RetranslatePageView.as_view(), name='retranslate_page'),
     path('books/<int:book_id>/pages/<int:page_no>/edit/', BookPageEditView.as_view(), name='edit_book_page'),
+    path("books/<int:book_id>/pages/<int:page_no>/original-image/", OriginalPageImageView.as_view(), name="original_page_image"),
     path('books/<int:book_id>/retry/', RetryTranslationView.as_view(), name='retry_translation'),
     path('auth/register/', RegisterView.as_view(), name='auth_register'),
     path('auth/register/success/', RegisterSuccessView.as_view(), name='register_success'),
