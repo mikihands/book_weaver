@@ -208,69 +208,111 @@
 
 <script>
 /**
- * 원본보기 / 함께보기 (Option B: 페이지 이미지 캐싱)
- * - 번역본: #translation-container
- * - 원본:   #originalPane (내부 img#origImg)
+ * 원본보기 / 함께보기 (Option B: 페이지 이미지 캐싱, '2개의 독립 뷰포트' 버전)
+ * - 번역본: #translation-container (기존 그대로, #pageViewport 안)
+ * - 원본:   #originalPane (초기엔 #page 안에 있지만, JS가 #origViewport/#origPage로 이동시킴)
  * - 버튼:   #btnToggleOriginal, #btnSideBySide
  * - 뷰모드: 'translated' | 'original' | 'sbs'
- * 
- * 핵심: 'sbs' 모드에서 #pageViewport 폭을 2장 기준으로 재계산해야
- *       오른쪽 원본이 실제로 보입니다.
+ *
+ * 핵심 아이디어:
+ *  1) #pageViewport는 번역본 전용, #origViewport(동적 생성)는 원본 전용으로 분리
+ *  2) '함께보기'에서는 #stage를 flex 컨테이너로 만들어 두 뷰포트를 나란히 배치
+ *  3) 확대/축소는 기존 #page에 걸린 transform을 관찰하여 #origPage에 그대로 복제
  */
 (function(){
-  // -------- DOM --------
+  // -------- 필수 DOM --------
   const btnToggleOriginal = document.getElementById('btnToggleOriginal');
   const btnSideBySide     = document.getElementById('btnSideBySide');
   const translatedPane    = document.getElementById('translation-container');
   const originalPane      = document.getElementById('originalPane');
   const origImg           = document.getElementById('origImg');
-  const pageEl            = document.getElementById('page');          // 확대/축소 transform 대상
-  const pageViewport      = document.getElementById('pageViewport');  // 실제 크기 박스
-  const stageEl           = document.getElementById('stage');         // 스크롤 컨테이너
+  const pageEl            = document.getElementById('page');          // (확대/축소 transform 대상)
+  const pageViewport      = document.getElementById('pageViewport');  // 번역본 뷰포트
+  const stageEl           = document.getElementById('stage');         // 스크롤/레이아웃 컨테이너
 
   if (!btnToggleOriginal || !btnSideBySide || !translatedPane || !originalPane || !origImg || !pageEl || !pageViewport || !stageEl) {
     return;
   }
 
-  // -------- 서버에서 내려줘야 하는 값 --------
+  // -------- 서버에서 내려주는 값(뷰 컨텍스트) --------
   const bookId = {{ book.id }};
   const pageNo = {{ page_no }};
 
-  // 두 장 레이아웃 계산에 사용할 기준 페이지 크기(확대/축소 전에)
-  const BASE_PAGE_W = {{ page_w|default:800 }};
-  const BASE_PAGE_H = {{ page_h|default:1200 }};
-
-  // 엔드포인트: mybook:original_page_image(book_id, page_no)
+  // 원본 이미지 URL (mybook:original_page_image)
   const ORIGINAL_IMG_ENDPOINT = "{% url 'mybook:original_page_image' book.id 1 %}".replace(/1\/original-image\/$/, pageNo + "/original-image/");
 
   // -------- 상태 --------
   let mode = 'translated'; // 'translated' | 'original' | 'sbs'
   let originalLoaded = false;
 
-  // -------- 유틸 --------
-  function show(el){ el.classList.remove('hidden','d-none'); }
-  function hide(el){ el.classList.add('hidden','d-none'); }
+  // -------- 동적으로 '두 번째 뷰포트' 만들기 --------
+  //  <div id="origViewport" class="page-viewport">
+  //    <div id="origPage" class="page">
+  //       (originalPane 가 여기로 이동됨)
+  //    </div>
+  //  </div>
+  let origViewport = document.getElementById('origViewport');
+  let origPage = document.getElementById('origPage');
 
-  // 현재 scale을 #page의 transform 매트릭스에서 추정
+  function ensureOrigViewport() {
+    if (!origViewport) {
+      origViewport = document.createElement('div');
+      origViewport.id = 'origViewport';
+      origViewport.className = 'page-viewport';
+      // 번역본 뷰포트와 비슷한 느낌(배경/테두리)으로 가볍게 스타일
+      Object.assign(origViewport.style, {
+        // page_base.css의 .page-viewport와 시각적으로 어울리도록 최소한만 지정
+        background: '#fff',
+        border: '1px solid #e5e7eb',
+        borderRadius: '12px',
+        overflow: 'hidden',
+      });
+    }
+    if (!origPage) {
+      origPage = document.createElement('div');
+      origPage.id = 'origPage';
+      origPage.className = 'page';
+      // #page와 동일하게 transform이 적용될 대상
+      origViewport.appendChild(origPage);
+    }
+    if (!originalPane.parentElement || originalPane.parentElement.id !== 'origPage') {
+      origPage.appendChild(originalPane); // 원본 패널을 두 번째 페이지 안으로 이동
+    }
+    // stage의 끝에 붙여두되, 기본은 숨김(모드 전환 때 보이게)
+    if (!origViewport.parentElement) {
+      stageEl.appendChild(origViewport);
+    }
+  }
+
+  // -------- 유틸 (null-safe) --------
+  function show(el){
+    if (!el) return;
+    if (el.classList) el.classList.remove('hidden', 'd-none');
+    el.style && (el.style.display = '');
+  }
+  function hide(el){
+    if (!el) return;
+    if (el.classList) el.classList.add('hidden', 'd-none');
+    el.style && (el.style.display = 'none');
+  }
+
   function getCurrentScale() {
-    const m = getComputedStyle(pageEl).transform; // e.g. "matrix(a, b, c, d, tx, ty)"
+    const m = getComputedStyle(pageEl).transform; // "matrix(a,b,c,d,tx,ty)" 또는 "none"
     if (!m || m === 'none') return 1;
     const nums = m.match(/matrix\(([^)]+)\)/);
     if (!nums) return 1;
     const parts = nums[1].split(',').map(parseFloat);
-    // a=parts[0], d=parts[3] (x,y 스케일)
-    const a = parts[0] || 1, d = parts[3] || 1;
-    // 비등방 스케일은 거의 없으니 a를 사용
+    const a = parts[0] || 1;
     return a || 1;
   }
 
-  // 함께보기 버튼 표시 정책(lg 이상)
+  // 함께보기 버튼은 lg 이상에서만
   function updateSbsButtonVisibility() {
     if (window.innerWidth >= 1024) {
       show(btnSideBySide);
     } else {
       hide(btnSideBySide);
-      if (mode === 'sbs') setMode('translated'); // 좁은 화면이면 sbs 강제 해제
+      if (mode === 'sbs') setMode('translated');
     }
   }
 
@@ -284,68 +326,71 @@
     originalLoaded = true;
   }
 
-  // ***** 핵심: 모드에 맞춰 #pageViewport, #stage 크기 재계산 *****
-  function adjustViewportForMode() {
-    const scale = getCurrentScale();
-    const pad = 24;               // 기존 확대 스크립트가 쓰는 여백과 일치
-    const gap = 24;               // sbs 그리드 갭
-    const oneW = BASE_PAGE_W * scale;
-    const oneH = BASE_PAGE_H * scale;
-
-    if (mode === 'sbs') {
-      // 2장 + 갭 + 패딩
-      const vw = Math.round(oneW * 2 + gap + pad);
-      const vh = Math.round(oneH + pad);
-      pageViewport.style.width  = vw + 'px';
-      pageViewport.style.height = vh + 'px';
-      stageEl.style.height      = vh + 'px';
-    } else {
-      // 단일 장(번역 또는 원본)
-      const vw = Math.round(oneW + pad);
-      const vh = Math.round(oneH + pad);
-      pageViewport.style.width  = vw + 'px';
-      pageViewport.style.height = vh + 'px';
-      stageEl.style.height      = vh + 'px';
-    }
-  }
-
-  // 확대/축소 스크립트가 #page 스타일을 바꿀 때(=transform 변경) 자동 추적
-  const mo = new MutationObserver(() => {
-    adjustViewportForMode();
-  });
-  mo.observe(pageEl, { attributes: true, attributeFilter: ['style'] });
-
-  // 모드 전환
+  // -------- 레이아웃 모드 전환 --------
   function setMode(next) {
     mode = next;
-
     if (mode === 'sbs') {
-      // 그리드 2열
-      pageEl.style.display = 'grid';
-      pageEl.style.gridTemplateColumns = '1fr 1fr';
-      pageEl.style.columnGap = '24px';
+      // 두 번째 뷰포트 준비
+      ensureOrigViewport();
+      // stage를 flex로 바꿔 두 뷰포트를 좌우 배치
+      stageEl.style.display = 'flex';
+      stageEl.style.gap = '2rem';
+      stageEl.style.alignItems = 'flex-start';
+      // 각 뷰포트 표시
+      show(pageViewport);
+      show(origViewport);
+      // 페이지(번역/원본)는 각자 자기 뷰포트 내에 표시
       show(translatedPane);
       show(originalPane);
+      // 버튼 텍스트
       btnToggleOriginal.textContent = "{% trans '번역본' %}";
+      // 크기 동기화
+      syncOrigSizeToTranslated();
     } else if (mode === 'original') {
-      // 단일: 원본만
-      pageEl.style.display = '';
-      pageEl.style.gridTemplateColumns = '';
-      hide(translatedPane);
+      ensureOrigViewport();
+      // 단일: 원본만 보이도록
+      stageEl.style.display = ''; // 기본 흐름으로(기존 CSS에 맡김)
+      hide(pageViewport);
+      show(origViewport);
       show(originalPane);
+      // 번역본은 가림
+      hide(translatedPane);
+      // 버튼 텍스트
       btnToggleOriginal.textContent = "{% trans '번역본' %}";
+      // 크기 동기화
+      syncOrigSizeToTranslated();
     } else {
       // 단일: 번역본만
-      pageEl.style.display = '';
-      pageEl.style.gridTemplateColumns = '';
+      stageEl.style.display = '';
+      show(pageViewport);
+      hide(origViewport);
       show(translatedPane);
       hide(originalPane);
       btnToggleOriginal.textContent = "{% trans '원본 보기' %}";
     }
-
-    // 모드 바뀔 때마다 뷰포트 보정
-    adjustViewportForMode();
   }
+
+  // 번역본 뷰포트의 현재 크기/배율을 읽어 원본 뷰포트/페이지에 반영
+  function syncOrigSizeToTranslated() {
+    if (!origViewport || !origPage) return;
+    // 1) transform 동기화(#page → #origPage)
+    const tr = getComputedStyle(pageEl).transform;
+    origPage.style.transform = tr && tr !== 'none' ? tr : 'scale(1)';
+    // 2) 뷰포트 크기 동기화(#pageViewport → #origViewport)
+    //    (기존 확대/축소 스크립트가 pageViewport의 width/height를 관리하므로 그대로 복제)
+    const pvStyle = getComputedStyle(pageViewport);
+    origViewport.style.width  = pvStyle.width;
+    origViewport.style.height = pvStyle.height;
+    // 3) 내부 .page 크기/패딩은 기존 CSS에 따름. 필요하면 동일한 padding을 적용해도 됨.
+  }
+
+  // 확대/축소(= #page 스타일 변화)를 감지해서 원본 페이지에도 즉시 반영
+  const mo = new MutationObserver(() => {
+    if (mode !== 'translated') { // original / sbs에서만 동기화 필요
+      syncOrigSizeToTranslated();
+    }
+  });
+  mo.observe(pageEl, { attributes: true, attributeFilter: ['style'] });
 
   // 이벤트
   btnToggleOriginal.addEventListener('click', async () => {
@@ -364,27 +409,20 @@
 
   // 초기화
   (function init(){
-    // 기본: 번역본
-    setMode('translated');
-    // 반응형 버튼 표시
-    updateSbsButtonVisibility();
+    setMode('translated');            // 기본은 번역본만
+    updateSbsButtonVisibility();      // 반응형 버튼 노출
     window.addEventListener('resize', debounce(() => {
       updateSbsButtonVisibility();
-      adjustViewportForMode();
+      if (mode !== 'translated') syncOrigSizeToTranslated();
     }, 120));
-
-    // 혹시 초기 스케일이 적용된 상태라면 한 번 더 보정
-    adjustViewportForMode();
   })();
 
   function debounce(fn, wait){
     let t=null;
-    return function(){
-      clearTimeout(t);
-      t=setTimeout(fn, wait);
-    }
+    return function(){ clearTimeout(t); t=setTimeout(fn, wait); };
   }
 })();
 </script>
+
 
 {% endblock %}
