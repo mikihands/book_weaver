@@ -491,6 +491,12 @@
     // 입력 중이면 무시
     if (isTypingContext(e.target)) return;
 
+    // 편집 모드일 경우 페이지 이동 방지
+    const saveChangesBtn = document.getElementById('save-changes-btn');
+    if (saveChangesBtn && getComputedStyle(saveChangesBtn).display !== 'none') {
+      return;
+    }
+
     if (e.key === 'ArrowLeft') {
       e.preventDefault();
       goTo(-1);
@@ -526,6 +532,5 @@
   } catch (_) {}
 })();
 </script>
-
 
 {% endblock %}
