@@ -441,6 +441,7 @@ class BookPageView(APIView):
         # 5) 템플릿 컨텍스트
         ctx = {
             "book": book,
+            "total_pages": book.page_count,
             "page_no": page_no,
             "lang": lang,
             "status": status_flag,

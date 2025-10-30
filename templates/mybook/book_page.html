@@ -424,5 +424,108 @@
 })();
 </script>
 
+<script>
+/**
+ * ← / → 키로 페이지 이동
+ * - URL 패턴: .../books/<book_id>/pages/<page_no>/... (+ query 유지)
+ * - 입력창 등 포커스 중이면 동작 안 함
+ * - 선택: 서버에서 total_pages를 내려주면 경계 체크
+ */
+(function(){
+  // 서버에서 내려주면 경계 체크에 사용 (없어도 동작함)
+  const TOTAL_PAGES = {{ total_pages|default:"null" }};   // 없으면 null
+  const CURRENT_PAGE = {{ page_no }};                     // 반드시 내려오는 값
+  const BOOK_ID = {{ book.id }};                          // 반드시 내려오는 값
+
+  // 현재 경로에서 books/<id>/pages/<n>/ 패턴을 파싱
+  function parsePath() {
+    // 예: /en/books/190/pages/1/  또는 /books/190/pages/1/
+    const m = window.location.pathname.match(/^(.*\/)?books\/(\d+)\/pages\/(\d+)\/?/);
+    if (!m) return null;
+    return {
+      prefix: m[1] || '',         // (언어 prefix 등) "/en/" 또는 "" (없을 수도 있음)
+      bookId: parseInt(m[2], 10),
+      pageNo: parseInt(m[3], 10)
+    };
+  }
+
+  // 새 페이지 URL 만들기 (querystring 유지)
+  function buildPageUrl(pageNo) {
+    const path = window.location.pathname;
+    // books/<id>/pages/<n>/ 만 새 번호로 치환 (앞/뒤 언어 prefix, 트레일링 슬래시 보존)
+    const newPath = path.replace(/(books\/\d+\/pages\/)(\d+)(\/?)/, `$1${pageNo}$3`);
+    return newPath + window.location.search;
+  }
+
+  // 포커스가 입력계열이면 true
+  function isTypingContext(target) {
+    if (!target) return false;
+    const tag = (target.tagName || '').toLowerCase();
+    if (['input','textarea','select'].includes(tag)) return true;
+    if (target.isContentEditable) return true;
+    return false;
+  }
+
+  // 페이지 이동 (경계/유효성 체크)
+  function goTo(delta) {
+    const parsed = parsePath();
+    const cur = parsed ? parsed.pageNo : CURRENT_PAGE;
+    const next = cur + delta;
+
+    // 경계 체크(선택)
+    if (TOTAL_PAGES != null) {
+      if (next < 1 || next > TOTAL_PAGES) return; // 무시
+    } else {
+      if (next < 1) return; // 음수 방지
+    }
+
+    const url = buildPageUrl(next);
+    window.location.href = url;
+  }
+
+  // 키 이벤트 핸들러
+  function onKeyDown(e) {
+    // 수정키가 눌린 경우는 무시(예: Ctrl+→, Alt+→ 등)
+    if (e.ctrlKey || e.metaKey || e.altKey) return;
+
+    // 입력 중이면 무시
+    if (isTypingContext(e.target)) return;
+
+    if (e.key === 'ArrowLeft') {
+      e.preventDefault();
+      goTo(-1);
+    } else if (e.key === 'ArrowRight') {
+      e.preventDefault();
+      goTo(1);
+    }
+  }
+
+  // 바인딩
+  document.addEventListener('keydown', onKeyDown);
+
+  // (선택) 페이지 프리페치: 다음/이전 원본 이미지 미리 요청해서 체감속도 향상
+  // 원본 이미지 엔드포인트 문자열이 있다면 간단히 치환하여 프리페치 가능
+  try {
+    // 이전 스크립트에서 만들어 둔 ORIGINAL_IMG_ENDPOINT가 있다면 활용
+    if (window.ORIGINAL_IMG_ENDPOINT) {
+      const tmpl = window.ORIGINAL_IMG_ENDPOINT;
+      function origUrlFor(page){
+        return tmpl.replace(/(pages\/)(\d+)(\/original-image\/)/, `$1${page}$3`);
+      }
+      // 가볍게 링크 프리로드
+      const cur = parsePath()?.pageNo || CURRENT_PAGE;
+      [cur+1, cur-1].forEach(p => {
+        if (p > 0 && (TOTAL_PAGES == null || p <= TOTAL_PAGES)) {
+          const link = document.createElement('link');
+          link.rel = 'prefetch';
+          link.href = origUrlFor(p) + (window.devicePixelRatio && window.devicePixelRatio>=1.5 ? '?dpi=192' : '?dpi=144');
+          document.head.appendChild(link);
+        }
+      });
+    }
+  } catch (_) {}
+})();
+</script>
+
 
 {% endblock %}
